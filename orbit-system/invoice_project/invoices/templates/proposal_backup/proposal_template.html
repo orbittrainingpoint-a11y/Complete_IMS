@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Corporate Proposal</title>
+    {% load static %}
+    <style>
+        @page {
+            size: letter portrait;
+            margin: 0;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        .background {
+            background-image: url("{% static 'firstpage.svg' %}");
+            background-size: cover;
+            background-position: center;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            color: white;
+            text-align: center;
+
+        }
+        
+        .title {
+            display: flex;
+            justify-content:start;
+            font-size: 30px;
+            margin-top: 77%;
+            margin-right: 100px;
+        }
+        
+        .course-name-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: -1200px;
+        }
+        
+
+     .course-name {
+        width: 100%;
+        font-size: 30px;
+        padding: 10px 20px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+       }
+        .logo{
+            margin-top: -10px;
+        }
+        .info-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 500px;
+            font-size: 30px;
+            line-height: 0.5;
+            margin-bottom:-90px;
+        }
+        
+        .column {
+            width: 100%;
+        }
+
+        .left-align {
+            margin-top: -250px;
+            align-self: flex-start;
+        }
+
+        .right-align {
+            margin-top: -250px;
+            align-self: flex-start;
+        }
+
+        .info-text {
+            color: white;
+            font-weight: 600;
+            font-size: 15px;
+           
+        }
+        .semitext {
+            color: white;
+            font-weight: 400;
+            font-size: 25px;
+           
+        }
+        .proposal-logo {
+          max-width: 300px;
+          height: auto;
+        }
+        @media print {
+        .proposal-logo {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+    }
+    </style>
+</head>
+<body>
+    <div class="background">
+        <div class="title">
+            <h1 style="color: #1df79c;line-height: 0.9;">{{ proposal.course.name }}</h1>
+        </div><br>
+        
+        <div class="course-name-logo">
+            
+            
+            <div class="logo">
+                {% if proposal.logo_white_url %}
+                    <img src="../../../media/{{proposal.logo_white_url }}" alt="Proposal Logo" class="proposal-logo">
+                {% else %}
+                    <img src="{% static 'logo-white.png' %}" alt="Default Logo" class="proposal-logo">
+                {% endif %}
+            </div>
+           
+        </div>
+        
+        <div class="info-section">
+            <div class="column left-align">
+                <p class="info-text">ORBIT TRAINING CENTER</p>
+                <p class="info-text" >DUBAI</p>
+                <p class="info-text semitext">{{ proposal.presenter_title }}</p>
+                <p class="info-text semitext" style="font-size: 10px;">(Corporate Training Consultant)</p>
+            </div>
+            <div class="column right-align">
+                <p class="info-text" >{{ proposal.proposal_number }}</p>
+                <p class="info-text semitext">{{ proposal.date|date:"F j, Y" }}</p>
+                <p class="info-text semitext" style="font-size: 10px;">(Only for Corporate Training)</p>
+                <p class="info-text semitext" style="font-size: 10px;">Valid For One Month</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

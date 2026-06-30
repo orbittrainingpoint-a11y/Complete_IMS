@@ -1,0 +1,684 @@
+{% extends "base.html" %}
+
+{% block title %}Courses - Training Center CRM{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<li class="breadcrumb-item active">Courses</li>
+{% endblock %}
+
+{% block content %}
+<!-- Course Management Header -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <h2 class="mb-0">Course Management</h2>
+        <p class="text-muted">Create and manage your training courses</p>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="btn-group me-3" role="group">
+            <button type="button" class="btn btn-outline-secondary active" onclick="changeView('grid')">
+                <i class="fas fa-th"></i> Grid
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="changeView('list')">
+                <i class="fas fa-list"></i> List
+            </button>
+        </div>
+        <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#courseModal">
+            <i class="fas fa-plus me-2"></i>Add Course
+        </button>
+    </div>
+</div>
+
+<!-- Course Statistics -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="dashboard-card">
+            <div class="stat-card">
+                <div class="stat-number text-primary">{{ courses | length }}</div>
+                <div class="stat-label">Total Courses</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="dashboard-card">
+            <div class="stat-card">
+                <div class="stat-number text-success">{{ courses | selectattr("is_active", "equalto", true) | list | length }}</div>
+                <div class="stat-label">Active Courses</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="dashboard-card">
+            <div class="stat-card">
+                <div class="stat-number text-info">
+                    {{ total_student_count }}
+                </div>
+                <div class="stat-label">Total Students</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="dashboard-card">
+            <div class="stat-card">
+                <div class="stat-number text-warning">
+                    AED {% set total_value = 0 %}
+                    {% for course in courses %}
+                        {% set total_value = total_value + course.price %}
+                    {% endfor %}
+                    {{ "{:,.0f}".format(total_value) }}
+                </div>
+                <div class="stat-label">Total Value</div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Search and Filter -->
+<div class="search-filter-bar mb-4">
+    <div class="row align-items-center">
+        <div class="col-md-4">
+            <div class="input-group">
+                <input type="text" class="form-control search-input" placeholder="Search courses..." id="courseSearch">
+                <button class="btn btn-outline-secondary" type="button">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <select class="form-select" id="categoryFilter">
+                <option value="">All Categories</option>
+                {% set categories = courses | map(attribute='category') | unique | list %}
+                {% for category in categories %}
+                    {% if category %}
+                    <option value="{{ category }}">{{ category }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <select class="form-select" id="statusFilter">
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Courses Grid View -->
+<div id="coursesGrid" class="row">
+    {% for course in courses %}
+    <div class="col-lg-4 col-md-6 mb-4 course-item" 
+         data-category="{{ course.category or '' }}" 
+         data-status="{{ 'active' if course.is_active else 'inactive' }}">
+        <div class="dashboard-card course-card h-100">
+            <!-- Course Header -->
+            <div class="course-header mb-3">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="course-icon bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" 
+                         style="width: 50px; height: 50px;">
+                        <i class="fas fa-book"></i>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-link" data-bs-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="viewCourse({{ course.id }})">
+                                <i class="fas fa-eye me-2"></i>View Details
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" onclick="editCourse({{ course.id }})">
+                                <i class="fas fa-edit me-2"></i>Edit
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" onclick="duplicateCourse({{ course.id }})">
+                                <i class="fas fa-copy me-2"></i>Duplicate
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="toggleCourseStatus({{ course.id }}, {{ course.is_active | lower }})">
+                                <i class="fas fa-{{ 'eye-slash' if course.is_active else 'eye' }} me-2"></i>
+                                {{ 'Deactivate' if course.is_active else 'Activate' }}
+                            </a></li>
+                            <li><a class="dropdown-item text-danger" href="#" onclick="deleteCourse({{ course.id }})">
+                                <i class="fas fa-trash me-2"></i>Delete
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="mt-2">
+                    <span class="badge {{ 'bg-success' if course.is_active else 'bg-secondary' }}">
+                        {{ 'Active' if course.is_active else 'Inactive' }}
+                    </span>
+                    {% if course.category %}
+                    <span class="badge bg-info">{{ course.category }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Course Content -->
+            <div class="course-content flex-grow-1">
+                <h5 class="course-title mb-2">{{ course.name }}</h5>
+                
+                {% if course.description %}
+                <p class="text-muted small mb-3">
+                    {{ course.description[:100] }}{% if course.description|length > 100 %}...{% endif %}
+                </p>
+                {% endif %}
+                
+                <div class="course-details">
+                    <div class="row text-center mb-3">
+                        <div class="col-4">
+                            <div class="detail-item">
+                                <div class="fw-bold text-success">AED {{ "{:,.0f}".format(course.price) }}</div>
+                                <small class="text-muted">Price</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="detail-item">
+                                <div class="fw-bold text-primary">{{ course.duration or 'N/A' }}</div>
+                                <small class="text-muted">Duration</small>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="detail-item">
+                                <div class="fw-bold text-info">{{ student_counts.get(course.id, 0) }}</div>
+                                <small class="text-muted">Students</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if course.max_students %}
+                    <div class="enrollment-progress mb-3">
+                        {% set sc = student_counts.get(course.id, 0) %}
+                        {% set enrollment_percentage = (sc / course.max_students * 100) | round(1) %}
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>Enrollment</span>
+                            <span>{{ sc }}/{{ course.max_students }}</span>
+                        </div>
+                        <div class="progress-custom">
+                            <div class="progress-bar-custom" style="width: {{ enrollment_percentage }}%"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Course Actions -->
+            <div class="course-actions mt-3 pt-3 border-top">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary view-course-btn" data-course-id="{{ course.id }}" title="View">
+    <i class="fas fa-eye"></i>
+</button>
+<button class="btn btn-sm btn-outline-warning edit-course-btn" data-course-id="{{ course.id }}" title="Edit">
+    <i class="fas fa-edit"></i>
+</button>
+<button class="btn btn-sm btn-outline-info view-students-btn" data-course-id="{{ course.id }}" data-course-name="{{ course.name }}" title="View Enrolled Students">
+    <i class="fas fa-users"></i>
+</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="text-center py-5">
+            <i class="fas fa-book fa-4x text-muted mb-3"></i>
+            <h5 class="text-muted">No courses found</h5>
+            <p class="text-muted">Create your first course to get started.</p>
+            <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#courseModal">
+                <i class="fas fa-plus me-2"></i>Create First Course
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Courses List View (Hidden by default) -->
+<div id="coursesList" class="custom-table" style="display: none;">
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Course</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Duration</th>
+                    <th>Students</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for course in courses %}
+                <tr class="course-row" 
+                    data-category="{{ course.category or '' }}" 
+                    data-status="{{ 'active' if course.is_active else 'inactive' }}">
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="course-icon bg-primary text-white rounded-circle me-3 d-flex align-items-center justify-content-center" 
+                                 style="width: 40px; height: 40px;">
+                                <i class="fas fa-book"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold">{{ course.name }}</div>
+                                <small class="text-muted">Created {{ course.created_at.strftime('%b %d, %Y') }}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if course.category %}
+                        <span class="badge bg-info">{{ course.category }}</span>
+                        {% else %}
+                        <span class="text-muted">No category</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="fw-bold text-success">AED {{ "{:,.2f}".format(course.price) }}</span>
+                    </td>
+                    <td>{{ course.duration or 'Not specified' }}</td>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <span class="me-2">{{ student_counts.get(course.id, 0) }}</span>
+                            {% if course.max_students %}
+                            <small class="text-muted">/ {{ course.max_students }}</small>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge {{ 'bg-success' if course.is_active else 'bg-secondary' }}">
+                            {{ 'Active' if course.is_active else 'Inactive' }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewCourse({{ course.id }})" title="View">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="editCourse({{ course.id }})" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="viewStudents({{ course.id }}, '{{ course.name | replace("'", "\\'") }}')" title="View Enrolled Students">
+                                <i class="fas fa-users"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteCourse({{ course.id }})" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Course Modal -->
+{% include 'modals/course_modal.html' %}
+
+<!-- Course Detail Modal -->
+<div class="modal fade" id="courseDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Course Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="courseDetailContent">
+                <!-- Course details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning" onclick="editCurrentCourse()">Edit Course</button>
+                <button type="button" class="btn btn-primary" onclick="viewCourseStudents()">View Students</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Course management JavaScript
+let currentCourseId = null;
+let currentCourseName = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.view-course-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const courseId = this.dataset.courseId;
+            viewCourse(courseId);
+        });
+    });
+
+    // Edit Course
+    document.querySelectorAll('.edit-course-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const courseId = this.dataset.courseId;
+            editCourse(courseId);
+        });
+    });
+
+    // View Students — load modal with CRM Student records for this course
+    document.querySelectorAll('.view-students-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            viewStudents(this.dataset.courseId, this.dataset.courseName);
+        });
+    });
+
+    initializeCourseSearch();
+    initializeCourseFilters();
+});
+
+function initializeCourseSearch() {
+    const searchInput = document.getElementById('courseSearch');
+    searchInput.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        filterCourses();
+    });
+}
+
+function initializeCourseFilters() {
+    const categoryFilter = document.getElementById('categoryFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    
+    [categoryFilter, statusFilter].forEach(filter => {
+        filter.addEventListener('change', filterCourses);
+    });
+}
+
+function filterCourses() {
+    const searchQuery = document.getElementById('courseSearch').value.toLowerCase();
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    
+    const courseItems = document.querySelectorAll('.course-item, .course-row');
+    let visibleCount = 0;
+    
+    courseItems.forEach(item => {
+        const courseName = item.querySelector('.course-title, .fw-bold')?.textContent?.toLowerCase() || '';
+        const courseCategory = item.dataset.category || '';
+        const courseStatus = item.dataset.status || '';
+        
+        const matchesSearch = courseName.includes(searchQuery);
+        const matchesCategory = !categoryFilter || courseCategory === categoryFilter;
+        const matchesStatus = !statusFilter || courseStatus === statusFilter;
+        
+        if (matchesSearch && matchesCategory && matchesStatus) {
+            item.style.display = '';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+    
+    updateFilterResults(visibleCount);
+}
+
+function updateFilterResults(count) {
+    // Update any result counter if needed
+    console.log(`Showing ${count} courses`);
+}
+
+function changeView(view) {
+    const gridView = document.getElementById('coursesGrid');
+    const listView = document.getElementById('coursesList');
+    const buttons = document.querySelectorAll('.btn-group .btn');
+    
+    buttons.forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    if (view === 'grid') {
+        gridView.style.display = '';
+        listView.style.display = 'none';
+    } else {
+        gridView.style.display = 'none';
+        listView.style.display = '';
+    }
+}
+
+async function viewCourse(courseId) {
+    currentCourseId = courseId;
+    currentCourseName = null;
+    const courseData = await getCourseData(courseId);
+    if (!courseData) {
+        showNotification('Error loading course data.', 'error');
+        return;
+    }
+    
+    const content = `
+        <div class="row">
+            <div class="col-md-8">
+                <div class="course-detail-content">
+                    <div class="d-flex align-items-center mb-4">
+                        <div class="course-icon bg-primary text-white rounded-circle me-3 d-flex align-items-center justify-content-center" 
+                             style="width: 60px; height: 60px;">
+                            <i class="fas fa-book fa-lg"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-1">${courseData.name || 'N/A'}</h4>
+                            <div>
+                                <span class="badge ${courseData.is_active ? 'bg-success' : 'bg-secondary'} me-2">
+                                    ${courseData.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                                ${courseData.category ? `<span class="badge bg-info">${courseData.category}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${courseData.description ? `
+                    <div class="mb-4">
+                        <h6>Description</h6>
+                        <p>${courseData.description}</p>
+                    </div>
+                    ` : ''}
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="stat-card text-center">
+                                <div class="stat-number text-success">AED ${courseData.price?.toLocaleString() || '0'}</div>
+                                <div class="stat-label">Course Price</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card text-center">
+                                <div class="stat-number text-primary">${courseData.duration || 'N/A'}</div>
+                                <div class="stat-label">Duration</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card text-center">
+                                <div class="stat-number text-info">${courseData.students_count || 0}</div>
+                                <div class="stat-label">Enrolled</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card text-center">
+                                <div class="stat-number text-warning">${courseData.max_students || 'Unlimited'}</div>
+                                <div class="stat-label">Max Students</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${courseData.key_points && courseData.key_points.length > 0 ? `
+                    <div class="mb-4">
+                        <h6>Key Learning Points</h6>
+                        <ul class="list-group list-group-flush">
+                            ${courseData.key_points.map(point => 
+                                `<li class="list-group-item"><i class="fas fa-check text-success me-2"></i>${point}</li>`
+                            ).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="course-analytics">
+                    <h6>Course Analytics</h6>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>Enrollment Progress</span>
+                            <span>${courseData.students_count || 0}/${courseData.max_students || '∞'}</span>
+                        </div>
+                        <div class="progress-custom">
+                            <div class="progress-bar-custom" style="width: ${courseData.max_students ? (courseData.students_count / courseData.max_students * 100) : 0}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="analytics-stats">
+                        <div class="d-flex justify-content-between py-2 border-bottom">
+                            <span>Total Revenue</span>
+                            <span class="fw-bold text-success">AED ${(courseData.price * courseData.students_count).toLocaleString() || '0'}</span>
+                        </div>
+                        <div class="d-flex justify-content-between py-2 border-bottom">
+                            <span>Leads Interested</span>
+                            <span class="fw-bold text-primary">${courseData.interested_leads || 0}</span>
+                        </div>
+                        <div class="d-flex justify-content-between py-2">
+                            <span>Conversion Rate</span>
+                            <span class="fw-bold text-info">${courseData.conversion_rate || 0}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    currentCourseName = courseData.name;
+    document.getElementById('courseDetailContent').innerHTML = content;
+    new bootstrap.Modal(document.getElementById('courseDetailModal')).show();
+}
+
+async function getCourseData(courseId) {
+    try {
+        console.log('Fetching courses for courseId:', courseId, 'Type:', typeof courseId);
+        const response = await fetch('/api/courses');
+        const courses = await response.json();
+        console.log('Courses received:', courses);
+        const course = courses.find(c => c.id == courseId); // Use == instead of ===
+        console.log('Found course:', course);
+        if (!course) {
+            console.error('Course not found for courseId:', courseId);
+            showNotification('Course not found.', 'error');
+            return null;
+        }
+        return {
+            ...course,
+            students_count: course.students_count || 0,
+            interested_leads: Math.floor(Math.random() * 20) + 5,
+            conversion_rate: Math.floor(Math.random() * 30) + 10
+        };
+    } catch (error) {
+        console.error('Error fetching course data:', error);
+        showNotification('Error fetching course data.', 'error');
+        return null;
+    }
+}
+
+function editCourse(courseId) {
+    window.location.href = `/courses/${courseId}/edit`;
+}
+
+function editCurrentCourse() {
+    if (currentCourseId) {
+        editCourse(currentCourseId);
+    }
+}
+
+function duplicateCourse(courseId) {
+    if (confirm('Create a copy of this course?')) {
+        showLoading();
+        
+        setTimeout(() => {
+            hideLoading();
+            showNotification('Course duplicated successfully!', 'success');
+            // Reload page or add new course to the list
+            window.location.reload();
+        }, 1000);
+    }
+}
+
+function toggleCourseStatus(courseId, currentStatus) {
+    const action = currentStatus ? 'deactivate' : 'activate';
+    
+    if (confirm(`Are you sure you want to ${action} this course?`)) {
+        showLoading();
+        
+        setTimeout(() => {
+            hideLoading();
+            
+            // Update the course card/row
+            const courseItem = document.querySelector(`[data-course-id="${courseId}"]`);
+            if (courseItem) {
+                const statusBadge = courseItem.querySelector('.badge');
+                const newStatus = !currentStatus;
+                
+                statusBadge.className = `badge ${newStatus ? 'bg-success' : 'bg-secondary'}`;
+                statusBadge.textContent = newStatus ? 'Active' : 'Inactive';
+                
+                courseItem.dataset.status = newStatus ? 'active' : 'inactive';
+            }
+            
+            showNotification(`Course ${action}d successfully!`, 'success');
+        }, 500);
+    }
+}
+
+function deleteCourse(courseId) {
+    if (confirm('Are you sure you want to delete this course? This action cannot be undone.')) {
+        showLoading();
+        
+        setTimeout(() => {
+            hideLoading();
+            
+            // Remove course card/row
+            const courseItem = document.querySelector(`[data-course-id="${courseId}"]`);
+            if (courseItem) {
+                courseItem.style.animation = 'fadeOut 0.3s ease-out';
+                setTimeout(() => {
+                    courseItem.remove();
+                }, 300);
+            }
+            
+            showNotification('Course deleted successfully!', 'success');
+        }, 500);
+    }
+}
+
+function viewStudents(courseId, courseName) {
+    window.location.href = `/students?course_id=${encodeURIComponent(courseId)}`;
+}
+
+function viewCourseStudents() {
+    if (currentCourseId) {
+        viewStudents(currentCourseId, currentCourseName);
+    }
+}
+
+// Add course-specific animations
+const style = document.createElement('style');
+style.textContent = `
+    .course-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .course-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+    .course-icon {
+        transition: transform 0.3s ease;
+    }
+    .course-card:hover .course-icon {
+        transform: scale(1.1);
+    }
+    @keyframes fadeOut {
+        from { opacity: 1; transform: scale(1); }
+        to { opacity: 0; transform: scale(0.8); }
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

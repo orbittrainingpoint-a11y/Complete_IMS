@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Student Management</h4>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#studentModal">
+                        <i class="fas fa-plus"></i> Add Student
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Student Name</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>Course</th>
+                                    <th>Schedule</th>
+                                    <th>Fee Status</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in students %}
+                                <tr>
+                                    <td><strong>{{ student.name }}</strong></td>
+                                    <td>{{ student.country_code }} {{ student.phone }}</td>
+                                    <td>{{ student.email or '-' }}</td>
+                                    <td>{{ student.course.name }}</td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ student.schedule_days or 'Not set' }}<br>
+                                            {{ student.schedule_time or 'Not set' }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar 
+                                                {% if (student.fee_paid / student.total_fee * 100) >= 100 %}bg-success
+                                                {% elif (student.fee_paid / student.total_fee * 100) >= 50 %}bg-warning
+                                                {% else %}bg-danger{% endif %}" 
+                                                style="width: {{ (student.fee_paid / student.total_fee * 100)|round }}%">
+                                                {{ "%.0f"|format(student.fee_paid / student.total_fee * 100) }}%
+                                            </div>
+                                        </div>
+                                        <small class="text-muted">{{ student.fee_paid }}/{{ student.total_fee }} AED</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if student.status == 'Active' %}bg-success
+                                            {% elif student.status == 'Completed' %}bg-primary
+                                            {% elif student.status == 'Suspended' %}bg-warning
+                                            {% else %}bg-danger{% endif %}">
+                                            {{ student.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('main.view_student', id=student.id) }}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('main.edit_student', id=student.id) }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{{ url_for('main.student_payments', id=student.id) }}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-credit-card"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Student Modal -->
+<div class="modal fade" id="studentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#0f766e);padding:1.25rem 1.5rem;">
+                <div>
+                    <h5 class="modal-title text-white mb-0">
+                        <i class="fas fa-user-graduate me-2 opacity-75"></i>Add New Student
+                    </h5>
+                    <small class="text-white opacity-75">Register a student for a training course</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form method="POST" action="{{ url_for('main.add_student') }}">
+                    {{ form.hidden_tag() }}
+
+                    <!-- Personal Information -->
+                    <div class="pb-2 mb-3" style="border-bottom:1px solid #e2e8f0;">
+                        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">
+                            <i class="fas fa-address-card me-1"></i>Personal Information
+                        </span>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            {{ form.first_name.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fas fa-user text-secondary" style="font-size:12px;"></i>
+                                </span>
+                                {{ form.first_name(class="form-control border-start-0", placeholder="First name", style="border-radius:0 8px 8px 0;") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.last_name.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.last_name(class="form-control", placeholder="Last name", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ form.country_code.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.country_code(class="form-control", placeholder="+971", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ form.phone.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.phone(class="form-control", placeholder="Phone number", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.email.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fas fa-envelope text-secondary" style="font-size:12px;"></i>
+                                </span>
+                                {{ form.email(class="form-control border-start-0", placeholder="Email address", style="border-radius:0 8px 8px 0;") }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Course & Schedule -->
+                    <div class="pb-2 mb-3 mt-2" style="border-bottom:1px solid #e2e8f0;">
+                        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">
+                            <i class="fas fa-graduation-cap me-1"></i>Course &amp; Schedule
+                        </span>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            {{ form.course_id.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.course_id(class="form-select", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.batch_name.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.batch_name(class="form-control", placeholder="e.g. Batch A, Morning Group", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.schedule_days.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.schedule_days(class="form-select", style="border-radius:8px;", onchange="toggleScheduleOptions(this)") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.schedule_time.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.schedule_time(class="form-select", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.start_date.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.start_date(class="form-control", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.end_date.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.end_date(class="form-control", style="border-radius:8px;") }}
+                        </div>
+                    </div>
+
+                    <!-- Payment Information -->
+                    <div class="pb-2 mb-3 mt-2" style="border-bottom:1px solid #e2e8f0;">
+                        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">
+                            <i class="fas fa-credit-card me-1"></i>Payment Information
+                        </span>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            {{ form.total_fee.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;font-size:12px;">AED</span>
+                                {{ form.total_fee(class="form-control border-start-0", placeholder="0.00", style="border-radius:0 8px 8px 0;") }}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            {{ form.fee_paid.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;font-size:12px;">AED</span>
+                                {{ form.fee_paid(class="form-control border-start-0", placeholder="0.00", style="border-radius:0 8px 8px 0;") }}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            {{ form.payment_plan.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.payment_plan(class="form-select", style="border-radius:8px;") }}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 pt-2">
+                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary px-5" style="border-radius:8px;background:linear-gradient(135deg,#0f766e,#059669);border:0;">
+                            <i class="fas fa-user-plus me-1"></i>Add Student
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleScheduleOptions(selectElement) {
+    const timeSelect = document.querySelector('select[name="schedule_time"]');
+    const selectedValue = selectElement.value;
+    
+    if (selectedValue === 'weekends') {
+        // Disable weekday time options, keep only weekend appropriate times
+        Array.from(timeSelect.options).forEach(option => {
+            if (option.value.includes('09:00-11:00') || 
+                option.value.includes('11:00-13:00') || 
+                option.value.includes('14:00-16:00')) {
+                option.disabled = false;
+            } else {
+                option.disabled = false; // Keep all options for flexibility
+            }
+        });
+    } else if (selectedValue === 'weekdays') {
+        // Enable all time options for weekdays
+        Array.from(timeSelect.options).forEach(option => {
+            option.disabled = false;
+        });
+    }
+}
+</script>
+{% endblock %}

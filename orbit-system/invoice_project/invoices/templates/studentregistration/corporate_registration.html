@@ -1,0 +1,259 @@
+{% extends 'base_generic.html' %}
+
+{% block content %}
+{% load custom_filters %}
+<h2>Corporate Registration Form</h2>
+<form method="post" id="corporateRegistrationForm">
+    {% csrf_token %}
+    
+    <!-- Corporate Information -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3>Corporate Information</h3>
+        </div>
+        <div class="card-body">
+            {{ corporate_form.as_p }}
+            {{ registration_form.as_p }}
+        </div>
+    </div>
+
+    <!-- Course Selection -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3>Course Selection</h3>
+        </div>
+        <div class="card-body">
+            <div id="courseFormset">
+                {{ formset.management_form }}
+                {% for form in formset %}
+                    <div class="course-form mb-3">
+                        <div class="form-group">
+                            {{ form.course.label_tag }}
+                            {{ form.course|add_required_attribute }}
+                        </div>
+                        <div class="form-group">
+                            {{ form.discount.label_tag }}
+                            <div class="input-group">
+                                {{ form.discount|add_required_attribute }}
+                                <button type="button" class="btn btn-outline-secondary validate-coupon">Validate Coupon</button>
+                            </div>
+                            <small class="form-text text-muted">Enter discount % (max 20) or coupon code</small>
+                            <div class="coupon-message mt-1"></div>
+                        </div>
+                        <div class="course-price"></div>
+                        {% if not forloop.first %}
+                            <button type="button" class="btn btn-danger btn-sm delete-course">Delete Course</button>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+            <button type="button" id="addCourse" class="btn btn-secondary">Add Course</button>
+        </div>
+    </div>
+
+    <!-- Invoicing Details -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3>Invoicing Details</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Total Course Price:</strong> <span id="totalCoursePrice">0.00</span></p>
+                    <p><strong>Total Discount:</strong> <span id="totalDiscount">0.00</span></p>
+                    <p><strong>Total VAT:</strong> <span id="totalVat">0.00</span></p>
+                    <p><strong>Grand Total:</strong> <span id="grandTotal">0.00</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Submit Registration</button>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const courseFormset = document.getElementById('courseFormset');
+    const addCourseButton = document.getElementById('addCourse');
+    const totalCoursePriceSpan = document.getElementById('totalCoursePrice');
+    const totalVatSpan = document.getElementById('totalVat');
+    const totalDiscountSpan = document.getElementById('totalDiscount');
+    const grandTotalSpan = document.getElementById('grandTotal');
+
+    function validateCoupon(discountInput, validateButton) {
+        const code = discountInput.value.trim();
+        const messageDiv = discountInput.closest('.form-group').querySelector('.coupon-message');
+        
+        if (!code || !isNaN(code)) {
+            messageDiv.innerHTML = '';
+            return;
+        }
+        
+        fetch(`/validate-coupon/?code=${encodeURIComponent(code)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.valid) {
+                    discountInput.value = data.discount;
+                    discountInput.setAttribute('data-coupon-applied', 'true');
+                    messageDiv.innerHTML = '<span class="text-success">✓ Coupon applied: ' + data.discount + '% discount</span>';
+                    updatePrices();
+                } else {
+                    messageDiv.innerHTML = '<span class="text-danger">✗ Invalid coupon code</span>';
+                    discountInput.setAttribute('data-coupon-applied', 'false');
+                }
+            });
+    }
+
+    function updatePrices() {
+        let courseprice = 0;
+        let totalCoursePrice = 0;
+        let totalVat = 0;
+        let totalDiscount = 0;
+
+        document.querySelectorAll('.course-form').forEach(function(courseForm) {
+            const courseSelect = courseForm.querySelector('select[name$="-course"]');
+            const discountInput = courseForm.querySelector('input[name$="-discount"]');
+            const coursePriceDiv = courseForm.querySelector('.course-price');
+
+            if (courseSelect && courseSelect.value) {
+                const selectedOption = courseSelect.options[courseSelect.selectedIndex];
+                const price = parseFloat(selectedOption.getAttribute('data-rate') || 0);
+                const discountValue = discountInput.value.trim();
+                let discount = 0;
+                
+                if (!isNaN(discountValue)) {
+                    discount = parseFloat(discountValue) || 0;
+                    if (discountInput.getAttribute('data-coupon-applied') !== 'true' && discount > 20) {
+                        discount = 20;
+                        discountInput.value = 20;
+                    }
+                }
+
+                const discountedPrice = price * (1 - discount / 100);
+                courseprice += price;
+                totalCoursePrice += discountedPrice;
+                totalVat += discountedPrice * 0.05;
+                totalDiscount += price * discount / 100;
+
+                if (coursePriceDiv) {
+                    coursePriceDiv.textContent = `Course Price: ${discountedPrice.toFixed(2)}`;
+                }
+            }
+        });
+
+        const grandTotal = totalCoursePrice + totalVat;
+
+        if (totalCoursePriceSpan) totalCoursePriceSpan.textContent = courseprice.toFixed(2);
+        if (totalVatSpan) totalVatSpan.textContent = totalVat.toFixed(2);
+        if (totalDiscountSpan) totalDiscountSpan.textContent = totalDiscount.toFixed(2);
+        if (grandTotalSpan) grandTotalSpan.textContent = grandTotal.toFixed(2);
+    }
+
+    function addCourseForm() {
+        const formCount = document.querySelector('[name$=TOTAL_FORMS]');
+        if (!formCount) {
+            console.error('TOTAL_FORMS input not found');
+            return;
+        }
+        const newIndex = parseInt(formCount.value);
+        formCount.value = newIndex + 1;
+
+        const templateForm = courseFormset.querySelector('.course-form');
+        if (!templateForm) {
+            console.error('Template course form not found');
+            return;
+        }
+        const newForm = templateForm.cloneNode(true);
+        newForm.innerHTML = newForm.innerHTML.replace(/-(\d+)-/g, `-${newIndex}-`);
+        
+        newForm.querySelectorAll('input, select').forEach(input => {
+            input.value = '';
+            input.id = input.id.replace(/-\d+-/, `-${newIndex}-`);
+            input.name = input.name.replace(/-\d+-/, `-${newIndex}-`);
+            if (input.name.includes('discount')) {
+                input.removeAttribute('data-coupon-applied');
+            }
+        });
+        newForm.querySelector('.coupon-message').innerHTML = '';
+
+        // Add delete button to the new form
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'btn btn-danger btn-sm delete-course';
+        deleteButton.textContent = 'Delete Course';
+        newForm.appendChild(deleteButton);
+
+        courseFormset.appendChild(newForm);
+        attachEventListeners(newForm);
+        updatePrices();
+    }
+
+    function attachEventListeners(form) {
+        const courseSelect = form.querySelector('select[name$="-course"]');
+        const discountInput = form.querySelector('input[name$="-discount"]');
+        const deleteButton = form.querySelector('.delete-course');
+        const validateButton = form.querySelector('.validate-coupon');
+
+        if (courseSelect) {
+            courseSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                const coursePriceDiv = form.querySelector('.course-price');
+                if (coursePriceDiv) {
+                    const price = parseFloat(selectedOption.getAttribute('data-rate') || 0);
+                    coursePriceDiv.textContent = `Course Price: ${price.toFixed(2)}`;
+                }
+                updatePrices();
+            });
+        }
+        if (discountInput) {
+            discountInput.addEventListener('input', function() {
+                if (!isNaN(this.value.trim())) {
+                    this.removeAttribute('data-coupon-applied');
+                    this.closest('.form-group').querySelector('.coupon-message').innerHTML = '';
+                }
+                updatePrices();
+            });
+        }
+        if (validateButton) {
+            validateButton.addEventListener('click', function() {
+                validateCoupon(discountInput, validateButton);
+            });
+        }
+        if (deleteButton) deleteButton.addEventListener('click', deleteCourseForm);
+    }
+
+    function deleteCourseForm(event) {
+        const courseForm = event.target.closest('.course-form');
+        if (courseForm) {
+            courseForm.remove();
+            updateFormIndexes();
+            updatePrices();
+        }
+    }
+
+    function updateFormIndexes() {
+        const formCount = document.querySelector('[name$=TOTAL_FORMS]');
+        const courseForms = document.querySelectorAll('.course-form');
+        formCount.value = courseForms.length;
+
+        courseForms.forEach((form, index) => {
+            form.querySelectorAll('input, select').forEach(input => {
+                input.id = input.id.replace(/-\d+-/, `-${index}-`);
+                input.name = input.name.replace(/-\d+-/, `-${index}-`);
+            });
+        });
+    }
+
+    if (addCourseButton) {
+        addCourseButton.addEventListener('click', addCourseForm);
+    } else {
+        console.error('Add Course button not found');
+    }
+
+    // Attach event listeners to all forms
+    document.querySelectorAll('.course-form').forEach(attachEventListeners);
+
+    updatePrices();  // Initial update
+});
+</script>
+{% endblock %}

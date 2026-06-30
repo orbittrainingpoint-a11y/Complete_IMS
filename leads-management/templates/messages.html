@@ -1,0 +1,560 @@
+{% extends "base.html" %}
+{% block title %}Message Templates — Orbit CRM{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ url_for('main.dashboard') }}" style="color:var(--text-muted);text-decoration:none;">Dashboard</a>
+<span style="color:var(--border);margin:0 6px;">/</span>
+<span class="current">Messages</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Template cards ────────────────────── */
+.tmpl-card { background:var(--card-bg); border-radius:14px; padding:16px; border:1px solid var(--border); transition:box-shadow .15s,transform .1s; cursor:default; }
+.tmpl-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.1); transform:translateY(-2px); }
+.tmpl-type-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:3px 10px; border-radius:10px; }
+.tmpl-preview { font-size:12px; color:var(--text-muted); margin-top:8px; line-height:1.6; max-height:54px; overflow:hidden; position:relative; }
+.tmpl-preview::after { content:''; position:absolute; bottom:0; left:0; right:0; height:18px; background:linear-gradient(transparent, var(--card-bg)); }
+.tmpl-actions { display:flex; gap:6px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
+.ta-btn { flex:1; border:1.5px solid var(--border); border-radius:8px; background:transparent; color:var(--text-muted); font-size:12px; font-weight:600; padding:5px 4px; cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center; gap:4px; }
+.ta-btn.primary:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
+.ta-btn.success:hover { background:#10b981; color:#fff; border-color:#10b981; }
+.ta-btn.danger:hover  { background:#ef4444; color:#fff; border-color:#ef4444; }
+
+/* Category filter pills */
+.cat-pill { border:1.5px solid var(--border); border-radius:20px; background:transparent; color:var(--text-muted); font-size:12px; font-weight:600; padding:5px 14px; cursor:pointer; transition:all .15s; }
+.cat-pill.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+
+/* Placeholder chips in template form */
+.ph-chip { display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:8px; background:rgba(37,99,235,.1); color:#2563eb; cursor:pointer; border:1px solid rgba(37,99,235,.2); transition:background .12s; user-select:none; }
+.ph-chip:hover { background:rgba(37,99,235,.2); }
+
+/* Send modal lead search */
+.lead-option { padding:8px 12px; cursor:pointer; border-radius:8px; font-size:13px; transition:background .12s; display:flex; align-items:center; gap:10px; }
+.lead-option:hover, .lead-option.selected { background:rgba(37,99,235,.08); }
+.lead-option .lo-name { font-weight:600; }
+.lead-option .lo-phone { font-size:11px; color:var(--text-muted); }
+.send-preview { background:var(--sidebar-bg,#f8fafc); border-radius:10px; border:1px solid var(--border); padding:14px; font-size:13px; line-height:1.7; min-height:80px; white-space:pre-wrap; word-break:break-word; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# Embed lead data for JS search #}
+<script>
+const ALL_LEADS = {{ leads | map(attribute='id') | list | tojson }} .map((id, i) => ({
+    id,
+    name: {{ leads | map(attribute='name') | list | tojson }}[i],
+    phone: {{ leads | map(attribute='phone') | list | tojson }}[i],
+    whatsapp: {{ leads | map(attribute='whatsapp') | list | tojson }}[i]
+}));
+const ALL_COURSES = {{ courses | map(attribute='id') | list | tojson }}.map((id, i) => ({
+    id,
+    name: {{ courses | map(attribute='name') | list | tojson }}[i]
+}));
+const TEMPLATES = {{ templates | map(attribute='id') | list | tojson }}.map((id, i) => ({
+    id,
+    name: {{ templates | map(attribute='name') | list | tojson }}[i],
+    category: {{ templates | map(attribute='category') | list | tojson }}[i],
+    message_type: {{ templates | map(attribute='message_type') | list | tojson }}[i],
+    content: {{ templates | map(attribute='content') | list | tojson }}[i],
+    subject: {{ templates | map(attribute='subject') | list | tojson }}[i],
+    is_active: {{ templates | map(attribute='is_active') | list | tojson }}[i],
+    usage_count: {{ templates | map(attribute='usage_count') | list | tojson }}[i]
+}));
+</script>
+
+<!-- Header -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+    <div>
+        <h4 style="margin:0;font-weight:800;">Message Templates</h4>
+        <p style="margin:0;font-size:13px;color:var(--text-muted);">{{ templates | length }} template{{ 's' if templates | length != 1 }} · Reusable messages with smart placeholders</p>
+    </div>
+    <button class="btn btn-primary" style="border-radius:20px;padding:6px 18px;font-size:13px;" data-bs-toggle="modal" data-bs-target="#addTemplateModal">
+        <i class="fas fa-plus me-1"></i>New Template
+    </button>
+</div>
+
+<!-- Category filter -->
+<div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;" id="catFilters">
+    <button class="cat-pill active" data-cat="" onclick="filterCat(this, '')">All</button>
+    <button class="cat-pill" data-cat="Follow-up" onclick="filterCat(this, 'Follow-up')"><i class="fas fa-redo-alt fa-xs me-1"></i>Follow-up</button>
+    <button class="cat-pill" data-cat="Welcome" onclick="filterCat(this, 'Welcome')"><i class="fas fa-star fa-xs me-1"></i>Welcome</button>
+    <button class="cat-pill" data-cat="Reminder" onclick="filterCat(this, 'Reminder')"><i class="fas fa-bell fa-xs me-1"></i>Reminder</button>
+    <button class="cat-pill" data-cat="Enquiry" onclick="filterCat(this, 'Enquiry')"><i class="fas fa-question-circle fa-xs me-1"></i>Enquiry</button>
+    <button class="cat-pill" data-cat="Proposal" onclick="filterCat(this, 'Proposal')"><i class="fas fa-file-alt fa-xs me-1"></i>Proposal</button>
+</div>
+
+{% if templates %}
+<!-- Template cards grid -->
+<div class="row g-3" id="templatesGrid">
+{% for tmpl in templates %}
+{% set type_styles = {
+    'WhatsApp': ('background:rgba(37,211,102,.12);color:#128c7e;', 'fa-whatsapp fab'),
+    'SMS':      ('background:rgba(99,102,241,.12);color:#4f46e5;', 'fas fa-sms'),
+    'Email':    ('background:rgba(14,165,233,.12);color:#0369a1;', 'fas fa-envelope')
+} %}
+{% set ts = type_styles.get(tmpl.message_type, ('background:rgba(100,116,139,.12);color:#475569;', 'fas fa-comment')) %}
+<div class="col-xl-4 col-lg-6 col-md-6 tmpl-item" data-cat="{{ tmpl.category or '' }}">
+    <div class="tmpl-card">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+            <div style="flex:1;">
+                <div style="font-weight:700;font-size:14px;color:var(--text);">{{ tmpl.name }}</div>
+                <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;">
+                    <span class="tmpl-type-badge" style="{{ ts[0] }}">
+                        <i class="{{ ts[1] }}"></i>{{ tmpl.message_type or 'General' }}
+                    </span>
+                    {% if tmpl.category %}
+                    <span style="background:var(--sidebar-bg,#f1f5f9);color:var(--text-muted);font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;">{{ tmpl.category }}</span>
+                    {% endif %}
+                    {% if not tmpl.is_active %}
+                    <span style="background:rgba(239,68,68,.1);color:#dc2626;font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px;">Inactive</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);text-align:right;flex-shrink:0;">
+                <i class="fas fa-paper-plane fa-xs me-1"></i>{{ tmpl.usage_count }} sent
+            </div>
+        </div>
+        {% if tmpl.subject %}
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-top:8px;">Subject: {{ tmpl.subject }}</div>
+        {% endif %}
+        <div class="tmpl-preview">{{ tmpl.content }}</div>
+        <div class="tmpl-actions">
+            <button class="ta-btn primary" onclick="openSend({{ tmpl.id }})">
+                <i class="fas fa-paper-plane fa-xs"></i>Send
+            </button>
+            <a href="{{ url_for('main.edit_template', id=tmpl.id) }}" class="ta-btn">
+                <i class="fas fa-edit fa-xs"></i>Edit
+            </a>
+            <a href="{{ url_for('main.delete_template', id=tmpl.id) }}" class="ta-btn danger"
+               onclick="return confirm('Delete this template?')">
+                <i class="fas fa-trash fa-xs"></i>
+            </a>
+        </div>
+    </div>
+</div>
+{% endfor %}
+</div>
+
+{% else %}
+<!-- Empty state with sample starters -->
+<div style="text-align:center;padding:48px 24px 24px;">
+    <div style="width:72px;height:72px;border-radius:18px;background:rgba(37,99,235,.08);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <i class="fas fa-comment-alt fa-2x" style="color:#2563eb;"></i>
+    </div>
+    <h5 style="font-weight:700;margin-bottom:8px;">No Templates Yet</h5>
+    <p style="color:var(--text-muted);margin-bottom:20px;">Create reusable message templates with smart placeholders. Click a starter below to get going.</p>
+</div>
+<!-- Starter template suggestions -->
+<div class="row g-3" style="max-width:900px;margin:0 auto;">
+    {% set starters = [
+        ('Follow-up Call', 'Follow-up', 'WhatsApp', 'Hi {name}, this is {agent} from Orbit Training. I wanted to follow up on your enquiry about {course_name}. Are you still interested? We have upcoming batches starting soon. Please let me know a convenient time to speak. 📞'),
+        ('Course Enquiry Reply', 'Enquiry', 'WhatsApp', 'Hi {name},\n\nThank you for your interest in {course_name} at Orbit Training! 🎓\n\nHere are the quick details:\n• Course: {course_name}\n• Duration: [duration]\n• Fee: AED [amount]\n\nWould you like to schedule a call to discuss further?\n\nBest regards,\n{agent}'),
+        ('Welcome Message', 'Welcome', 'WhatsApp', 'Dear {name},\n\nWelcome to Orbit Training! 🌟\n\nWe are thrilled to have you join us for {course_name}. Your learning journey starts here.\n\nFeel free to reach out if you have any questions.\n\nWarm regards,\nOrbit Training Team'),
+        ('Payment Reminder', 'Reminder', 'WhatsApp', 'Hi {name},\n\nThis is a friendly reminder that your fee payment for {course_name} is due. Please complete the payment at your earliest convenience to secure your seat.\n\nFor any queries, please contact us.\n\nThank you! 🙏'),
+    ] %}
+    {% for name, cat, mtype, content in starters %}
+    <div class="col-md-6">
+        <div class="tmpl-card" style="cursor:pointer;" onclick="prefillNewTemplate('{{ name|e }}', '{{ cat }}', '{{ mtype }}', {{ content | tojson }})">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <div style="width:36px;height:36px;border-radius:10px;background:rgba(37,99,235,.08);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="fas fa-{% if mtype == 'WhatsApp' %}whatsapp fab{% elif mtype == 'Email' %}envelope{% else %}comment{% endif %}" style="color:#2563eb;font-size:14px;"></i>
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:13px;">{{ name }}</div>
+                    <div style="font-size:11px;color:var(--text-muted);">{{ cat }} · {{ mtype }}</div>
+                </div>
+                <span style="margin-left:auto;font-size:11px;color:#2563eb;font-weight:600;">Use <i class="fas fa-arrow-right fa-xs ms-1"></i></span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);line-height:1.5;max-height:42px;overflow:hidden;">{{ content[:100] }}…</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── Add Template Modal ─────────────────── -->
+<div class="modal fade" id="addTemplateModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" style="max-width:680px;">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:1.25rem 1.5rem;border:0;">
+                <div>
+                    <h5 class="modal-title text-white mb-0" style="font-weight:700;">
+                        <i class="fas fa-comment-alt me-2 opacity-75"></i>New Message Template
+                    </h5>
+                    <small class="text-white opacity-75">Use placeholders like {name}, {course_name} — they auto-fill when sending</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form method="POST" action="{{ url_for('main.add_template') }}" id="addTmplForm">
+                    {{ template_form.hidden_tag() }}
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Template Name <span class="text-danger">*</span></label>
+                            {{ template_form.name(class="form-control", placeholder="e.g. Follow-up WhatsApp", id="newTmplName") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Category</label>
+                            <select name="category" id="newTmplCat" class="form-select">
+                                <option value="">Select category</option>
+                                <option>Follow-up</option>
+                                <option>Welcome</option>
+                                <option>Reminder</option>
+                                <option>Enquiry</option>
+                                <option>Proposal</option>
+                                <option>General</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Message type -->
+                    <div class="mb-3">
+                        <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:8px;">Message Type</label>
+                        <div style="display:flex;gap:8px;" id="typeGroup">
+                            <button type="button" class="ph-chip" style="padding:6px 14px;font-size:12px;background:rgba(37,211,102,.12);color:#128c7e;border-color:rgba(37,211,102,.25);" data-val="WhatsApp" onclick="selectType(this)">
+                                <i class="fab fa-whatsapp me-1"></i>WhatsApp
+                            </button>
+                            <button type="button" class="ph-chip" style="padding:6px 14px;font-size:12px;" data-val="SMS" onclick="selectType(this)">
+                                <i class="fas fa-sms me-1"></i>SMS
+                            </button>
+                            <button type="button" class="ph-chip" style="padding:6px 14px;font-size:12px;" data-val="Email" onclick="selectType(this)">
+                                <i class="fas fa-envelope me-1"></i>Email
+                            </button>
+                        </div>
+                        <input type="hidden" name="message_type" id="newTmplType" value="WhatsApp">
+                    </div>
+
+                    <!-- Subject (email only) -->
+                    <div class="mb-3" id="subjectRow" style="display:none;">
+                        <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Email Subject</label>
+                        {{ template_form.subject(class="form-control", placeholder="Subject line for email templates", id="newTmplSubject") }}
+                    </div>
+
+                    <!-- Content + placeholder helpers -->
+                    <div class="mb-3">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin:0;">Message Content <span class="text-danger">*</span></label>
+                            <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                                {% for ph in ['{name}', '{phone}', '{course_name}', '{email}', '{agent}', '{company_name}'] %}
+                                <span class="ph-chip" onclick="insertPlaceholder('newTmplContent', '{{ ph }}')">{{ ph }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {{ template_form.content(class="form-control", rows="6", id="newTmplContent", placeholder="Write your message here. Click the placeholder chips above to insert smart variables.") }}
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:5px;">
+                            <strong>Placeholders auto-fill when sending:</strong> {name} = lead's name · {phone} = phone number · {course_name} = selected course · {agent} = your name
+                        </div>
+                    </div>
+
+                    <!-- Live preview -->
+                    <div class="mb-3">
+                        <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Live Preview</label>
+                        <div class="send-preview" id="tmplLivePreview" style="color:var(--text-muted);font-style:italic;">Start typing your message to see a preview…</div>
+                    </div>
+
+                    <!-- Active toggle -->
+                    <div class="d-flex align-items-center gap-3 p-3" style="background:var(--sidebar-bg,#f8fafc);border-radius:10px;border:1px solid var(--border);">
+                        <div class="form-check form-switch mb-0">
+                            {{ template_form.is_active(class="form-check-input", role="switch", style="width:2.5em;height:1.4em;", checked=True) }}
+                        </div>
+                        <div>
+                            {{ template_form.is_active.label(class="form-check-label fw-500 mb-0", style="font-size:14px;") }}
+                            <div style="font-size:12px;color:var(--text-muted);">Active templates appear when sending</div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--border);padding:.9rem 1.5rem;gap:8px;">
+                <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+                <button type="submit" form="addTmplForm" class="btn btn-primary px-5" style="border-radius:8px;background:linear-gradient(135deg,#1e3a5f,#2563eb);border:0;">
+                    <i class="fas fa-save me-1"></i>Save Template
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Send Message Modal ─────────────────── -->
+<div class="modal fade" id="sendModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:560px;">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#128c7e,#25d366);padding:1.25rem 1.5rem;border:0;">
+                <div>
+                    <h5 class="modal-title text-white mb-0" style="font-weight:700;" id="sendModalTitle">
+                        <i class="fas fa-paper-plane me-2 opacity-75"></i>Send Message
+                    </h5>
+                    <small class="text-white opacity-75" id="sendModalSub">Choose a recipient</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+
+                <!-- Recipient mode toggle -->
+                <div style="display:flex;gap:6px;margin-bottom:16px;">
+                    <button class="cat-pill active" id="btnFromLead" onclick="setRecipientMode('lead')">
+                        <i class="fas fa-user fa-xs me-1"></i>Select Lead
+                    </button>
+                    <button class="cat-pill" id="btnManual" onclick="setRecipientMode('manual')">
+                        <i class="fas fa-keyboard fa-xs me-1"></i>Enter Number
+                    </button>
+                </div>
+
+                <!-- From lead -->
+                <div id="leadPickerSection">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Search Lead</label>
+                    <input type="text" id="leadSearchInput" class="form-control mb-2" placeholder="Type name or phone number…" oninput="filterLeads(this.value)">
+                    <div id="leadList" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:4px;background:var(--card-bg);"></div>
+                    <div id="selectedLeadChip" style="display:none;margin-top:8px;background:rgba(37,99,235,.08);border-radius:10px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">
+                        <div id="selectedLeadInfo" style="font-size:13px;font-weight:600;"></div>
+                        <button onclick="clearLead()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;">&times;</button>
+                    </div>
+                </div>
+
+                <!-- Manual number -->
+                <div id="manualSection" style="display:none;">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Phone / WhatsApp Number</label>
+                    <div class="input-group">
+                        <span class="input-group-text" style="background:var(--card-bg);border-color:var(--border);"><i class="fas fa-phone" style="font-size:12px;color:var(--text-muted);"></i></span>
+                        <input type="text" id="manualPhone" class="form-control" placeholder="+971 50 000 0000" oninput="updateSendPreview()" style="border-left:0;">
+                    </div>
+                    <input type="text" id="manualName" class="form-control mt-2" placeholder="Recipient name (optional)" oninput="updateSendPreview()">
+                </div>
+
+                <!-- Course selector -->
+                <div class="mt-3">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Course <span style="font-weight:400;font-size:11px;text-transform:none;">(optional — fills {course_name})</span></label>
+                    <select id="sendCourseSelect" class="form-select" onchange="updateSendPreview()">
+                        <option value="">No course selected</option>
+                        {% for c in courses %}
+                        <option value="{{ c.name }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Preview -->
+                <div class="mt-3">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Message Preview</label>
+                    <div class="send-preview" id="sendPreviewBox">Select a recipient to preview the message.</div>
+                </div>
+
+                <input type="hidden" id="sendTmplId">
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--border);padding:.9rem 1.5rem;gap:8px;">
+                <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+                <button type="button" class="btn btn-success px-4" id="waBtn" onclick="sendWhatsApp()" style="border-radius:8px;background:linear-gradient(135deg,#128c7e,#25d366);border:0;display:none;">
+                    <i class="fab fa-whatsapp me-1"></i>Open WhatsApp
+                </button>
+                <button type="button" class="btn btn-primary px-4" id="sendNowBtn" onclick="sendNow()" style="border-radius:8px;background:linear-gradient(135deg,#1e3a5f,#2563eb);border:0;">
+                    <i class="fas fa-paper-plane me-1"></i>Mark as Sent
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Category filter ────────────────────────
+function filterCat(btn, cat) {
+    document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tmpl-item').forEach(el => {
+        const match = !cat || el.dataset.cat === cat;
+        el.style.display = match ? '' : 'none';
+    });
+}
+
+// ── Add template modal helpers ─────────────
+function selectType(btn) {
+    document.querySelectorAll('#typeGroup .ph-chip').forEach(b => {
+        b.style.background = 'rgba(37,99,235,.1)'; b.style.color = '#2563eb'; b.style.borderColor = 'rgba(37,99,235,.2)';
+    });
+    btn.style.background = 'rgba(37,99,235,.25)'; btn.style.color = '#1d4ed8'; btn.style.borderColor = '#2563eb';
+    document.getElementById('newTmplType').value = btn.dataset.val;
+    document.getElementById('subjectRow').style.display = btn.dataset.val === 'Email' ? '' : 'none';
+}
+
+function insertPlaceholder(fieldId, text) {
+    const field = document.getElementById(fieldId);
+    const start = field.selectionStart, end = field.selectionEnd;
+    field.value = field.value.substring(0, start) + text + field.value.substring(end);
+    field.setSelectionRange(start + text.length, start + text.length);
+    field.focus();
+    updateTmplPreview();
+}
+
+function updateTmplPreview() {
+    const content = document.getElementById('newTmplContent').value;
+    const preview = document.getElementById('tmplLivePreview');
+    if (!content.trim()) { preview.textContent = 'Start typing your message to see a preview…'; preview.style.fontStyle = 'italic'; preview.style.color = 'var(--text-muted)'; return; }
+    let filled = content
+        .replace(/\{name\}/g, '<b>Ahmed Al-Mansoori</b>')
+        .replace(/\{phone\}/g, '<b>+971 50 123 4567</b>')
+        .replace(/\{course_name\}/g, '<b>Safety Training</b>')
+        .replace(/\{email\}/g, '<b>ahmed@example.com</b>')
+        .replace(/\{agent\}/g, '<b>Sarah</b>')
+        .replace(/\{company_name\}/g, '<b>ABC Corp</b>');
+    preview.innerHTML = filled.replace(/\n/g, '<br>');
+    preview.style.fontStyle = 'normal'; preview.style.color = 'var(--text)';
+}
+
+document.getElementById('newTmplContent').addEventListener('input', updateTmplPreview);
+
+// Pre-fill from starter template
+function prefillNewTemplate(name, cat, mtype, content) {
+    document.getElementById('newTmplName').value = name;
+    const catSel = document.getElementById('newTmplCat');
+    for (let o of catSel.options) if (o.value === cat) { catSel.value = cat; break; }
+    document.getElementById('newTmplType').value = mtype;
+    document.querySelectorAll('#typeGroup .ph-chip').forEach(b => {
+        if (b.dataset.val === mtype) { selectType(b); }
+    });
+    document.getElementById('newTmplContent').value = content;
+    updateTmplPreview();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('addTemplateModal')).show();
+}
+
+// ── Send modal ─────────────────────────────
+let _sendTmpl = null;
+let _selectedLead = null;
+let _recipientMode = 'lead';
+
+function openSend(tmplId) {
+    _sendTmpl = TEMPLATES.find(t => t.id == tmplId);
+    if (!_sendTmpl) return;
+    _selectedLead = null;
+
+    document.getElementById('sendModalTitle').innerHTML = `<i class="fas fa-paper-plane me-2 opacity-75"></i>${_sendTmpl.name}`;
+    document.getElementById('sendModalSub').textContent = _sendTmpl.category + ' · ' + (_sendTmpl.message_type || 'Message');
+    document.getElementById('sendTmplId').value = tmplId;
+    document.getElementById('leadSearchInput').value = '';
+    document.getElementById('manualPhone').value = '';
+    document.getElementById('manualName').value = '';
+    document.getElementById('sendCourseSelect').value = '';
+
+    // WhatsApp button visibility
+    document.getElementById('waBtn').style.display = _sendTmpl.message_type === 'WhatsApp' ? '' : 'none';
+
+    setRecipientMode('lead');
+    renderLeadList(ALL_LEADS.slice(0, 30));
+    updateSendPreview();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('sendModal')).show();
+}
+
+function setRecipientMode(mode) {
+    _recipientMode = mode;
+    document.getElementById('leadPickerSection').style.display = mode === 'lead' ? '' : 'none';
+    document.getElementById('manualSection').style.display = mode === 'manual' ? '' : 'none';
+    document.getElementById('btnFromLead').classList.toggle('active', mode === 'lead');
+    document.getElementById('btnManual').classList.toggle('active', mode === 'manual');
+    updateSendPreview();
+}
+
+function filterLeads(q) {
+    const lower = q.toLowerCase();
+    const filtered = q.length < 1
+        ? ALL_LEADS.slice(0, 30)
+        : ALL_LEADS.filter(l => l.name.toLowerCase().includes(lower) || (l.phone || '').includes(lower) || (l.whatsapp || '').includes(lower));
+    renderLeadList(filtered.slice(0, 40));
+}
+
+function renderLeadList(leads) {
+    const box = document.getElementById('leadList');
+    if (!leads.length) { box.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No leads found</div>'; return; }
+    box.innerHTML = leads.map(l => `
+        <div class="lead-option" onclick="selectLead(${l.id})">
+            <div style="width:30px;height:30px;border-radius:50%;background:rgba(37,99,235,.12);color:#2563eb;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${(l.name||'?')[0].toUpperCase()}</div>
+            <div style="flex:1;min-width:0;">
+                <div class="lo-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l.name}</div>
+                <div class="lo-phone">${l.phone || ''}${l.whatsapp && l.whatsapp !== l.phone ? ' · WA: ' + l.whatsapp : ''}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function selectLead(id) {
+    _selectedLead = ALL_LEADS.find(l => l.id == id);
+    if (!_selectedLead) return;
+
+    document.getElementById('leadList').style.display = 'none';
+    document.getElementById('leadSearchInput').style.display = 'none';
+
+    const chip = document.getElementById('selectedLeadChip');
+    chip.style.display = 'flex';
+    document.getElementById('selectedLeadInfo').innerHTML =
+        `<i class="fas fa-user fa-xs me-2" style="color:#2563eb;"></i>${_selectedLead.name} &nbsp;·&nbsp; ${_selectedLead.phone || ''}`;
+    updateSendPreview();
+}
+
+function clearLead() {
+    _selectedLead = null;
+    document.getElementById('selectedLeadChip').style.display = 'none';
+    document.getElementById('leadList').style.display = '';
+    document.getElementById('leadSearchInput').style.display = '';
+    document.getElementById('leadSearchInput').value = '';
+    renderLeadList(ALL_LEADS.slice(0, 30));
+    updateSendPreview();
+}
+
+function updateSendPreview() {
+    if (!_sendTmpl) return;
+    let name = 'Recipient', phone = '', course = document.getElementById('sendCourseSelect').value;
+
+    if (_recipientMode === 'lead' && _selectedLead) {
+        name = _selectedLead.name;
+        phone = _selectedLead.whatsapp || _selectedLead.phone || '';
+    } else if (_recipientMode === 'manual') {
+        name = document.getElementById('manualName').value.trim() || 'Recipient';
+        phone = document.getElementById('manualPhone').value.trim();
+    }
+
+    let msg = (_sendTmpl.content || '')
+        .replace(/\{name\}/g, name)
+        .replace(/\{phone\}/g, phone)
+        .replace(/\{course_name\}/g, course || 'your course')
+        .replace(/\{email\}/g, (_selectedLead?.email) || '')
+        .replace(/\{agent\}/g, '{{ current_user.username if current_user else "Agent" }}')
+        .replace(/\{company_name\}/g, 'your company');
+
+    document.getElementById('sendPreviewBox').textContent = msg;
+}
+
+function getPhoneNumber() {
+    if (_recipientMode === 'lead' && _selectedLead) return (_selectedLead.whatsapp || _selectedLead.phone || '').replace(/\D/g,'');
+    if (_recipientMode === 'manual') return document.getElementById('manualPhone').value.replace(/\D/g,'');
+    return '';
+}
+
+function sendWhatsApp() {
+    const phone = getPhoneNumber();
+    if (!phone) { alert('Please select a lead or enter a phone number first.'); return; }
+    const msg = document.getElementById('sendPreviewBox').textContent;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+    sendNow(true);
+}
+
+function sendNow(skipClose) {
+    if (!_sendTmpl) return;
+    fetch('/messages/send', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded', 'X-Requested-With':'XMLHttpRequest'},
+        body: `template_id=${_sendTmpl.id}&lead_ids=${_selectedLead ? _selectedLead.id : ''}`
+    }).then(() => {
+        if (!skipClose) bootstrap.Modal.getInstance(document.getElementById('sendModal')).hide();
+    });
+}
+
+// Init lead list on page load
+document.addEventListener('DOMContentLoaded', () => {
+    // Highlight first type button on add modal open
+    document.getElementById('addTemplateModal').addEventListener('show.bs.modal', () => {
+        const firstBtn = document.querySelector('#typeGroup .ph-chip[data-val="WhatsApp"]');
+        if (firstBtn) selectType(firstBtn);
+    });
+});
+</script>
+{% endblock %}

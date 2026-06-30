@@ -1,0 +1,21 @@
+[Unit]
+Description=Orbit ERP (Django) Gunicorn
+After=network.target mysql.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/orbit/orbit-system/invoice_project
+EnvironmentFile=/var/www/orbit/.env.erp
+ExecStart=/var/www/orbit/venv_erp/bin/gunicorn \
+    --workers 3 \
+    --bind 127.0.0.1:8001 \
+    --timeout 120 \
+    --access-logfile /var/log/orbit/erp-access.log \
+    --error-logfile /var/log/orbit/erp-error.log \
+    invoice_project.wsgi:application
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

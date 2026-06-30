@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Company Registration — Orbit Training</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+:root { --primary:#2563eb; --text:#1e293b; --text-muted:#64748b; --border:#e2e8f0; --card:#fff; --bg:#f8faff; }
+body { background:var(--bg); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; }
+.portal-header { background:linear-gradient(135deg,#0f1b2d,#1a2d47); color:#fff; padding:32px 0; text-align:center; }
+.portal-header img { height:52px; margin-bottom:16px; }
+.portal-title { font-size:26px; font-weight:800; }
+.portal-sub { font-size:14px; opacity:.7; margin-top:6px; }
+.card { border:none; border-radius:16px; box-shadow:0 2px 20px rgba(0,0,0,.06); }
+.section-head { background:linear-gradient(135deg,#0f1b2d,#1a2d47); color:#fff; border-radius:12px 12px 0 0; padding:16px 22px; display:flex; align-items:center; gap:12px; }
+.section-icon { width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; }
+.section-body { padding:24px 22px; }
+.form-label { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:6px; }
+.form-control,.form-select { border-radius:10px; border:1.5px solid var(--border); font-size:14px; padding:10px 14px; }
+.form-control:focus,.form-select:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.1); outline:none; }
+.btn-submit { background:linear-gradient(135deg,#2563eb,#1d4ed8); border:none; color:#fff; font-weight:700; font-size:15px; padding:14px 32px; border-radius:12px; width:100%; cursor:pointer; transition:opacity .2s; }
+.btn-submit:hover { opacity:.9; }
+.step-bar { display:flex; gap:0; margin-bottom:32px; }
+.step { flex:1; display:flex; flex-direction:column; align-items:center; position:relative; }
+.step::after { content:''; position:absolute; top:18px; left:50%; width:100%; height:2px; background:var(--border); z-index:0; }
+.step:last-child::after { display:none; }
+.step-dot { width:36px; height:36px; border-radius:50%; background:var(--border); color:var(--text-muted); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; z-index:1; position:relative; }
+.step.done .step-dot { background:var(--primary); color:#fff; }
+.step-label { font-size:11px; color:var(--text-muted); margin-top:6px; text-align:center; }
+.step.done .step-label { color:var(--primary); font-weight:600; }
+.upload-box { border:2px dashed var(--border); border-radius:10px; padding:20px; text-align:center; cursor:pointer; transition:border-color .2s; }
+.upload-box:hover { border-color:var(--primary); }
+.upload-box input { display:none; }
+.required-note { font-size:11px; color:#ef4444; }
+</style>
+</head>
+<body>
+<div class="portal-header">
+    <div class="container">
+        <div style="font-size:28px;font-weight:900;color:#93c5fd;letter-spacing:1px;">ORBIT</div>
+        <div style="font-size:12px;opacity:.6;margin-bottom:16px;">Training & Development</div>
+        <div class="portal-title">Company Registration Portal</div>
+        <div class="portal-sub">Please complete your company details to finalize the enrollment process</div>
+    </div>
+</div>
+
+<div class="container" style="max-width:800px;padding:32px 16px;">
+
+    {% if error %}
+    <div class="alert alert-danger" style="border-radius:12px;"><i class="fas fa-exclamation-circle me-2"></i>{{ error }}</div>
+    {% endif %}
+
+    <!-- Progress steps -->
+    <div class="step-bar mb-4">
+        <div class="step done">
+            <div class="step-dot"><i class="fas fa-check"></i></div>
+            <div class="step-label">Deal Confirmed</div>
+        </div>
+        <div class="step done">
+            <div class="step-dot">2</div>
+            <div class="step-label">Company Details</div>
+        </div>
+        <div class="step">
+            <div class="step-dot">3</div>
+            <div class="step-label">Add Attendees</div>
+        </div>
+        <div class="step">
+            <div class="step-dot">4</div>
+            <div class="step-label">Invoice & Contract</div>
+        </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+
+    <!-- Company Info -->
+    <div class="card mb-4">
+        <div class="section-head">
+            <div class="section-icon"><i class="fas fa-building"></i></div>
+            <div>
+                <div style="font-weight:700;font-size:15px;">Company Information</div>
+                <div style="font-size:12px;opacity:.7;">Legal company details as per trade license</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label">Company Name <span class="required-note">*</span></label>
+                    <input type="text" name="company_name" class="form-control" required placeholder="As per trade license" value="{{ portal.company_name }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Trade License Number</label>
+                    <input type="text" name="trade_license_number" class="form-control" placeholder="e.g. CN-1234567" value="{{ portal.trade_license_number }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">VAT Registration Number</label>
+                    <input type="text" name="vat_number" class="form-control" placeholder="e.g. 100234567890003" value="{{ portal.vat_number }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Trade License Document</label>
+                    <div class="upload-box" onclick="document.getElementById('tl_doc').click()">
+                        <i class="fas fa-cloud-upload-alt fa-2x mb-2" style="color:var(--text-muted);"></i>
+                        <div style="font-size:13px;color:var(--text-muted);">Click to upload PDF/JPG/PNG</div>
+                        <div id="tl_name" style="font-size:12px;color:var(--primary);margin-top:6px;"></div>
+                        <input type="file" id="tl_doc" name="trade_license_doc" accept=".pdf,.jpg,.jpeg,.png" onchange="document.getElementById('tl_name').textContent=this.files[0]?.name||''">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">VAT Certificate</label>
+                    <div class="upload-box" onclick="document.getElementById('vat_cert').click()">
+                        <i class="fas fa-cloud-upload-alt fa-2x mb-2" style="color:var(--text-muted);"></i>
+                        <div style="font-size:13px;color:var(--text-muted);">Click to upload PDF/JPG/PNG</div>
+                        <div id="vat_name" style="font-size:12px;color:var(--primary);margin-top:6px;"></div>
+                        <input type="file" id="vat_cert" name="vat_certificate" accept=".pdf,.jpg,.jpeg,.png" onchange="document.getElementById('vat_name').textContent=this.files[0]?.name||''">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Emirate</label>
+                    <select name="emirate" class="form-select">
+                        <option value="">— Select Emirate —</option>
+                        <option value="Dubai" {% if portal.emirate == "Dubai" %}selected{% endif %}>Dubai</option>
+                        <option value="Abu Dhabi" {% if portal.emirate == "Abu Dhabi" %}selected{% endif %}>Abu Dhabi</option>
+                        <option value="Sharjah" {% if portal.emirate == "Sharjah" %}selected{% endif %}>Sharjah</option>
+                        <option value="Ajman" {% if portal.emirate == "Ajman" %}selected{% endif %}>Ajman</option>
+                        <option value="Ras Al Khaimah" {% if portal.emirate == "Ras Al Khaimah" %}selected{% endif %}>Ras Al Khaimah</option>
+                        <option value="Fujairah" {% if portal.emirate == "Fujairah" %}selected{% endif %}>Fujairah</option>
+                        <option value="Umm Al Quwain" {% if portal.emirate == "Umm Al Quwain" %}selected{% endif %}>Umm Al Quwain</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Company Address</label>
+                    <textarea name="address" class="form-control" rows="2" placeholder="Office address">{{ portal.address }}</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Person -->
+    <div class="card mb-4">
+        <div class="section-head">
+            <div class="section-icon"><i class="fas fa-user-tie"></i></div>
+            <div>
+                <div style="font-weight:700;font-size:15px;">Contact Person</div>
+                <div style="font-size:12px;opacity:.7;">Primary point of contact for training coordination</div>
+            </div>
+        </div>
+        <div class="section-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Full Name <span class="required-note">*</span></label>
+                    <input type="text" name="contact_person" class="form-control" required placeholder="Contact person name" value="{{ portal.contact_person }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Designation</label>
+                    <input type="text" name="designation" class="form-control" placeholder="e.g. HR Manager" value="{{ portal.designation }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Email <span class="required-note">*</span></label>
+                    <input type="email" name="email" class="form-control" required placeholder="contact@company.com" value="{{ portal.email }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Phone <span class="required-note">*</span></label>
+                    <input type="tel" name="phone" class="form-control" required placeholder="+971 50 000 0000" value="{{ portal.phone }}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn-submit">
+        <i class="fas fa-arrow-right me-2"></i>Submit Company Details &amp; Continue
+    </button>
+    <div style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:16px;">
+        <i class="fas fa-lock me-1"></i>Your information is secure and will only be used for training enrollment
+    </div>
+    </form>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

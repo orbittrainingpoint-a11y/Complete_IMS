@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add User — Orbit ERP</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .card { background: #1e293b; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
+        .card-header { background: rgba(16,185,129,.1); border-bottom: 1px solid rgba(16,185,129,.2); }
+        .form-control, .form-select { background: #0f172a; border-color: rgba(255,255,255,.15); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #0f172a; border-color: #10b981; box-shadow: 0 0 0 .2rem rgba(16,185,129,.25); color: #e2e8f0; }
+        .form-label { color: #94a3b8; font-size: .85rem; }
+        label { color: #94a3b8; }
+        input, select { color: #e2e8f0 !important; }
+        /* Options in native OS dropdown always render on white — force dark text */
+        select option { color: #1e293b !important; background: #fff !important; }
+        .btn-success { background: #10b981; border-color: #10b981; }
+        .btn-success:hover { background: #059669; border-color: #059669; }
+        .text-muted { color: #64748b !important; }
+        .badge-role { font-size: .7rem; padding: 2px 8px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container" style="max-width:480px;">
+        <div class="card shadow-lg">
+            <div class="card-header py-3 px-4">
+                <h5 class="mb-0 text-white"><i class="fas fa-user-plus me-2 text-success"></i>Add New User</h5>
+                <p class="mb-0 text-muted" style="font-size:.82rem;">Sales manager &amp; executive accounts are auto-synced to CRM.</p>
+            </div>
+            <div class="card-body p-4">
+                {% if messages %}
+                    {% for msg in messages %}
+                    <div class="alert alert-{% if msg.tags == 'error' %}danger{% else %}{{ msg.tags }}{% endif %} py-2">{{ msg }}</div>
+                    {% endfor %}
+                {% endif %}
+
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.as_p }}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold"><i class="fas fa-shield-alt me-1 text-warning"></i>Role</label>
+                        <select name="role" class="form-select" required>
+                            <option value="sales_executive" selected>Sales Executive</option>
+                            <option value="sales_manager">Sales Manager</option>
+                            <option value="accounts">Accounts</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                        <div class="form-text text-muted">Sales roles are automatically created in the CRM.</div>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-user-check me-2"></i>Create User
+                        </button>
+                        <a href="{% url 'manage_users' %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

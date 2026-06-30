@@ -1,0 +1,70 @@
+{% extends 'base_generic.html' %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>Corporate Registration and Invoice Details</h2>
+    <div class="card">
+        <div class="card-body">
+            <h3 class="card-title">Corporate Registration Information</h3>
+            <p><strong>Registration Number:</strong> {{ registration.registration_number }}</p>
+            <p><strong>Date:</strong> {{ registration.date }}</p>
+            <p><strong>Company Name:</strong> {{ registration.corporate_details.company_name }}</p>
+            <p><strong>Company Email:</strong> {{ registration.corporate_details.company_email }}</p>
+            <p><strong>Company Phone:</strong> {{ registration.corporate_details.company_phone }}</p>
+            <p><strong>Courses:</strong>
+                {% for rc in registration.registration_courses.all %}
+                    {{ rc.course.name }}{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </p>
+        </div>
+        <a href="{% url 'edit_corporate_registration' registration.id %}" class="btn btn-sm btn-primary">Edit</a>
+    </div>
+    
+    <div class="card mt-4">
+        <div class="card-body">
+            <h3 class="card-title">Invoice Information</h3>
+            {% if invoices %}
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Invoice Number</th>
+                            <th>Date</th>
+                            <th>Amount</th>
+                            <th>Amount Paid</th>
+                            <th>Due Amount</th>
+                            <th>Status</th>
+                            <th>Payment Method</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% with running_due=0 %}
+                            {% for invoice in invoices %}
+                            <tr>
+                                <td>{{ invoice.invoice_number }}</td>
+                                <td>{{ invoice.date }}</td>
+                                <td>{{ invoice.total_amount }}</td>
+                                <td> {% with adjusted_amount=invoice.amount_paid|multiply:0.05 %}
+                                    {% with total_amount=invoice.amount_paid|add:adjusted_amount %}
+                                    {{ total_amount|floatformat:2 }}
+                                    {% endwith %}
+                                    {% endwith %}</td>
+<td>
+    {% calculate_running_due invoice forloop.counter as current_due %}
+    {{ current_due|floatformat:2 }}
+</td>
+                                <td>{{ invoice.get_status_display }}</td>
+                                <td>{{ invoice.get_payment_display }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% endwith %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No invoices associated with this corporate registration.</p>
+            {% endif %}
+        </div>
+        <a  class="btn btn-primary" href="{% url 'create_invoice' %}">Create Tax Invoice</a>
+    </div>
+</div>
+{% endblock %}

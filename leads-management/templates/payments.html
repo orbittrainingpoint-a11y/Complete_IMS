@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Payment Management</h1>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPaymentLinkModal">
+            <i class="fas fa-plus me-2"></i>Create Payment Link
+        </button>
+    </div>
+
+    <!-- Payment Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-start-success">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Paid</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_paid }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-start-warning">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_pending }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-start-danger">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Failed</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_failed }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-times-circle fa-2x text-danger"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-start-info">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                <a href="{{ url_for('main.payment_settings') }}" class="text-decoration-none">Settings</a>
+                            </div>
+                            <div class="small text-gray-600">Configure Payment</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-cog fa-2x text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Provider Tabs -->
+    <div class="card">
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs" id="paymentProviderTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="vault-tab" data-bs-toggle="tab" data-bs-target="#vault" type="button" role="tab">
+                        <i class="fas fa-shield-alt me-2"></i>Vault Pay
+                        {% if vault_provider and vault_provider.is_active %}
+                            <span class="badge bg-success ms-2">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary ms-2">Inactive</span>
+                        {% endif %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tabby-tab" data-bs-toggle="tab" data-bs-target="#tabby" type="button" role="tab">
+                        <i class="fas fa-credit-card me-2"></i>Tabby
+                        {% if tabby_provider and tabby_provider.is_active %}
+                            <span class="badge bg-success ms-2">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary ms-2">Inactive</span>
+                        {% endif %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tamara-tab" data-bs-toggle="tab" data-bs-target="#tamara" type="button" role="tab">
+                        <i class="fas fa-wallet me-2"></i>Tamara
+                        {% if tamara_provider and tamara_provider.is_active %}
+                            <span class="badge bg-success ms-2">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary ms-2">Inactive</span>
+                        {% endif %}
+                    </button>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body">
+            <div class="tab-content" id="paymentProviderTabsContent">
+                <!-- Vault Tab -->
+                <div class="tab-pane fade show active" id="vault" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Vault Pay Transactions</h5>
+                        <a href="{{ url_for('main.payment_providers') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-cog me-1"></i>Configure
+                        </a>
+                    </div>
+                    
+                    {% if vault_provider and vault_provider.is_active %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Reference</th>
+                                        <th>Customer</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for link in vault_links %}
+                                    <tr>
+                                        <td><code>{{ link.payment_reference }}</code></td>
+                                        <td>
+                                            {% if link.lead %}
+                                                <strong>{{ link.lead.name }}</strong><br>
+                                                <small class="text-muted">Lead</small>
+                                            {% elif link.student %}
+                                                <strong>{{ link.student.name }}</strong><br>
+                                                <small class="text-muted">Student</small>
+                                            {% else %}
+                                                <span class="text-muted">No customer</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ link.amount }} {{ link.currency }}</td>
+                                        <td>
+                                            {% if link.status == 'paid' %}
+                                                <span class="badge bg-success">Paid</span>
+                                            {% elif link.status == 'pending' %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% elif link.status == 'failed' %}
+                                                <span class="badge bg-danger">Failed</span>
+                                            {% elif link.status == 'expired' %}
+                                                <span class="badge bg-secondary">Expired</span>
+                                            {% else %}
+                                                <span class="badge bg-info">{{ link.status|title }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ link.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
+                                            {% if link.payment_url and link.status == 'pending' %}
+                                                <a href="{{ link.payment_url }}" target="_blank" class="btn btn-sm btn-primary">
+                                                    <i class="fas fa-external-link-alt"></i>
+                                                </a>
+                                            {% endif %}
+                                            <button class="btn btn-sm btn-outline-info" onclick="viewPaymentDetails('{{ link.id }}')">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted">No Vault Pay transactions found</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-shield-alt fa-3x text-muted mb-3"></i>
+                            <h5>Vault Pay Not Configured</h5>
+                            <p class="text-muted">Set up your Vault Pay integration to start accepting payments.</p>
+                            <a href="{{ url_for('main.payment_providers') }}" class="btn btn-primary">Configure Now</a>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Tabby Tab -->
+                <div class="tab-pane fade" id="tabby" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Tabby Transactions</h5>
+                        <a href="{{ url_for('main.payment_providers') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-cog me-1"></i>Configure
+                        </a>
+                    </div>
+                    
+                    {% if tabby_provider and tabby_provider.is_active %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Reference</th>
+                                        <th>Customer</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for link in tabby_links %}
+                                    <tr>
+                                        <td><code>{{ link.payment_reference }}</code></td>
+                                        <td>
+                                            {% if link.lead %}
+                                                <strong>{{ link.lead.name }}</strong><br>
+                                                <small class="text-muted">Lead</small>
+                                            {% elif link.student %}
+                                                <strong>{{ link.student.name }}</strong><br>
+                                                <small class="text-muted">Student</small>
+                                            {% else %}
+                                                <span class="text-muted">No customer</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ link.amount }} {{ link.currency }}</td>
+                                        <td>
+                                            {% if link.status == 'paid' %}
+                                                <span class="badge bg-success">Paid</span>
+                                            {% elif link.status == 'pending' %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% elif link.status == 'failed' %}
+                                                <span class="badge bg-danger">Failed</span>
+                                            {% elif link.status == 'expired' %}
+                                                <span class="badge bg-secondary">Expired</span>
+                                            {% else %}
+                                                <span class="badge bg-info">{{ link.status|title }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ link.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
+                                            {% if link.payment_url and link.status == 'pending' %}
+                                                <a href="{{ link.payment_url }}" target="_blank" class="btn btn-sm btn-primary">
+                                                    <i class="fas fa-external-link-alt"></i>
+                                                </a>
+                                            {% endif %}
+                                            <button class="btn btn-sm btn-outline-info" onclick="viewPaymentDetails('{{ link.id }}')">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted">No Tabby transactions found</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
+                            <h5>Tabby Not Configured</h5>
+                            <p class="text-muted">Set up your Tabby integration for buy now, pay later options.</p>
+                            <a href="{{ url_for('main.payment_providers') }}" class="btn btn-primary">Configure Now</a>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Tamara Tab -->
+                <div class="tab-pane fade" id="tamara" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Tamara Transactions</h5>
+                        <a href="{{ url_for('main.payment_providers') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-cog me-1"></i>Configure
+                        </a>
+                    </div>
+                    
+                    {% if tamara_provider and tamara_provider.is_active %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Reference</th>
+                                        <th>Customer</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for link in tamara_links %}
+                                    <tr>
+                                        <td><code>{{ link.payment_reference }}</code></td>
+                                        <td>
+                                            {% if link.lead %}
+                                                <strong>{{ link.lead.name }}</strong><br>
+                                                <small class="text-muted">Lead</small>
+                                            {% elif link.student %}
+                                                <strong>{{ link.student.name }}</strong><br>
+                                                <small class="text-muted">Student</small>
+                                            {% else %}
+                                                <span class="text-muted">No customer</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ link.amount }} {{ link.currency }}</td>
+                                        <td>
+                                            {% if link.status == 'paid' %}
+                                                <span class="badge bg-success">Paid</span>
+                                            {% elif link.status == 'pending' %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% elif link.status == 'failed' %}
+                                                <span class="badge bg-danger">Failed</span>
+                                            {% elif link.status == 'expired' %}
+                                                <span class="badge bg-secondary">Expired</span>
+                                            {% else %}
+                                                <span class="badge bg-info">{{ link.status|title }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ link.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
+                                            {% if link.payment_url and link.status == 'pending' %}
+                                                <a href="{{ link.payment_url }}" target="_blank" class="btn btn-sm btn-primary">
+                                                    <i class="fas fa-external-link-alt"></i>
+                                                </a>
+                                            {% endif %}
+                                            <button class="btn btn-sm btn-outline-info" onclick="viewPaymentDetails('{{ link.id }}')">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted">No Tamara transactions found</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-wallet fa-3x text-muted mb-3"></i>
+                            <h5>Tamara Not Configured</h5>
+                            <p class="text-muted">Set up your Tamara integration for flexible payment options.</p>
+                            <a href="{{ url_for('main.payment_providers') }}" class="btn btn-primary">Configure Now</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Payment Link Modal -->
+<div class="modal fade" id="createPaymentLinkModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('main.create_payment_link') }}">
+                {{ payment_link_form.hidden_tag() }}
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Payment Link</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ payment_link_form.lead_id.label(class="form-label") }}
+                                {{ payment_link_form.lead_id(class="form-select") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ payment_link_form.student_id.label(class="form-label") }}
+                                {{ payment_link_form.student_id(class="form-select") }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ payment_link_form.provider_id.label(class="form-label") }}
+                                {{ payment_link_form.provider_id(class="form-select") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ payment_link_form.currency.label(class="form-label") }}
+                                {{ payment_link_form.currency(class="form-select") }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ payment_link_form.amount.label(class="form-label") }}
+                                {{ payment_link_form.amount(class="form-control", step="0.01") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ payment_link_form.expires_in_days.label(class="form-label") }}
+                                {{ payment_link_form.expires_in_days(class="form-control") }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        {{ payment_link_form.description.label(class="form-label") }}
+                        {{ payment_link_form.description(class="form-control", placeholder="e.g., Course fee payment for Advanced Python") }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-link me-2"></i>Create Payment Link
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function viewPaymentDetails(linkId) {
+    // This would show a modal with payment details
+    alert('Payment details for link ID: ' + linkId);
+}
+</script>
+{% endblock %}

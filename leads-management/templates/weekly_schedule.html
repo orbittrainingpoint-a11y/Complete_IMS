@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}Weekly Schedule{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Weekly Schedule</h1>
+            <p class="text-muted">{{ start_of_week.strftime('%B %d') }} - {{ end_of_week.strftime('%B %d, %Y') }}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('main.weekly_schedule', week=week_offset-1) }}" class="btn btn-outline-secondary me-1">
+                <i class="fas fa-chevron-left"></i> Previous Week
+            </a>
+            <a href="{{ url_for('main.weekly_schedule', week=week_offset+1) }}" class="btn btn-outline-secondary me-2">
+                Next Week <i class="fas fa-chevron-right"></i>
+            </a>
+            <a href="{{ url_for('main.monthly_schedule') }}" class="btn btn-outline-info me-2">
+                <i class="fas fa-calendar me-1"></i>Monthly View
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-start-primary">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Classes</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ week_schedule.values()|sum(attribute='__len__')|int }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chalkboard fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-start-success">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Active Trainers</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ week_schedule.values()|sum(start=[])|map(attribute='trainer')|unique|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chalkboard-teacher fa-2x text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-start-info">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Students</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ week_schedule.values()|sum(start=[])|map(attribute='students')|sum(start=[])|unique|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-user-graduate fa-2x text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-start-warning">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Different Courses</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ week_schedule.values()|sum(start=[])|map(attribute='course')|unique|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-book fa-2x text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weekly Calendar View -->
+    <div class="card">
+        <div class="card-header">
+            <h6 class="m-0 font-weight-bold text-primary">Weekly Calendar</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for day, classes in week_schedule.items() %}
+                <div class="col-md-12 col-lg-6 col-xl-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="m-0 font-weight-bold">
+                                {{ day.strftime('%A') }}
+                                <br><small class="text-muted">{{ day.strftime('%B %d, %Y') }}</small>
+                            </h6>
+                        </div>
+                        <div class="card-body p-2">
+                            {% if classes %}
+                                {% for class_item in classes|sort(attribute='start_time') %}
+                                <div class="class-item mb-2 p-2 border rounded bg-light">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <div class="fw-bold text-primary">{{ class_item.course.name }}</div>
+                                            <div class="small text-muted">
+                                                <i class="fas fa-clock me-1"></i>{{ class_item.start_time.strftime('%H:%M') }} - {{ class_item.end_time.strftime('%H:%M') }}
+                                            </div>
+                                            <div class="small">
+                                                <i class="fas fa-chalkboard-teacher me-1"></i>{{ class_item.trainer.name }}
+                                            </div>
+                                            {% if class_item.students %}
+                                            <div class="small">
+                                                <i class="fas fa-users me-1"></i>{{ class_item.students|length }} student(s)
+                                            </div>
+                                            {% endif %}
+                                            {% if class_item.location %}
+                                            <div class="small">
+                                                <i class="fas fa-map-marker-alt me-1"></i>{{ class_item.location }}
+                                            </div>
+                                            {% elif class_item.online_link %}
+                                            <div class="small">
+                                                <i class="fas fa-video me-1"></i>Online
+                                            </div>
+                                            {% endif %}
+                                            {% if class_item.class_type != 'Regular' %}
+                                            <div class="small">
+                                                <span class="badge bg-warning">{{ class_item.class_type }}</span>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" onclick="viewClassDetails({{ class_item.id }})">
+                                                    <i class="fas fa-eye me-2"></i>View Details
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="editClass({{ class_item.id }})">
+                                                    <i class="fas fa-edit me-2"></i>Edit
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="cancelClass({{ class_item.id }})">
+                                                    <i class="fas fa-times me-2"></i>Cancel
+                                                </a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center text-muted py-3">
+                                    <i class="fas fa-calendar-times fa-2x mb-2"></i>
+                                    <div>No classes scheduled</div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Trainer Schedule Summary -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h6 class="m-0 font-weight-bold text-primary">Trainer Workload Summary</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Trainer</th>
+                            <th>Total Classes</th>
+                            <th>Total Hours</th>
+                            <th>Courses</th>
+                            <th>Total Students</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set trainer_summary = {} %}
+                        {% for day_classes in week_schedule.values() %}
+                            {% for class_item in day_classes %}
+                                {% set trainer_id = class_item.trainer.id %}
+                                {% if trainer_id not in trainer_summary %}
+                                    {% set _ = trainer_summary.update({trainer_id: {
+                                        'trainer': class_item.trainer,
+                                        'classes': [],
+                                        'total_hours': 0,
+                                        'courses': set(),
+                                        'students': set()
+                                    }}) %}
+                                {% endif %}
+                                {% set _ = trainer_summary[trainer_id]['classes'].append(class_item) %}
+                                {% set _ = trainer_summary[trainer_id].update({'total_hours': trainer_summary[trainer_id]['total_hours'] + (class_item.duration_minutes / 60)}) %}
+                                {% set _ = trainer_summary[trainer_id]['courses'].add(class_item.course.name) %}
+                                {% for student in class_item.students %}
+                                    {% set _ = trainer_summary[trainer_id]['students'].add(student.name) %}
+                                {% endfor %}
+                            {% endfor %}
+                        {% endfor %}
+                        
+                        {% for trainer_data in trainer_summary.values() %}
+                        <tr>
+                            <td>
+                                <strong>{{ trainer_data.trainer.name }}</strong>
+                                {% if trainer_data.trainer.specialization %}
+                                    <br><small class="text-muted">{{ trainer_data.trainer.specialization }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ trainer_data.classes|length }}</td>
+                            <td>{{ "%.1f"|format(trainer_data.total_hours) }} hours</td>
+                            <td>
+                                {% for course in trainer_data.courses %}
+                                    <span class="badge bg-info me-1">{{ course }}</span>
+                                {% endfor %}
+                            </td>
+                            <td>{{ trainer_data.students|length }} unique students</td>
+                            <td>
+                                <a href="{{ url_for('main.trainer_schedule', id=trainer_data.trainer.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-calendar me-1"></i>View Schedule
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">No classes scheduled for this week</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.class-item {
+    transition: all 0.2s ease;
+}
+
+.class-item:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.card.h-100 {
+    min-height: 250px;
+}
+
+@media (max-width: 768px) {
+    .col-xl-4, .col-lg-6 {
+        margin-bottom: 1rem;
+    }
+}
+</style>
+
+<script>
+function viewClassDetails(classId) {
+    // Implement class details viewing
+    alert('View class details for ID: ' + classId);
+}
+
+function editClass(classId) {
+    // Implement class editing
+    alert('Edit class functionality will be implemented. Class ID: ' + classId);
+}
+
+function cancelClass(classId) {
+    if (confirm('Are you sure you want to cancel this class?')) {
+        // Implement class cancellation
+        alert('Cancel class functionality will be implemented. Class ID: ' + classId);
+    }
+}
+</script>
+{% endblock %}

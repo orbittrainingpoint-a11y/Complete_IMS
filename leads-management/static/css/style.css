@@ -1,0 +1,155 @@
+/* Orbit CRM — Component styles (non-structural, complements base.html design system) */
+
+/* ─── Status Badges ─────────────────────────────────────────── */
+.status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11.5px; font-weight: 600;
+}
+.status-badge::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
+
+.status-new        { background: rgba(37,99,235,.1);  color: #2563eb; }
+.status-contacted  { background: rgba(245,158,11,.1); color: #d97706; }
+.status-interested { background: rgba(249,115,22,.1); color: #ea580c; }
+.status-quoted     { background: rgba(139,92,246,.1); color: #7c3aed; }
+.status-converted  { background: rgba(16,185,129,.1); color: #059669; }
+.status-lost       { background: rgba(239,68,68,.1);  color: #dc2626; }
+.status-follow-up  { background: rgba(6,182,212,.1);  color: #0891b2; }
+
+/* ─── Pipeline Columns ──────────────────────────────────────── */
+.pipeline-column {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px; padding: 16px; margin: 6px;
+    min-height: 500px; min-width: 220px;
+}
+.pipeline-header {
+    text-align: center; font-weight: 700; font-size: 12px;
+    text-transform: uppercase; letter-spacing: .5px;
+    padding: 8px 12px; border-radius: 8px;
+    margin-bottom: 12px; color: #fff;
+}
+.pipeline-new       { background: #2563eb; }
+.pipeline-contacted { background: #d97706; }
+.pipeline-interested{ background: #ea580c; }
+.pipeline-quoted    { background: #7c3aed; }
+.pipeline-converted { background: #059669; }
+.pipeline-lost      { background: #dc2626; }
+
+.lead-card {
+    background: var(--bg, #f1f5f9);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 10px; padding: 14px; margin-bottom: 10px;
+    cursor: move; transition: all .2s;
+    border-left: 3px solid #2563eb;
+}
+.lead-card:hover {
+    border-color: #2563eb;
+    box-shadow: 0 4px 12px rgba(37,99,235,.12);
+    transform: translateY(-1px);
+}
+.lead-card.dragging { opacity: .5; }
+
+/* ─── Meeting Cards ─────────────────────────────────────────── */
+.meeting-card {
+    background: var(--bg, #f1f5f9);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 10px; padding: 12px; margin: 6px 0;
+    border-left: 3px solid #2563eb; cursor: pointer;
+    transition: all .2s;
+}
+.meeting-card:hover { transform: translateX(4px); }
+.meeting-online  { border-left-color: #0891b2; }
+.meeting-offline { border-left-color: #059669; }
+
+.calendar-view {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px; padding: 24px;
+}
+
+/* ─── Stats ─────────────────────────────────────────────────── */
+.stat-card { text-align: center; padding: 20px; }
+.stat-number {
+    font-size: 2.2rem; font-weight: 800; letter-spacing: -1px;
+    color: var(--primary, #2563eb); margin-bottom: 4px;
+}
+.stat-label {
+    color: var(--text-muted, #64748b); font-size: 12px;
+    text-transform: uppercase; letter-spacing: 1px; font-weight: 600;
+}
+
+/* ─── Modals ────────────────────────────────────────────────── */
+.modal-content {
+    border-radius: 14px;
+    border: 1px solid var(--border, #e2e8f0);
+    box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    background: var(--card-bg, #fff);
+    color: var(--text, #1e293b);
+}
+.modal-header {
+    background: #0f1b2d;
+    color: #fff;
+    border-radius: 14px 14px 0 0;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.modal-header .btn-close { filter: invert(1); }
+.modal-body { color: var(--text, #1e293b); }
+.modal-footer { border-top: 1px solid var(--border, #e2e8f0); }
+
+/* ─── File Upload ───────────────────────────────────────────── */
+.upload-area {
+    border: 2px dashed var(--border, #e2e8f0);
+    border-radius: 12px; padding: 40px; text-align: center;
+    cursor: pointer; transition: all .2s;
+    color: var(--text-muted, #64748b);
+}
+.upload-area:hover {
+    border-color: var(--primary, #2563eb);
+    background: rgba(37,99,235,.04);
+}
+
+/* ─── Chart containers ──────────────────────────────────────── */
+.chart-container {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px; padding: 24px; margin-bottom: 24px;
+}
+
+/* ─── Progress ──────────────────────────────────────────────── */
+.progress-custom { height: 6px; border-radius: 6px; background: var(--border, #e2e8f0); overflow: hidden; }
+.progress-bar-custom { background: linear-gradient(90deg, #2563eb, #10b981); border-radius: 6px; transition: width .6s ease; }
+
+/* ─── Action icon buttons ───────────────────────────────────── */
+.action-buttons .btn {
+    width: 32px; height: 32px; padding: 0; border-radius: 7px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; margin: 1px;
+}
+
+/* ─── Search + Filter bar ───────────────────────────────────── */
+.search-filter-bar {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px; padding: 16px; margin-bottom: 20px;
+}
+
+/* ─── Animations ────────────────────────────────────────────── */
+.fade-in { animation: fadeIn .4s ease-in; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+.slide-in { animation: slideIn .3s ease-out; }
+@keyframes slideIn { from { transform:translateX(-100%); } to { transform:translateX(0); } }
+
+.loading {
+    display: inline-block; width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,.3); border-radius: 50%;
+    border-top-color: #fff; animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Custom scrollbar (content area) ──────────────────────── */
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }

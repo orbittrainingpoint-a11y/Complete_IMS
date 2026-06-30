@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Login History — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+  <div>
+    <div class="page-title">Login History</div>
+    <div class="page-subtitle">IP address tracking &amp; session log</div>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-blue"><i class="fas fa-right-to-bracket"></i></div>
+      <div class="kpi-value">{{ total_logins }}</div>
+      <div class="kpi-label">Total Attempts</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-green"><i class="fas fa-check-circle"></i></div>
+      <div class="kpi-value">{{ success_count }}</div>
+      <div class="kpi-label">Successful</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-red"><i class="fas fa-times-circle"></i></div>
+      <div class="kpi-value">{{ failed_count }}</div>
+      <div class="kpi-label">Failed Attempts</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-purple"><i class="fas fa-network-wired"></i></div>
+      <div class="kpi-value">{{ unique_ips }}</div>
+      <div class="kpi-label">Unique IPs</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3" style="padding:14px 18px;">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:.5px;display:block;margin-bottom:5px;">Username</label>
+      <input type="text" name="user" value="{{ user_f }}" class="form-control form-control-sm" placeholder="Filter by username…">
+    </div>
+    <div class="col-md-3">
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:.5px;display:block;margin-bottom:5px;">IP Address</label>
+      <input type="text" name="ip" value="{{ ip_f }}" class="form-control form-control-sm" placeholder="Filter by IP…">
+    </div>
+    <div class="col-md-2">
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:.5px;display:block;margin-bottom:5px;">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">All</option>
+        <option value="success" {{ 'selected' if status_f=='success' }}>Success</option>
+        <option value="failed"  {{ 'selected' if status_f=='failed'  }}>Failed</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fas fa-search me-1"></i>Filter</button>
+    </div>
+    <div class="col-md-2">
+      <a href="{{ url_for('main.admin_login_logs') }}" class="btn btn-outline-secondary btn-sm w-100">Clear</a>
+    </div>
+  </form>
+</div>
+
+<!-- Table -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table mb-0" style="font-size:13px;">
+      <thead>
+        <tr style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">
+          <th>#</th>
+          <th>Username</th>
+          <th>IP Address</th>
+          <th>Status</th>
+          <th>Browser / Agent</th>
+          <th>Date &amp; Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td style="color:#94a3b8;font-size:11px;">{{ (page-1)*50 + loop.index }}</td>
+          <td>
+            <div style="font-weight:700;color:#0f172a;">{{ log.username_try }}</div>
+            {% set u = user_map.get(log.user_id) %}
+            {% if u %}
+            <div style="font-size:11px;color:#64748b;">{{ u.role }}</div>
+            {% else %}
+            <div style="font-size:11px;color:#ef4444;">Unknown user</div>
+            {% endif %}
+          </td>
+          <td>
+            <span style="font-family:monospace;font-size:13px;font-weight:600;color:#2563eb;background:#eff6ff;padding:3px 8px;border-radius:6px;">{{ log.ip_address or '—' }}</span>
+          </td>
+          <td>
+            {% if log.status == 'success' %}
+            <span style="background:#d1fae5;color:#065f46;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">
+              <i class="fas fa-check me-1"></i>Success
+            </span>
+            {% else %}
+            <span style="background:#fee2e2;color:#991b1b;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">
+              <i class="fas fa-times me-1"></i>Failed
+            </span>
+            {% endif %}
+          </td>
+          <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#64748b;font-size:12px;" title="{{ log.user_agent }}">
+            {{ log.user_agent[:80] if log.user_agent else '—' }}…
+          </td>
+          <td style="font-size:12px;color:#64748b;white-space:nowrap;">
+            {{ log.login_at.strftime('%d %b %Y  %H:%M:%S') if log.login_at else '—' }}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center py-5 text-muted">No login records yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if pages > 1 %}
+  <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top">
+    <small class="text-muted">Showing {{ (page-1)*50+1 }}–{{ [(page)*50, total]|min }} of {{ total }}</small>
+    <nav><ul class="pagination pagination-sm mb-0 gap-1">
+      {% if page > 1 %}
+      <li class="page-item"><a class="page-link" href="?user={{ user_f }}&ip={{ ip_f }}&status={{ status_f }}&page={{ page-1 }}"><i class="fas fa-chevron-left"></i></a></li>
+      {% endif %}
+      {% for p in range(1, pages+1) %}
+        {% if p == page %}<li class="page-item active"><span class="page-link">{{ p }}</span></li>
+        {% elif p >= page-2 and p <= page+2 %}<li class="page-item"><a class="page-link" href="?user={{ user_f }}&ip={{ ip_f }}&status={{ status_f }}&page={{ p }}">{{ p }}</a></li>
+        {% endif %}
+      {% endfor %}
+      {% if page < pages %}
+      <li class="page-item"><a class="page-link" href="?user={{ user_f }}&ip={{ ip_f }}&status={{ status_f }}&page={{ page+1 }}"><i class="fas fa-chevron-right"></i></a></li>
+      {% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

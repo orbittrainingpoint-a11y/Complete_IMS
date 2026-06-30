@@ -1,0 +1,1037 @@
+{% extends "base.html" %}
+
+{% block title %}Leads - Training Center CRM{% endblock %}
+
+{% block extra_head %}
+<style>
+/* Status quick-select: colored backgrounds matching status-badge colours */
+.status-quick-select { appearance:none; -webkit-appearance:none; background-repeat:no-repeat; background-position:right 6px center; background-size:12px; }
+.status-bg-new       { background-color:rgba(37,99,235,.12);  color:#1d4ed8; border:1.5px solid rgba(37,99,235,.3)!important; }
+.status-bg-contacted { background-color:rgba(139,92,246,.12); color:#6d28d9; border:1.5px solid rgba(139,92,246,.3)!important; }
+.status-bg-interested{ background-color:rgba(245,158,11,.12); color:#b45309; border:1.5px solid rgba(245,158,11,.3)!important; }
+.status-bg-quoted    { background-color:rgba(16,185,129,.12); color:#065f46; border:1.5px solid rgba(16,185,129,.3)!important; }
+.status-bg-converted { background-color:rgba(16,185,129,.2);  color:#064e3b; border:1.5px solid rgba(16,185,129,.45)!important; }
+.status-bg-lost      { background-color:rgba(239,68,68,.1);   color:#991b1b; border:1.5px solid rgba(239,68,68,.25)!important; }
+/* Override dark mode: options must be readable */
+.status-quick-select option { color:#1e293b !important; background:#fff !important; }
+/* Field-level validation errors in add-lead modal */
+.field-err { display:none; font-size:12px; color:#ef4444; margin-top:4px; }
+.field-err i { font-size:11px; }
+/* When a field is invalid, make the icon border match */
+#addNameGroup .input-group-text,
+#addPhoneGroup .input-group-text,
+#addEmailGroup .input-group-text,
+#addWhatsappGroup .input-group-text { transition:border-color .15s; }
+/* Selects use outline instead of border for validation highlight */
+#addCourse.is-err, #addSource.is-err { border-color:#ef4444 !important; }
+</style>
+{% endblock %}
+
+{% block breadcrumb %}<span class="current">Leads</span>{% endblock %}
+
+{% block content %}
+<!-- Search and Filter Bar -->
+<div class="search-filter-bar">
+    <div class="row align-items-center">
+        <div class="col-md-4">
+            <div class="input-group">
+                <input type="text" class="form-control search-input" placeholder="Search leads..." 
+                       id="searchInput" value="{{ search }}">
+                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('searchInput').dispatchEvent(new Event('input'))">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <select class="form-select filter-select" name="status" onchange="applyFilters()">
+                        <option value="">All Status</option>
+                        {% for status in statuses %}
+                        <option value="{{ status }}" {% if status_filter == status %}selected{% endif %}>{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select filter-select" name="course" onchange="applyFilters()">
+                        <option value="">All Courses</option>
+                        {% for course in courses %}
+                        <option value="{{ course.id }}" {% if course_filter == course.id|string %}selected{% endif %}>{{ course.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% if consultants %}
+                <div class="col-md-3">
+                    <select class="form-select filter-select" name="consultant" onchange="applyFilters()">
+                        <option value="">All Consultants</option>
+                        {% for c in consultants %}
+                        <option value="{{ c.id }}" {% if consultant_filter == c.id %}selected{% endif %}>{{ c.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-md-3">
+                    <select class="form-select filter-select" id="heatFilter" onchange="filterByHeat(this.value)">
+                        <option value="">All Activity</option>
+                        <option value="overdue">⚠️ Overdue</option>
+                        <option value="hot">🔥 Hot</option>
+                        <option value="warm">🌡️ Warm</option>
+                        <option value="cold">❄️ Cold</option>
+                        <option value="new">✨ New</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-2 text-end">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addLeadModal">
+                <i class="fas fa-plus me-2"></i>Add New Lead
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Leads Table -->
+<div class="custom-table">
+    <div class="table-responsive">
+        <table class="table table-hover data-table">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" class="form-check-input" id="selectAll"></th>
+                    <th style="min-width:80px;">Lead ID</th>
+                    <th>Lead Name</th>
+                    <th>Contact</th>
+                    <th>Course Interest</th>
+                    <th>Source</th>
+                    {% if current_user.role in ('admin', 'super_admin') or current_user.can_manage_users %}
+                    <th>Consultant</th>
+                    {% endif %}
+                    <th>Status</th>
+                    <th>Quoted</th>
+                    <th>Heat / Activity</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lead in leads %}
+                {% set conv = converted_students.get(lead.id) if converted_students is defined else none %}
+                <tr>
+                    <td><input type="checkbox" class="form-check-input lead-select" value="{{ lead.id }}"></td>
+                    <td>
+                        <div>
+                            <span style="display:inline-block;background:rgba(37,99,235,.1);color:#2563eb;font-family:monospace;font-weight:800;font-size:13px;padding:4px 10px;border-radius:6px;border:1px solid rgba(37,99,235,.2);letter-spacing:.5px;">
+                                L-{{ lead.id }}
+                            </span>
+                            {% if conv %}
+                            <div style="margin-top:4px;">
+                                <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,.1);color:#059669;font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;border:1px solid rgba(16,185,129,.25);">
+                                    <i class="fas fa-check-circle" style="font-size:9px;"></i>Enrolled
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="avatar bg-primary text-white rounded-circle me-3 d-flex align-items-center justify-content-center"
+                                 style="width:38px;height:38px;font-size:14px;font-weight:700;flex-shrink:0;">
+                                {{ lead.name[0].upper() if lead.name else '?' }}
+                            </div>
+                            <div>
+                                <div class="fw-bold" style="font-size:13.5px;">
+                                    <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" class="text-decoration-none" style="color:inherit;">{{ lead.name }}</a>
+                                </div>
+                                {% if conv %}
+                                <div style="font-size:11px;color:#059669;margin-top:2px;">
+                                    <i class="fas fa-graduation-cap fa-xs me-1"></i>{{ conv.name }}{% if conv.reg %} &middot; <span style="color:var(--text-muted)">{{ conv.reg }}</span>{% endif %}
+                                </div>
+                                {% else %}
+                                <small class="text-muted">{{ lead.created_at.strftime('%b %d, %Y') }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="font-size:13px;"><i class="fas fa-phone text-primary me-2" style="font-size:11px;"></i>{{ lead.phone }}</div>
+                        {% if lead.email %}<div style="font-size:12px;color:var(--text-muted);"><i class="fas fa-envelope me-1" style="font-size:10px;"></i>{{ lead.email }}</div>{% endif %}
+                        {% if lead.whatsapp %}<div style="font-size:12px;color:#25d366;"><i class="fab fa-whatsapp me-1" style="font-size:10px;"></i>{{ lead.whatsapp }}</div>{% endif %}
+                    </td>
+                    <td data-course="{{ lead.course_interest.name if lead.course_interest else '' }}">
+                        {% if lead.course_interest %}
+                            <span class="badge bg-info" style="font-size:11px;">{{ lead.course_interest.name }}</span>
+                        {% else %}
+                            <span class="text-muted" style="font-size:12px;">Not specified</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if lead.lead_source %}
+                            <span class="badge bg-secondary" style="font-size:11px;">{{ lead.lead_source }}</span>
+                        {% else %}
+                            <span class="text-muted" style="font-size:12px;">Unknown</span>
+                        {% endif %}
+                    </td>
+                    {% if current_user.role in ('admin', 'super_admin') or current_user.can_manage_users %}
+                    <td>
+                        {% set consultant = lead.assigned_consultant or lead.added_by_user %}
+                        {% if consultant %}
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px;flex-shrink:0;">
+                                {{ consultant.username[0].upper() }}
+                            </div>
+                            <span style="font-size:12px;font-weight:600;color:var(--text);">{{ consultant.username }}</span>
+                        </div>
+                        {% else %}
+                        <span class="text-muted" style="font-size:12px;">—</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td data-status="{{ lead.status }}">
+                        <select class="form-select form-select-sm status-quick-select status-bg-{{ lead.status.lower() }}"
+                                onchange="quickStatus({{ lead.id }}, this.value, this)"
+                                style="font-size:12px;font-weight:700;border-radius:8px;padding:3px 22px 3px 8px;min-width:110px;cursor:pointer;border:none;outline:none;">
+                            {% for s in ['New','Contacted','Interested','Quoted','Converted','Lost'] %}
+                            <option value="{{ s }}" {% if s == lead.status %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        {% if lead.quoted_amount and lead.quoted_amount > 0 %}
+                            <span class="fw-bold text-success" style="font-size:13px;">AED {{ "{:,.0f}".format(lead.quoted_amount) }}</span>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% set temp = lead_temps.get(lead.id, 'warm') if lead_temps is defined else 'warm' %}
+                        {% if temp == 'overdue' %}
+                        <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,.12);color:#dc2626;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;border:1px solid rgba(239,68,68,.25);" title="Follow-up overdue!">
+                            <i class="fas fa-exclamation-circle" style="font-size:10px;"></i>Overdue
+                        </span>
+                        {% elif temp == 'hot' %}
+                        <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,.08);color:#dc2626;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;border:1px solid rgba(239,68,68,.18);" title="Contacted recently (≤2 days)">
+                            🔥 Hot
+                        </span>
+                        {% elif temp == 'warm' %}
+                        <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,.1);color:#d97706;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;border:1px solid rgba(245,158,11,.25);" title="Contacted within 7 days">
+                            🌡️ Warm
+                        </span>
+                        {% elif temp == 'new' %}
+                        <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,.1);color:#059669;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;border:1px solid rgba(16,185,129,.25);" title="New lead — follow up soon">
+                            ✨ New
+                        </span>
+                        {% elif temp == 'cold' %}
+                        <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(148,163,184,.1);color:#64748b;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;border:1px solid rgba(148,163,184,.25);" title="No contact in 7+ days">
+                            ❄️ Cold
+                        </span>
+                        {% else %}
+                        <span style="font-size:11px;color:var(--text-muted);">—</span>
+                        {% endif %}
+                        {% if lead.last_contact_date %}
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">{{ lead.last_contact_date.strftime('%d %b %Y') }}</div>
+                        {% endif %}
+                        {% if lead.next_followup_date %}
+                        <div style="font-size:11px;margin-top:2px;{% if temp == 'overdue' %}color:#dc2626;font-weight:600;{% else %}color:var(--text-muted);{% endif %}">
+                            <i class="fas fa-clock fa-xs me-1"></i>{{ lead.next_followup_date.strftime('%d %b') }}
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-outline-primary" title="Call" onclick="makeCall('{{ lead.phone }}')"><i class="fas fa-phone"></i></button>
+                            {% if lead.whatsapp %}
+                            <button class="btn btn-sm btn-outline-success" title="WhatsApp" onclick="openWhatsApp('{{ lead.whatsapp }}')"><i class="fab fa-whatsapp"></i></button>
+                            {% endif %}
+                            {% if lead.email %}
+                            <button class="btn btn-sm btn-outline-info" title="Email" onclick="sendEmail('{{ lead.email }}')"><i class="fas fa-envelope"></i></button>
+                            {% endif %}
+                            {% if not conv %}
+                            <a href="{{ url_for('main.erp_jump') }}?crm_lead={{ lead.id }}" class="btn btn-sm btn-outline-success" title="Register in ERP (Lead L-{{ lead.id }})"><i class="fas fa-user-plus"></i></a>
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline-warning" title="Edit" onclick="editLead({{ lead.id }})"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="deleteLead({{ lead.id }})"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% if not leads %}
+        <div class="text-center py-5">
+            <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+            <h5 class="text-muted">No leads found</h5>
+            <p class="text-muted">Start by adding your first lead to the system.</p>
+            <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addLeadModal">
+                <i class="fas fa-plus me-2"></i>Add First Lead
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if pagination and pagination.pages > 1 %}
+<nav aria-label="Page navigation" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('main.leads', page=pagination.prev_num, search=search, status=status_filter, course=course_filter) }}">
+                Previous
+            </a>
+        </li>
+        {% endif %}
+        
+        {% for page_num in pagination.iter_pages() %}
+            {% if page_num %}
+                {% if page_num != pagination.page %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('main.leads', page=page_num, search=search, status=status_filter, course=course_filter) }}">
+                        {{ page_num }}
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item active">
+                    <span class="page-link">{{ page_num }}</span>
+                </li>
+                {% endif %}
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">...</span>
+            </li>
+            {% endif %}
+        {% endfor %}
+        
+        {% if pagination.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('main.leads', page=pagination.next_num, search=search, status=status_filter, course=course_filter) }}">
+                Next
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<!-- Bulk Actions -->
+<div class="mt-3">
+    <div class="d-flex align-items-center gap-3">
+        <span class="text-muted">Bulk Actions:</span>
+        <button class="btn btn-sm btn-outline-primary" onclick="bulkAction('status', 'Contacted')" disabled id="bulkStatusBtn">
+            Mark as Contacted
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="bulkAction('delete')" disabled id="bulkDeleteBtn">
+            Delete Selected
+        </button>
+        <span class="text-muted ms-auto">
+            <span id="selectedCount">0</span> leads selected
+        </span>
+    </div>
+</div>
+
+<!-- Add Lead Modal -->
+<div class="modal fade" id="addLeadModal" tabindex="-1" aria-labelledby="addLeadModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <form id="addLeadForm" method="POST" action="{{ url_for('main.add_lead') }}">
+                {{ lead_form.csrf_token }}
+                <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:1.25rem 1.5rem;">
+                    <div>
+                        <h5 class="modal-title text-white mb-0" id="addLeadModalLabel">
+                            <i class="fas fa-user-plus me-2 opacity-75"></i>Add New Lead
+                        </h5>
+                        <small class="text-white opacity-75">Fill in contact details to capture this lead</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div id="add-form-errors" class="alert alert-danger d-none" style="border-radius:10px;font-size:13px;"></div>
+                    <div id="add-form-success" class="alert alert-success d-none" style="border-radius:10px;font-size:13px;"></div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Full Name <span class="text-danger">*</span></label>
+                            <div class="input-group" id="addNameGroup">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fas fa-user text-secondary" style="font-size:12px;"></i>
+                                </span>
+                                <input type="text" name="name" id="addName" class="form-control border-start-0"
+                                       placeholder="Enter full name" style="border-radius:0 8px 8px 0;"
+                                       autocomplete="off">
+                            </div>
+                            <div id="addNameErr" class="field-err" style="display:none;margin-top:4px;font-size:12px;color:#ef4444;"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Phone <span class="text-danger">*</span></label>
+                            <div class="input-group" id="addPhoneGroup">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fas fa-phone text-secondary" style="font-size:12px;"></i>
+                                </span>
+                                <input type="text" name="phone" id="addPhone" class="form-control border-start-0"
+                                       placeholder="+971 XX XXX XXXX" style="border-radius:0 8px 8px 0;"
+                                       autocomplete="off">
+                            </div>
+                            <div id="addPhoneErr" class="field-err" style="display:none;margin-top:4px;font-size:12px;color:#ef4444;"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Email <span class="text-danger">*</span></label>
+                            <div class="input-group" id="addEmailGroup">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fas fa-envelope text-secondary" style="font-size:12px;"></i>
+                                </span>
+                                <input type="text" name="email" id="addEmail" class="form-control border-start-0"
+                                       placeholder="email@example.com" style="border-radius:0 8px 8px 0;"
+                                       autocomplete="off">
+                            </div>
+                            <div id="addEmailErr" class="field-err" style="display:none;margin-top:4px;font-size:12px;color:#ef4444;"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">WhatsApp <span class="text-danger">*</span></label>
+                            <div class="input-group" id="addWhatsappGroup">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fab fa-whatsapp text-success" style="font-size:13px;"></i>
+                                </span>
+                                <input type="text" name="whatsapp" id="addWhatsapp" class="form-control border-start-0"
+                                       placeholder="WhatsApp number" style="border-radius:0 8px 8px 0;"
+                                       autocomplete="off">
+                            </div>
+                            <div id="addWhatsappErr" class="field-err" style="display:none;margin-top:4px;font-size:12px;color:#ef4444;"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Course Interest <span class="text-danger">*</span></label>
+                            <select name="course_interest_id" id="addCourse" class="form-select" style="border-radius:8px;">
+                                <option value="0">Select Course</option>
+                                {% for cid, cname in lead_form.course_interest_id.choices[1:] %}
+                                <option value="{{ cid }}">{{ cname }}</option>
+                                {% endfor %}
+                            </select>
+                            <div id="addCourseErr" class="field-err" style="display:none;margin-top:4px;font-size:12px;color:#ef4444;"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Lead Source <span class="text-danger">*</span></label>
+                            <select name="lead_source" id="addSource" class="form-select" style="border-radius:8px;">
+                                <option value="">Select Source</option>
+                                {% for val, label in lead_form.lead_source.choices %}
+                                <option value="{{ val }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div id="addSourceErr" class="field-err" style="display:none;margin-top:4px;font-size:12px;color:#ef4444;"></div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Comments</label>
+                            <textarea name="comments" class="form-control" rows="3"
+                                      placeholder="Any notes about this lead…" style="border-radius:8px;resize:vertical;"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4" id="addLeadSubmitBtn"
+                            style="border-radius:8px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border:0;">
+                        <i class="fas fa-plus me-1"></i><span>Add Lead</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Lead Modal -->
+<div class="modal fade" id="editLeadModal" tabindex="-1" aria-labelledby="editLeadModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <form id="editLeadForm" method="POST">
+                {{ lead_form.csrf_token }}
+                <input type="hidden" name="lead_id" id="edit_lead_id">
+                <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#0f766e);padding:1.25rem 1.5rem;">
+                    <div>
+                        <h5 class="modal-title text-white mb-0" id="editLeadModalLabel">
+                            <i class="fas fa-user-edit me-2 opacity-75"></i>Edit Lead
+                        </h5>
+                        <small class="text-white opacity-75" id="editLeadSubtitle">Update lead information</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div id="edit-form-errors" class="alert alert-danger d-none rounded-3"></div>
+                    <div id="edit-form-success" class="alert alert-success d-none rounded-3"></div>
+
+                    <!-- Contact Info -->
+                    <div class="mb-3 pb-2" style="border-bottom:1px solid #e2e8f0;">
+                        <span class="fw-600 text-uppercase text-secondary" style="font-size:11px;letter-spacing:.5px;">
+                            <i class="fas fa-address-card me-1"></i>Contact Information
+                        </span>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Full Name <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fas fa-user text-secondary" style="font-size:12px;"></i>
+                                </span>
+                                {{ lead_form.name(class="form-control border-start-0", required=True, id="edit_name", style="border-radius:0 8px 8px 0;") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Phone <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fas fa-phone text-secondary" style="font-size:12px;"></i>
+                                </span>
+                                {{ lead_form.phone(class="form-control border-start-0", required=True, id="edit_phone", style="border-radius:0 8px 8px 0;") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Email Address</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fas fa-envelope text-secondary" style="font-size:12px;"></i>
+                                </span>
+                                {{ lead_form.email(class="form-control border-start-0", id="edit_email", style="border-radius:0 8px 8px 0;") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">WhatsApp</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fab fa-whatsapp text-success" style="font-size:13px;"></i>
+                                </span>
+                                {{ lead_form.whatsapp(class="form-control border-start-0", id="edit_whatsapp", style="border-radius:0 8px 8px 0;") }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lead Details -->
+                    <div class="mb-3 pb-2 mt-2" style="border-bottom:1px solid #e2e8f0;">
+                        <span class="fw-600 text-uppercase text-secondary" style="font-size:11px;letter-spacing:.5px;">
+                            <i class="fas fa-tag me-1"></i>Lead Details
+                        </span>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Course Interest</label>
+                            {{ lead_form.course_interest_id(class="form-select", id="edit_course_interest_id", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Status</label>
+                            {{ lead_form.status(class="form-select", id="edit_status", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Lead Source</label>
+                            {{ lead_form.lead_source(class="form-select", id="edit_lead_source", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Quoted Amount (AED)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;font-size:12px;">AED</span>
+                                <input type="number" step="0.01" name="quoted_amount" id="edit_quoted_amount" class="form-control border-start-0" placeholder="0.00" style="border-radius:0 8px 8px 0;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Follow-up -->
+                    <div class="mb-3 pb-2 mt-2" style="border-bottom:1px solid #e2e8f0;">
+                        <span class="fw-600 text-uppercase text-secondary" style="font-size:11px;letter-spacing:.5px;">
+                            <i class="fas fa-calendar-check me-1"></i>Follow-up Schedule
+                        </span>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Next Follow-up Date</label>
+                            <input type="date" name="next_followup_date" id="edit_next_followup_date" class="form-control" style="border-radius:8px;">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Follow-up Type</label>
+                            {{ lead_form.followup_type(class="form-select", id="edit_followup_type", style="border-radius:8px;") }}
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="mb-2">
+                        <label class="form-label fw-500" style="font-size:13px;color:#374151;">
+                            <i class="fas fa-sticky-note me-1 text-secondary"></i>Notes / Comments
+                        </label>
+                        {{ lead_form.comments(class="form-control", rows=3, id="edit_comments", style="border-radius:8px;resize:vertical;") }}
+                    </div>
+                </div>
+                <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">
+                        <i class="fas fa-times me-1"></i>Close
+                    </button>
+                    <button type="submit" class="btn btn-success px-4" style="border-radius:8px;border:0;background:linear-gradient(135deg,#059669,#047857);">
+                        <i class="fas fa-save me-1"></i>Update Lead
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% include 'modals/meeting_modal.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Lead management JavaScript
+let selectedLeads = [];
+
+let searchTimeout;
+document.getElementById('searchInput').addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    const query = this.value;
+    searchTimeout = setTimeout(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (query) params.set('search', query);
+        else params.delete('search');
+        params.delete('page');
+        window.location.search = params.toString();
+    }, 400);
+});
+
+function applyFilters() {
+    const statusSel   = document.querySelector('select[name="status"]');
+    const courseSel   = document.querySelector('select[name="course"]');
+    const consultSel  = document.querySelector('select[name="consultant"]');
+
+    const params = new URLSearchParams(window.location.search);
+    params.delete('page'); // Reset to page 1 on filter change
+
+    if (statusSel && statusSel.value) params.set('status', statusSel.value);
+    else params.delete('status');
+
+    if (courseSel && courseSel.value) params.set('course', courseSel.value);
+    else params.delete('course');
+
+    if (consultSel && consultSel.value) params.set('consultant', consultSel.value);
+    else params.delete('consultant');
+
+    window.location.search = params.toString();
+}
+
+// Heat badge client-side filter (no page reload — hides/shows rows)
+function filterByHeat(val) {
+    document.querySelectorAll('tbody tr').forEach(row => {
+        if (!val) { row.style.display = ''; return; }
+        // Each heat badge cell carries data-heat or we scan badge text
+        const heatCell = row.querySelector('td:nth-child(9)');
+        if (!heatCell) { row.style.display = ''; return; }
+        const txt = heatCell.textContent.toLowerCase();
+        const match = val === 'overdue' ? txt.includes('overdue')
+                    : val === 'hot'     ? txt.includes('hot')
+                    : val === 'warm'    ? txt.includes('warm')
+                    : val === 'cold'    ? txt.includes('cold')
+                    : val === 'new'     ? txt.includes('new')
+                    : true;
+        row.style.display = match ? '' : 'none';
+    });
+}
+
+// Inline quick-status update (works with <select> element)
+function quickStatus(leadId, newStatus, selEl) {
+    const prevStatus = selEl.dataset.prev || selEl.getAttribute('data-prev') || newStatus;
+    selEl.dataset.prev = newStatus;
+    selEl.disabled = true;
+
+    fetch('/api/leads/' + leadId + '/status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: newStatus})
+    }).then(r => r.json()).then(d => {
+        selEl.disabled = false;
+        // Update color class
+        selEl.className = selEl.className.replace(/status-bg-\S+/, 'status-bg-' + newStatus.toLowerCase());
+        // Update parent td data-status for bulk actions
+        const td = selEl.closest('td');
+        if (td) td.dataset.status = newStatus;
+        // Flash success
+        selEl.style.boxShadow = '0 0 0 3px rgba(16,185,129,.35)';
+        setTimeout(() => { selEl.style.boxShadow = ''; }, 700);
+    }).catch(() => {
+        selEl.disabled = false;
+        selEl.value = prevStatus; // revert on error
+    });
+}
+
+document.getElementById('selectAll').addEventListener('change', function() {
+    const checkboxes = document.querySelectorAll('.lead-select');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+    });
+    updateSelectedLeads();
+});
+
+document.querySelectorAll('.lead-select').forEach(checkbox => {
+    checkbox.addEventListener('change', updateSelectedLeads);
+});
+
+function updateSelectedLeads() {
+    selectedLeads = Array.from(document.querySelectorAll('.lead-select:checked')).map(cb => cb.value);
+    document.getElementById('selectedCount').textContent = selectedLeads.length;
+    
+    const bulkButtons = document.querySelectorAll('#bulkStatusBtn, #bulkDeleteBtn');
+    bulkButtons.forEach(btn => {
+        btn.disabled = selectedLeads.length === 0;
+    });
+}
+
+function makeCall(phone) {
+    if (confirm(`Call ${phone}?`)) {
+        window.open(`tel:${phone}`);
+    }
+}
+
+function openWhatsApp(phone) {
+    const message = encodeURIComponent("Hi! I'm reaching out regarding your interest in our training courses.");
+    window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+}
+
+function sendEmail(email) {
+    const subject = encodeURIComponent("Training Course Inquiry Follow-up");
+    const body = encodeURIComponent("Hi,\n\nThank you for your interest in our training courses. I'd like to discuss how we can help you achieve your learning goals.\n\nBest regards,\nTraining Center Team");
+    window.open(`mailto:${email}?subject=${subject}&body=${body}`);
+}
+
+function editLead(leadId) {
+    fetch(`/api/leads/${leadId}`, {
+        method: 'GET',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) { alert(data.message || 'Failed to load lead data.'); return; }
+        const lead = data.lead;
+        document.getElementById('edit_lead_id').value = lead.id;
+        document.getElementById('edit_name').value = lead.name || '';
+        document.getElementById('edit_phone').value = lead.phone || '';
+        document.getElementById('edit_email').value = lead.email || '';
+        document.getElementById('edit_whatsapp').value = lead.whatsapp || '';
+        document.getElementById('edit_course_interest_id').value = lead.course_interest_id || '';
+        document.getElementById('edit_status').value = lead.status || '';
+        document.getElementById('edit_lead_source').value = lead.lead_source || '';
+        document.getElementById('edit_comments').value = lead.comments || '';
+        document.getElementById('edit_quoted_amount').value = lead.quoted_amount || '';
+        document.getElementById('edit_next_followup_date').value = lead.next_followup_date || '';
+        if (document.getElementById('edit_followup_type') && lead.followup_type)
+            document.getElementById('edit_followup_type').value = lead.followup_type;
+        document.getElementById('editLeadSubtitle').textContent = `#${lead.id} — ${lead.phone || ''}`;
+        document.querySelector('#editLeadModal .modal-title').innerHTML =
+            `<i class="fas fa-user-edit me-2 opacity-75"></i>Edit: ${lead.name}`;
+        new bootstrap.Modal(document.getElementById('editLeadModal')).show();
+    })
+    .catch(() => alert('An error occurred while loading lead data.'));
+}
+
+function deleteLead(leadId) {
+    if (confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
+        window.location.href = `/leads/${leadId}/delete`;
+    }
+}
+
+function bulkAction(action, value = null) {
+    if (selectedLeads.length === 0) {
+        alert('Please select leads first.');
+        return;
+    }
+    
+    let confirmMessage = '';
+    if (action === 'delete') {
+        confirmMessage = `Delete ${selectedLeads.length} selected leads?`;
+    } else if (action === 'status') {
+        confirmMessage = `Mark ${selectedLeads.length} leads as ${value}?`;
+    }
+    
+    if (confirm(confirmMessage)) {
+        showLoading();
+        
+        setTimeout(() => {
+            hideLoading();
+            showNotification(`Bulk action completed successfully!`, 'success');
+            
+            if (action === 'delete') {
+                selectedLeads.forEach(leadId => {
+                    const checkbox = document.querySelector(`.lead-select[value="${leadId}"]`);
+                    if (checkbox) {
+                        checkbox.closest('tr').remove();
+                    }
+                });
+            } else if (action === 'status') {
+                selectedLeads.forEach(leadId => {
+                    const checkbox = document.querySelector(`.lead-select[value="${leadId}"]`);
+                    if (checkbox) {
+                        const sel = checkbox.closest('tr').querySelector('.status-quick-select');
+                        if (sel) {
+                            sel.value = value;
+                            sel.className = sel.className.replace(/status-bg-\S+/, 'status-bg-' + value.toLowerCase());
+                        }
+                    }
+                });
+            }
+            
+            selectedLeads = [];
+            document.getElementById('selectAll').checked = false;
+            document.querySelectorAll('.lead-select').forEach(cb => cb.checked = false);
+            updateSelectedLeads();
+        }, 1000);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const addForm      = document.getElementById('addLeadForm');
+    const addErrorDiv  = document.getElementById('add-form-errors');
+    const addSuccessDiv= document.getElementById('add-form-success');
+    const submitBtn    = document.getElementById('addLeadSubmitBtn');
+
+    // ── Field error helpers ────────────────────────────────
+    function setFieldErr(inputId, groupId, errId, msg) {
+        const inp   = document.getElementById(inputId);
+        const group = document.getElementById(groupId);
+        const err   = document.getElementById(errId);
+        if (inp)   { inp.style.borderColor = '#ef4444'; inp.style.borderWidth = '1.5px'; }
+        if (group) {
+            const icon = group.querySelector('.input-group-text');
+            if (icon) icon.style.borderColor = '#ef4444';
+        }
+        if (err)   { err.innerHTML = '<i class="fas fa-exclamation-circle me-1"></i>' + msg; err.style.display = 'block'; }
+    }
+
+    function clearFieldErr(inputId, groupId, errId) {
+        const inp   = document.getElementById(inputId);
+        const group = document.getElementById(groupId);
+        const err   = document.getElementById(errId);
+        if (inp)   { inp.style.borderColor = ''; inp.style.borderWidth = ''; }
+        if (group) {
+            const icon = group.querySelector('.input-group-text');
+            if (icon) icon.style.borderColor = '';
+        }
+        if (err)   { err.style.display = 'none'; err.innerHTML = ''; }
+    }
+
+    // All fields with their [inputId, groupId, errId] — selects use null for groupId
+    const FIELD_MAP = {
+        addName:     ['addName',    'addNameGroup',    'addNameErr'],
+        addPhone:    ['addPhone',   'addPhoneGroup',   'addPhoneErr'],
+        addEmail:    ['addEmail',   'addEmailGroup',   'addEmailErr'],
+        addWhatsapp: ['addWhatsapp','addWhatsappGroup','addWhatsappErr'],
+        addCourse:   ['addCourse',  null,              'addCourseErr'],
+        addSource:   ['addSource',  null,              'addSourceErr'],
+    };
+
+    function clearAllFieldErrs() {
+        Object.values(FIELD_MAP).forEach(([i,g,e]) => clearFieldErr(i,g,e));
+        addErrorDiv.classList.add('d-none');
+        addErrorDiv.innerHTML = '';
+    }
+
+    // Clear error as user corrects each field (inputs + selects)
+    Object.keys(FIELD_MAP).forEach(key => {
+        const el = document.getElementById(key);
+        if (!el) return;
+        const evtType = el.tagName === 'SELECT' ? 'change' : 'input';
+        el.addEventListener(evtType, () => clearFieldErr(...FIELD_MAP[key]));
+    });
+
+    // ── Client-side validation ─────────────────────────────
+    function validateAddForm() {
+        clearAllFieldErrs();
+        let ok = true;
+
+        const name     = (document.getElementById('addName').value     || '').trim();
+        const phone    = (document.getElementById('addPhone').value    || '').trim();
+        const email    = (document.getElementById('addEmail').value    || '').trim();
+        const whatsapp = (document.getElementById('addWhatsapp').value || '').trim();
+        const course   = document.getElementById('addCourse').value;
+        const source   = document.getElementById('addSource').value;
+
+        if (!name) {
+            setFieldErr('addName','addNameGroup','addNameErr','Full name is required');
+            ok = false;
+        } else if (name.length < 2) {
+            setFieldErr('addName','addNameGroup','addNameErr','Name must be at least 2 characters');
+            ok = false;
+        }
+
+        if (!phone) {
+            setFieldErr('addPhone','addPhoneGroup','addPhoneErr','Phone number is required');
+            ok = false;
+        } else if (phone.replace(/\D/g,'').length < 6) {
+            setFieldErr('addPhone','addPhoneGroup','addPhoneErr','Enter a valid phone number');
+            ok = false;
+        }
+
+        if (!email) {
+            setFieldErr('addEmail','addEmailGroup','addEmailErr','Email address is required');
+            ok = false;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            setFieldErr('addEmail','addEmailGroup','addEmailErr','Enter a valid email address');
+            ok = false;
+        }
+
+        if (!whatsapp) {
+            setFieldErr('addWhatsapp','addWhatsappGroup','addWhatsappErr','WhatsApp number is required');
+            ok = false;
+        } else if (whatsapp.replace(/\D/g,'').length < 6) {
+            setFieldErr('addWhatsapp','addWhatsappGroup','addWhatsappErr','Enter a valid WhatsApp number');
+            ok = false;
+        }
+
+        if (!course || course === '0') {
+            setFieldErr('addCourse', null, 'addCourseErr', 'Please select a course');
+            document.getElementById('addCourse').style.borderColor = '#ef4444';
+            ok = false;
+        }
+
+        if (!source) {
+            setFieldErr('addSource', null, 'addSourceErr', 'Please select a lead source');
+            document.getElementById('addSource').style.borderColor = '#ef4444';
+            ok = false;
+        }
+
+        if (!ok) {
+            // Scroll to and focus the first invalid field
+            const firstErrDiv = addForm.querySelector('.field-err[style*="block"]');
+            if (firstErrDiv) firstErrDiv.scrollIntoView({ behavior:'smooth', block:'nearest' });
+            const firstInvalid = addForm.querySelector('[style*="ef4444"]');
+            if (firstInvalid) firstInvalid.focus();
+        }
+        return ok;
+    }
+
+    // ── Map server error text → field ─────────────────────
+    function applyServerErrors(msgs) {
+        let hasFieldErr = false;
+        msgs.forEach(msg => {
+            const lower = msg.toLowerCase();
+            if (lower.includes('name')) {
+                setFieldErr('addName','addNameGroup','addNameErr', msg);
+                hasFieldErr = true;
+            } else if (lower.includes('phone') || lower.includes('duplicate') || lower.includes('number already')) {
+                setFieldErr('addPhone','addPhoneGroup','addPhoneErr', msg);
+                hasFieldErr = true;
+            } else if (lower.includes('email')) {
+                setFieldErr('addEmail','addEmailGroup','addEmailErr', msg);
+                hasFieldErr = true;
+            } else if (lower.includes('whatsapp')) {
+                setFieldErr('addWhatsapp','addWhatsappGroup','addWhatsappErr', msg);
+                hasFieldErr = true;
+            } else if (lower.includes('course')) {
+                setFieldErr('addCourse', null, 'addCourseErr', msg);
+                document.getElementById('addCourse').style.borderColor = '#ef4444';
+                hasFieldErr = true;
+            } else if (lower.includes('source')) {
+                setFieldErr('addSource', null, 'addSourceErr', msg);
+                document.getElementById('addSource').style.borderColor = '#ef4444';
+                hasFieldErr = true;
+            }
+        });
+        // If error doesn't map to a specific field, show in the banner
+        const unmapped = msgs.filter(msg => {
+            const lower = msg.toLowerCase();
+            return !lower.includes('name') && !lower.includes('phone') &&
+                   !lower.includes('duplicate') && !lower.includes('number already') && !lower.includes('email');
+        });
+        if (unmapped.length) {
+            addErrorDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>' + unmapped.join('<br>');
+            addErrorDiv.classList.remove('d-none');
+        }
+        // Always show the banner too for duplicate (so message is prominent)
+        if (msgs.some(m => m.toLowerCase().includes('duplicate') || m.toLowerCase().includes('already'))) {
+            addErrorDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>' + msgs[0];
+            addErrorDiv.classList.remove('d-none');
+        }
+        // Scroll to first visible error
+        const firstErrEl = addForm.querySelector('.field-err[style*="block"]');
+        if (firstErrEl) firstErrEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
+        else addErrorDiv.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    }
+
+    // ── Submit handler ─────────────────────────────────────
+    addForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        if (!validateAddForm()) return; // stop if client validation fails
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding…';
+        addSuccessDiv.classList.add('d-none');
+
+        fetch(addForm.action, {
+            method: 'POST',
+            body: new FormData(addForm),
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-plus me-1"></i><span>Add Lead</span>';
+            if (data.success) {
+                const bsModal = bootstrap.Modal.getInstance(document.getElementById('addLeadModal'));
+                if (bsModal) bsModal.hide();
+                addForm.reset();
+                setTimeout(() => window.location.reload(), 400);
+            } else {
+                const msgs = Array.isArray(data.errors) ? data.errors
+                           : data.message ? [data.message] : ['An error occurred. Please try again.'];
+                applyServerErrors(msgs);
+            }
+        })
+        .catch(() => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-plus me-1"></i><span>Add Lead</span>';
+            addErrorDiv.innerHTML = '<i class="fas fa-wifi me-2"></i>Network error — please try again.';
+            addErrorDiv.classList.remove('d-none');
+        });
+    });
+
+    // ── Reset all errors when modal re-opens ──────────────
+    document.getElementById('addLeadModal').addEventListener('show.bs.modal', function() {
+        clearAllFieldErrs();
+        addSuccessDiv.classList.add('d-none');
+        addSuccessDiv.innerHTML = '';
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-plus me-1"></i><span>Add Lead</span>';
+        addForm.reset();
+    });
+
+    // Edit Lead Form Submission
+    const editForm = document.getElementById('editLeadForm');
+    const editErrorDiv = document.getElementById('edit-form-errors');
+    const editSuccessDiv = document.getElementById('edit-form-success');
+
+    editForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        editErrorDiv.classList.add('d-none');
+        editErrorDiv.innerHTML = '';
+        editSuccessDiv.classList.add('d-none');
+        editSuccessDiv.innerHTML = '';
+
+        const leadId = document.getElementById('edit_lead_id').value;
+        const formData = new FormData(editForm);
+
+        fetch(`/leads/${leadId}/edit`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                editSuccessDiv.innerHTML = data.message;
+                editSuccessDiv.classList.remove('d-none');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                editErrorDiv.innerHTML = data.errors.join('<br>');
+                editErrorDiv.classList.remove('d-none');
+            }
+        })
+        .catch(error => {
+            editErrorDiv.innerHTML = 'An error occurred while updating the lead. Please try again.';
+            editErrorDiv.classList.remove('d-none');
+        });
+    });
+});
+</script>
+{% endblock %}

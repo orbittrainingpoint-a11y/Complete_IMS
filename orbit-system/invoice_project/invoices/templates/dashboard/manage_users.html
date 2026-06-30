@@ -1,0 +1,66 @@
+{% extends "base_generic.html" %}
+{% block title %}User Management{% endblock %}
+{% block breadcrumb_label %}
+    <span>Administration</span> <span style="color:var(--border);margin:0 6px;">/</span>
+    <span class="current">User Management</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+        <div class="page-title">User Management</div>
+        <div class="page-subtitle">Assign roles to system users</div>
+    </div>
+    <a href="{% url 'signup' %}" class="btn btn-primary btn-sm"><i class="fas fa-user-plus me-1"></i>Add New User</a>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>User</th><th>Email</th><th>Role</th><th>Last Login</th><th>Status</th><th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;">{{ u.username|slice:":2"|upper }}</div>
+                            <div>
+                                <div class="fw-600">{{ u.get_full_name|default:u.username }}</div>
+                                <div style="font-size:11px;color:var(--text-muted);">@{{ u.username }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="font-size:13px;">{{ u.email|default:"—" }}</td>
+                    <td>
+                        <form method="post" action="{% url 'update_user_role' u.id %}" class="d-flex gap-2 align-items-center">
+                            {% csrf_token %}
+                            <select name="role" class="form-select form-select-sm" style="width:auto;">
+                                <option value="admin" {% if u.profile.role == 'admin' %}selected{% endif %}>Admin</option>
+                                <option value="sales_manager" {% if u.profile.role == 'sales_manager' %}selected{% endif %}>Sales Manager</option>
+                                <option value="accounts" {% if u.profile.role == 'accounts' %}selected{% endif %}>Accounts</option>
+                                <option value="sales_executive" {% if u.profile.role == 'sales_executive' or not u.profile %}selected{% endif %}>Sales Executive</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                        </form>
+                    </td>
+                    <td style="font-size:12px;color:var(--text-muted);">{{ u.last_login|date:"d M Y H:i"|default:"Never" }}</td>
+                    <td>
+                        {% if u.is_active %}<span class="pill pill-green">Active</span>
+                        {% else %}<span class="pill pill-red">Inactive</span>{% endif %}
+                    </td>
+                    <td>
+                        <span class="pill {% if u.profile.role == 'admin' %}pill-red{% elif u.profile.role == 'sales_manager' %}pill-purple{% elif u.profile.role == 'accounts' %}pill-green{% else %}pill-blue{% endif %}">
+                            {{ u.profile.get_role_display|default:"Unassigned" }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

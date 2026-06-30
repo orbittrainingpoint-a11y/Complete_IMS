@@ -1,0 +1,156 @@
+{% extends 'base_generic.html' %}
+{% block title %}{% if mode == 'create' %}Add Expense{% else %}Edit Expense{% endif %}{% endblock %}
+{% block breadcrumb_label %}
+<a href="{% url 'expense_list' %}">Expenses</a>
+<span class="current"> / {% if mode == 'create' %}New{% else %}Edit{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="page-title">
+            <i class="fas fa-receipt me-2 text-warning"></i>
+            {% if mode == 'create' %}Add Expense{% else %}Edit Expense{% endif %}
+        </div>
+    </div>
+    <a href="{% url 'expense_list' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+</div>
+
+{% if error %}
+<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>{{ error }}</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body p-4">
+                <form method="post" id="expenseForm">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Category <span class="text-danger">*</span></label>
+                            <select name="category" class="form-select" required id="catSelect" onchange="updatePreview()">
+                                <option value="">— Select —</option>
+                                {% for val, label in categories %}
+                                <option value="{{ val }}" {% if expense and expense.category == val %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Expense Date <span class="text-danger">*</span></label>
+                            <input type="date" name="expense_date" class="form-control" required
+                                id="expDate"
+                                value="{{ expense.expense_date|default:'' }}" onchange="updatePreview()">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Description <span class="text-danger">*</span></label>
+                            <input type="text" name="description" class="form-control" required
+                                id="expDesc"
+                                value="{{ expense.description|default:'' }}"
+                                placeholder="Brief description of the expense"
+                                onkeyup="updatePreview()">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Amount (AED) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">AED</span>
+                                <input type="number" name="amount" class="form-control" required
+                                    id="expAmount" step="any" min="0"
+                                    value="{{ expense.amount|default:'' }}" onkeyup="updatePreview()">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">VAT Amount (AED)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">AED</span>
+                                <input type="number" name="vat_amount" class="form-control"
+                                    id="expVat" step="any" min="0"
+                                    value="{{ expense.vat_amount|default:'0' }}" onkeyup="updatePreview()">
+                                <button type="button" class="btn btn-outline-secondary" onclick="autoCalcVat()" title="Auto-calculate 5% VAT">5%</button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Vendor / Supplier</label>
+                            <input type="text" name="vendor" class="form-control"
+                                value="{{ expense.vendor|default:'' }}" placeholder="Vendor name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Payment Method</label>
+                            <select name="payment_method" class="form-select">
+                                <option value="">— Optional —</option>
+                                <option value="cash" {% if expense and expense.payment_method == 'cash' %}selected{% endif %}>Cash</option>
+                                <option value="card" {% if expense and expense.payment_method == 'card' %}selected{% endif %}>Card</option>
+                                <option value="bank_transfer" {% if expense and expense.payment_method == 'bank_transfer' %}selected{% endif %}>Bank Transfer</option>
+                                <option value="cheque" {% if expense and expense.payment_method == 'cheque' %}selected{% endif %}>Cheque</option>
+                                <option value="other" {% if expense and expense.payment_method == 'other' %}selected{% endif %}>Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Receipt / Reference #</label>
+                            <input type="text" name="receipt_ref" class="form-control"
+                                value="{{ expense.receipt_ref|default:'' }}" placeholder="Invoice or receipt number">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Linked Course (optional)</label>
+                            <select name="course" class="form-select">
+                                <option value="">— None —</option>
+                                {% for c in courses %}
+                                <option value="{{ c.pk }}" {% if expense and expense.course_id == c.pk %}selected{% endif %}>{{ c.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12 d-flex gap-2 pt-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>{% if mode == 'create' %}Save Expense{% else %}Update Expense{% endif %}
+                            </button>
+                            <a href="{% url 'expense_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Preview Card -->
+    <div class="col-md-4">
+        <div class="card" style="background:linear-gradient(135deg,#1e293b,#0f1b2d);color:#fff;border:none;position:sticky;top:80px;">
+            <div class="card-body p-4">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.5);margin-bottom:12px;">Expense Preview</div>
+                <div id="pvDate" style="font-size:12px;color:rgba(255,255,255,.6);">Date: —</div>
+                <div id="pvCat" style="font-size:13px;font-weight:700;margin:8px 0;">Category: —</div>
+                <div id="pvDesc" style="font-size:14px;font-weight:600;margin-bottom:12px;">—</div>
+                <hr style="border-color:rgba(255,255,255,.15);">
+                <div style="font-size:13px;color:rgba(255,255,255,.7);">Amount</div>
+                <div id="pvAmount" style="font-size:26px;font-weight:800;">AED 0.00</div>
+                <div id="pvVat" style="font-size:12px;color:rgba(255,255,255,.5);">+ AED 0.00 VAT</div>
+                <div id="pvTotal" style="font-size:14px;font-weight:700;color:#34d399;margin-top:8px;">Total: AED 0.00</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+function updatePreview() {
+    const cat = document.getElementById('catSelect');
+    const catText = cat.options[cat.selectedIndex]?.text || '—';
+    const date = document.getElementById('expDate').value || '—';
+    const desc = document.getElementById('expDesc').value || '—';
+    const amount = parseFloat(document.getElementById('expAmount').value) || 0;
+    const vat = parseFloat(document.getElementById('expVat').value) || 0;
+    document.getElementById('pvDate').textContent = 'Date: ' + date;
+    document.getElementById('pvCat').textContent = 'Category: ' + catText;
+    document.getElementById('pvDesc').textContent = desc;
+    document.getElementById('pvAmount').textContent = 'AED ' + amount.toFixed(2);
+    document.getElementById('pvVat').textContent = '+ AED ' + vat.toFixed(2) + ' VAT';
+    document.getElementById('pvTotal').textContent = 'Total: AED ' + (amount + vat).toFixed(2);
+}
+function autoCalcVat() {
+    const amount = parseFloat(document.getElementById('expAmount').value) || 0;
+    document.getElementById('expVat').value = (amount * 0.05).toFixed(2);
+    updatePreview();
+}
+document.addEventListener('DOMContentLoaded', updatePreview);
+</script>
+{% endblock %}

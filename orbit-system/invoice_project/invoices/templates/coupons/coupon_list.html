@@ -1,0 +1,196 @@
+{% extends "base_generic.html" %}
+{% load static %}
+
+{% block title %}Coupons{% endblock %}
+{% block breadcrumb_label %}<span class="current">Coupons</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.coup-table th { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600; }
+.coup-table td { font-size:13px;vertical-align:middle; }
+.coup-table tbody tr:hover { background:#f8faff; }
+.filter-card { background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px; }
+.filter-card .form-control,.filter-card .form-select { font-size:13px;border-radius:8px;border-color:var(--border); }
+.coupon-code { font-family:'Courier New',monospace;font-weight:700;font-size:13px;background:#f0f4ff;color:var(--primary);padding:4px 10px;border-radius:6px;letter-spacing:1px; }
+.empty-state { text-align:center;padding:60px 20px;color:var(--text-muted); }
+.empty-state i { font-size:48px;margin-bottom:16px;opacity:.3; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <div class="page-title">Coupons</div>
+    <div class="page-subtitle">Discount codes and promotions</div>
+  </div>
+  <a href="{% url 'create_coupon' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Create Coupon</a>
+</div>
+
+{% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+    {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+{% endif %}
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-green"><i class="fas fa-ticket-alt"></i></div>
+      <div class="kpi-value">{{ coupons|length }}</div>
+      <div class="kpi-label">Total Coupons</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-blue"><i class="fas fa-check-circle"></i></div>
+      <div class="kpi-value" id="activeCount">—</div>
+      <div class="kpi-label">Active</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-red"><i class="fas fa-pause-circle"></i></div>
+      <div class="kpi-value" id="inactiveCount">—</div>
+      <div class="kpi-label">Inactive</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter -->
+<div class="filter-card">
+  <div class="row g-3">
+    <div class="col-md-5">
+      <div class="input-group">
+        <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted" style="font-size:12px;"></i></span>
+        <input type="text" id="fCode" class="form-control border-start-0 ps-0" placeholder="Search by coupon code…" style="font-size:13px;">
+      </div>
+    </div>
+    <div class="col-md-3">
+      <select id="fStatus" class="form-select">
+        <option value="">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-center">
+      <button onclick="clearFilters()" class="btn btn-outline-secondary w-100">Clear</button>
+    </div>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table coup-table mb-0">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Code</th>
+          <th style="width:110px;">Discount</th>
+          <th style="width:100px;">Usage</th>
+          <th style="width:110px;">Expires</th>
+          <th style="width:100px;">Status</th>
+          <th style="width:110px;">Created</th>
+          <th style="width:100px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for coupon in coupons %}
+        <tr class="coup-row"
+            data-code="{{ coupon.code|lower }}"
+            data-status="{{ coupon.is_active|yesno:'active,inactive' }}">
+          <td style="color:var(--text-muted);font-size:11px;">{{ forloop.counter }}</td>
+          <td><span class="coupon-code">{{ coupon.code }}</span></td>
+          <td><span class="pill pill-blue">{{ coupon.discount_percentage }}% off</span></td>
+          <td>
+            {% if coupon.max_uses %}
+            <div style="font-size:13px;font-weight:700;">{{ coupon.used_count }}/{{ coupon.max_uses }}</div>
+            {% if coupon.used_count >= coupon.max_uses %}
+            <div style="font-size:10px;color:#ef4444;font-weight:700;">LIMIT REACHED</div>
+            {% else %}
+            <div style="font-size:10px;color:var(--text-muted);">{{ coupon.used_count }} used</div>
+            {% endif %}
+            {% else %}
+            <div style="font-size:13px;">{{ coupon.used_count }}</div>
+            <div style="font-size:10px;color:var(--text-muted);">unlimited</div>
+            {% endif %}
+          </td>
+          <td>
+            {% if coupon.expiry_date %}
+            <div style="font-size:12px;font-weight:600;">{{ coupon.expiry_date|date:"d M Y" }}</div>
+            {% else %}
+            <span style="font-size:12px;color:var(--text-muted);">No expiry</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if coupon.is_active %}
+              <span class="pill pill-green">Active</span>
+            {% else %}
+              <span class="pill pill-red">Inactive</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ coupon.created_at|date:"d M Y" }}</td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{% url 'edit_coupon' coupon.pk %}" class="btn btn-outline-secondary btn-sm" title="Edit"><i class="fas fa-pen"></i></a>
+              {% if user.username == 'admin' or user.profile.role == 'admin' %}
+              <a href="{% url 'delete_coupon' coupon.pk %}" class="btn btn-outline-danger btn-sm" title="Delete"><i class="fas fa-trash"></i></a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8"><div class="empty-state"><i class="fas fa-ticket-alt d-block"></i>No coupons yet.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if coupons.has_other_pages %}
+  <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top" style="background:var(--bg);border-radius:0 0 12px 12px;">
+    <small class="text-muted">Showing {{ coupons.start_index }}–{{ coupons.end_index }} of {{ paginator.count }} coupons</small>
+    <nav><ul class="pagination pagination-sm mb-0 gap-1">
+      {% if coupons.has_previous %}
+      <li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ coupons.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
+      {% endif %}
+      {% for num in coupons.paginator.page_range %}
+        {% if num == coupons.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num >= coupons.number|add:"-2" and num <= coupons.number|add:"2" %}<li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ num }}">{{ num }}</a></li>
+        {% endif %}
+      {% endfor %}
+      {% if coupons.has_next %}
+      <li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ coupons.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
+      {% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+['fCode','fStatus'].forEach(id => document.getElementById(id).addEventListener('input', filterCoupons));
+
+function filterCoupons() {
+  const code   = document.getElementById('fCode').value.toLowerCase();
+  const status = document.getElementById('fStatus').value.toLowerCase();
+  document.querySelectorAll('.coup-row').forEach(r => {
+    const ok = r.dataset.code.includes(code)
+            && (status === '' || r.dataset.status === status);
+    r.style.display = ok ? '' : 'none';
+  });
+}
+function clearFilters() {
+  document.getElementById('fCode').value = '';
+  document.getElementById('fStatus').value = '';
+  filterCoupons();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const active = document.querySelectorAll('.coup-row[data-status="active"]').length;
+  document.getElementById('activeCount').textContent = active;
+  document.getElementById('inactiveCount').textContent = document.querySelectorAll('.coup-row').length - active;
+});
+</script>
+{% endblock %}

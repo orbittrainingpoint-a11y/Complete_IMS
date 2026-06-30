@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Trainer Details - Training Center CRM{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chalkboard-teacher text-primary"></i>
+                        Trainer Details: {{ trainer.name }}
+                    </h5>
+                    <div>
+                        {% if current_user.is_admin() %}
+                        <a href="{{ url_for('main.edit_trainer', id=trainer.id) }}" class="btn btn-primary btn-sm me-2">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <a href="{{ url_for('main.trainer_schedule', id=trainer.id) }}" class="btn btn-info btn-sm me-2">
+                            <i class="fas fa-calendar"></i> Schedule
+                        </a>
+                        {% endif %}
+                        <a href="{{ url_for('main.trainers') }}" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-arrow-left"></i> Back to Trainers
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-bordered">
+                                <tr>
+                                    <th width="30%">Name</th>
+                                    <td>{{ trainer.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Email</th>
+                                    <td>{{ trainer.email }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Phone</th>
+                                    <td>{{ trainer.phone }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Specialization</th>
+                                    <td>{{ trainer.specialization or 'Not specified' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Hourly Rate</th>
+                                    <td>{{ 'AED {:.2f}'.format(trainer.hourly_rate) if trainer.hourly_rate else 'Not set' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Status</th>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if trainer.is_active else 'danger' }}">
+                                            {{ 'Active' if trainer.is_active else 'Inactive' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Weekly Availability</h6>
+                            <table class="table table-sm table-bordered">
+                                <tr>
+                                    <th>Monday</th>
+                                    <td>
+                                        {% if trainer.monday_start and trainer.monday_end %}
+                                            {{ trainer.monday_start.strftime('%H:%M') }} - {{ trainer.monday_end.strftime('%H:%M') }}
+                                        {% else %}
+                                            Not available
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Tuesday</th>
+                                    <td>
+                                        {% if trainer.tuesday_start and trainer.tuesday_end %}
+                                            {{ trainer.tuesday_start.strftime('%H:%M') }} - {{ trainer.tuesday_end.strftime('%H:%M') }}
+                                        {% else %}
+                                            Not available
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Wednesday</th>
+                                    <td>
+                                        {% if trainer.wednesday_start and trainer.wednesday_end %}
+                                            {{ trainer.wednesday_start.strftime('%H:%M') }} - {{ trainer.wednesday_end.strftime('%H:%M') }}
+                                        {% else %}
+                                            Not available
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Thursday</th>
+                                    <td>
+                                        {% if trainer.thursday_start and trainer.thursday_end %}
+                                            {{ trainer.thursday_start.strftime('%H:%M') }} - {{ trainer.thursday_end.strftime('%H:%M') }}
+                                        {% else %}
+                                            Not available
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Friday</th>
+                                    <td>
+                                        {% if trainer.friday_start and trainer.friday_end %}
+                                            {{ trainer.friday_start.strftime('%H:%M') }} - {{ trainer.friday_end.strftime('%H:%M') }}
+                                        {% else %}
+                                            Not available
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Saturday</th>
+                                    <td>
+                                        {% if trainer.saturday_start and trainer.saturday_end %}
+                                            {{ trainer.saturday_start.strftime('%H:%M') }} - {{ trainer.saturday_end.strftime('%H:%M') }}
+                                        {% else %}
+                                            Not available
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Sunday</th>
+                                    <td>
+                                        {% if trainer.sunday_start and trainer.sunday_end %}
+                                            {{ trainer.sunday_start.strftime('%H:%M') }} - {{ trainer.sunday_end.strftime('%H:%M') }}
+                                        {% else %}
+                                            Not available
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    {% if trainer.bio %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h6>Bio</h6>
+                            <div class="alert alert-info">
+                                {{ trainer.bio }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if upcoming_schedules %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h6>Upcoming Classes</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Time</th>
+                                            <th>Course</th>
+                                            <th>Duration</th>
+                                            <th>Location</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for schedule in upcoming_schedules %}
+                                        <tr>
+                                            <td>{{ schedule.class_date.strftime('%Y-%m-%d') }}</td>
+                                            <td>{{ schedule.start_time.strftime('%H:%M') }}</td>
+                                            <td>{{ schedule.course.name if schedule.course else 'Unknown' }}</td>
+                                            <td>{{ schedule.duration_minutes }} minutes</td>
+                                            <td>{{ schedule.location or 'Online' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

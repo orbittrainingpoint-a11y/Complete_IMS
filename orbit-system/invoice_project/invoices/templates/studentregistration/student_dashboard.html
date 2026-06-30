@@ -1,0 +1,245 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Student Registrations{% endblock %}
+{% block breadcrumb_label %}<span class="current">Registrations</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.reg-table th { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); font-weight:600; white-space:nowrap; }
+.reg-table td { font-size:13px; vertical-align:middle; }
+.reg-table tbody tr:hover { background:#f8faff; }
+.reg-num { font-weight:700; color:var(--primary); font-size:12px; }
+.student-name { font-weight:600; }
+.student-sub { font-size:11px; color:var(--text-muted); }
+.course-chip { display:inline-block; background:rgba(37,99,235,.08); color:var(--primary); border-radius:4px; padding:1px 6px; font-size:11px; margin:1px; }
+.type-chip { font-size:10px; font-weight:700; padding:2px 7px; border-radius:12px; }
+.filter-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:20px; }
+.filter-card .form-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:4px; }
+.filter-card .form-control, .filter-card .form-select { font-size:13px; border-radius:8px; border-color:var(--border); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <div class="page-title">Student Registrations</div>
+    <div class="page-subtitle">All student and corporate registrations</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'registration_form' %}" class="btn btn-primary btn-sm"><i class="fas fa-user-plus me-1"></i>New Registration</a>
+    <a href="{% url 'student_form_links' %}" class="btn btn-outline-success btn-sm"><i class="fas fa-share-alt me-1"></i>Reg. Links</a>
+    <a href="{% url 'corporate_dashboard' %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-building me-1"></i>Corporate</a>
+  </div>
+</div>
+
+<!-- ── FILTER ── -->
+<div class="filter-card">
+  <form method="get" action="{% url 'student_dashboard' %}" id="regFilter">
+    <div class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label">Reg #</label>
+        <input type="text" name="registration_number" class="form-control" placeholder="e.g. OT/24/001" value="{{ registration_number }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Student Name</label>
+        <input type="text" name="name" class="form-control" placeholder="First or last name" value="{{ name }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Consultant</label>
+        <input type="text" name="consultant" class="form-control" placeholder="Consultant name" value="{{ consultant }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Class Type</label>
+        <select name="class_type" class="form-select">
+          <option value="">All Types</option>
+          <option value="online" {% if class_type == 'online' %}selected{% endif %}>Online</option>
+          <option value="offline" {% if class_type == 'offline' %}selected{% endif %}>Offline</option>
+          <option value="batch" {% if class_type == 'batch' %}selected{% endif %}>Batch</option>
+          <option value="private" {% if class_type == 'private' %}selected{% endif %}>Private</option>
+        </select>
+      </div>
+      <div class="col-md-3 d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-primary flex-fill">Filter</button>
+        <a href="{% url 'student_dashboard' %}" class="btn btn-outline-secondary flex-fill">Clear</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- ── TABLE ── -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table reg-table mb-0">
+      <thead>
+        <tr>
+          <th style="width:120px;">Reg #</th>
+          <th style="width:130px;">Consultant</th>
+          <th>Student</th>
+          <th>Courses</th>
+          <th style="width:80px;">Type</th>
+          <th style="width:90px;">Status</th>
+          <th style="width:120px;">Date</th>
+          <th style="width:180px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in registration_data %}
+        <tr>
+          <td>
+            <span class="reg-num">{{ item.registration.registration_number }}</span>
+            <button class="btn-copy-num" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:10px;padding:1px 4px;" title="Copy" onclick="navigator.clipboard.writeText('{{ item.registration.registration_number }}');this.innerHTML='<i class=\'fas fa-check\' style=\'color:green;\'></i>';setTimeout(()=>this.innerHTML='<i class=\'fas fa-copy\'></i>',1500)"><i class="fas fa-copy"></i></button>
+          </td>
+          <td style="font-size:12px;">{{ item.registration.consultant_name|default:"—" }}</td>
+          <td>
+            <div class="student-name">{{ item.registration.first_name }} {{ item.registration.last_name }}</div>
+            {% if item.registration.email %}<div class="student-sub">{{ item.registration.email }}</div>{% endif %}
+          </td>
+          <td>
+            {% for course in item.courses %}
+            <span class="course-chip">{{ course.name|truncatechars:20 }}</span>
+            {% empty %}<span class="student-sub">—</span>
+            {% endfor %}
+          </td>
+          <td>
+            {% if item.registration.class_type == 'online' %}
+              <span class="type-chip" style="background:rgba(37,99,235,.1);color:#1d4ed8;">Online</span>
+            {% elif item.registration.class_type == 'offline' %}
+              <span class="type-chip" style="background:rgba(16,185,129,.1);color:#065f46;">Offline</span>
+            {% elif item.registration.class_type == 'batch' %}
+              <span class="type-chip" style="background:rgba(139,92,246,.1);color:#5b21b6;">Batch</span>
+            {% elif item.registration.class_type == 'private' %}
+              <span class="type-chip" style="background:rgba(245,158,11,.1);color:#92400e;">Private</span>
+            {% else %}
+              <span class="type-chip" style="background:rgba(100,116,139,.1);color:#475569;">{{ item.registration.class_type|default:"—" }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <select class="form-select form-select-sm student-status-select"
+                style="font-size:11px;border-radius:8px;min-width:110px;"
+                data-pk="{{ item.registration.pk }}"
+                onchange="updateStudentStatus(this)">
+              <option value="active"    {% if item.registration.student_status == 'active'    %}selected{% endif %} style="color:#065f46;">Active</option>
+              <option value="completed" {% if item.registration.student_status == 'completed' %}selected{% endif %} style="color:#1d4ed8;">Completed</option>
+              <option value="dropped"   {% if item.registration.student_status == 'dropped'   %}selected{% endif %} style="color:#92400e;">Dropped Out</option>
+              <option value="suspended" {% if item.registration.student_status == 'suspended' %}selected{% endif %} style="color:#b91c1c;">Suspended</option>
+              <option value="pending"   {% if item.registration.student_status == 'pending'   %}selected{% endif %} style="color:#64748b;">Pending</option>
+            </select>
+          </td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ item.registration.date|default:"—" }}</td>
+          <td>
+            <div class="d-flex gap-1 flex-wrap">
+              <a href="{% url 'registration_invoice_detail' item.registration.id %}" class="btn btn-sm btn-primary" title="View Details"><i class="fas fa-eye"></i></a>
+              <a href="{% url 'create_invoice' %}?reg={{ item.registration.registration_number }}" class="btn btn-sm btn-success" title="Create Invoice"><i class="fas fa-file-invoice-dollar"></i></a>
+              <a href="{% url 'print_registration' item.registration.id %}" class="btn btn-sm btn-outline-secondary" title="Print"><i class="fas fa-print"></i></a>
+              <a href="{% url 'edit_registration' item.registration.id %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="fas fa-pen"></i></a>
+              <button class="btn btn-sm btn-outline-info" title="Share Registration Form"
+                  onclick="shareRegLink('{{ item.registration.registration_number }}','{{ item.registration.first_name }} {{ item.registration.last_name }}')"
+                  style="font-size:11px;">
+                  <i class="fas fa-share-alt"></i>
+              </button>
+              {% if user.profile.role == 'admin' or user.is_superuser %}
+              <a href="{% url 'delete_registration' item.registration.id %}" class="btn btn-sm btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="8" class="text-center py-5 text-muted">
+            <i class="fas fa-user-graduate fa-3x mb-3 d-block opacity-30"></i>
+            No registrations found matching your filters
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page_obj.has_other_pages %}
+  <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top" style="background:var(--bg);border-radius:0 0 12px 12px;">
+    <small class="text-muted">Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ paginator.count }} registrations</small>
+    <nav><ul class="pagination pagination-sm mb-0 gap-1">
+      {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?{% if name %}name={{ name }}&{% endif %}{% if consultant %}consultant={{ consultant }}&{% endif %}{% if class_type %}class_type={{ class_type }}&{% endif %}page={{ page_obj.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if num == page_obj.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}<li class="page-item"><a class="page-link" href="?{% if name %}name={{ name }}&{% endif %}{% if consultant %}consultant={{ consultant }}&{% endif %}{% if class_type %}class_type={{ class_type }}&{% endif %}page={{ num }}">{{ num }}</a></li>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?{% if name %}name={{ name }}&{% endif %}{% if consultant %}consultant={{ consultant }}&{% endif %}{% if class_type %}class_type={{ class_type }}&{% endif %}page={{ page_obj.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
+      {% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Share Reg Link Modal -->
+<div class="modal fade" id="shareModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:16px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#0f1b2d,#1a2d47);color:#fff;border-radius:16px 16px 0 0;border:none;">
+        <h5 class="modal-title" style="font-weight:700;font-size:15px;"><i class="fas fa-share-alt me-2"></i>Student Registration Link</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div id="shareModalContent">
+          <div class="text-center py-3"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const STATUS_COLORS = {
+    active:'rgba(16,185,129,.12)', completed:'rgba(37,99,235,.12)',
+    dropped:'rgba(245,158,11,.12)', suspended:'rgba(239,68,68,.12)', pending:'rgba(100,116,139,.12)'
+};
+function updateStudentStatus(sel) {
+    const pk = sel.dataset.pk;
+    const status = sel.value;
+    fetch(`/student/${pk}/status/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `status=${encodeURIComponent(status)}`
+    }).then(r => r.json()).then(d => {
+        sel.style.background = STATUS_COLORS[d.status] || '';
+        sel.title = 'Updated: ' + d.label;
+    }).catch(() => alert('Failed to update status. Please try again.'));
+}
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.student-status-select').forEach(sel => {
+        sel.style.background = STATUS_COLORS[sel.value] || '';
+    });
+});
+
+function shareRegLink(regNum, studentName) {
+    const modal = new bootstrap.Modal(document.getElementById('shareModal'));
+    document.getElementById('shareModalContent').innerHTML = `
+        <div class="text-center py-3"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>`;
+    modal.show();
+    fetch('{% url "generate_student_form_link" %}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `notes=For ${encodeURIComponent(studentName)} (${encodeURIComponent(regNum)})`
+    }).then(r => r.json()).then(d => {
+        const url = d.url;
+        const waMsg = encodeURIComponent('Dear ' + studentName + ', please complete your registration form using this secure link: ' + url);
+        document.getElementById('shareModalContent').innerHTML = `
+            <p style="font-size:13px;color:#64748b;margin-bottom:12px;">Share this secure link with <strong>${studentName}</strong> to let them complete their registration:</p>
+            <div style="background:#f1f5f9;border-radius:10px;padding:14px;word-break:break-all;font-size:12px;font-family:monospace;color:#2563eb;margin-bottom:16px;">${url}</div>
+            <div class="d-flex gap-2">
+                <button id="copyLinkBtn" onclick="navigator.clipboard.writeText('${url}');document.getElementById('copyLinkBtn').innerHTML='<i class=\'fas fa-check me-1\'></i>Copied!';document.getElementById('copyLinkBtn').classList.replace('btn-primary','btn-success');" class="btn btn-primary flex-fill"><i class="fas fa-copy me-1"></i>Copy Link</button>
+                <a href="https://wa.me/?text=${waMsg}" target="_blank" class="btn btn-success flex-fill"><i class="fab fa-whatsapp me-1"></i>WhatsApp</a>
+            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:10px;text-align:center;"><i class="fas fa-info-circle me-1"></i>No pricing is shown to the student on this form.</div>`;
+    }).catch(() => {
+        document.getElementById('shareModalContent').innerHTML = '<div class="alert alert-danger m-0">Failed to generate link. Please try again.</div>';
+    });
+}
+</script>
+{% endblock %}

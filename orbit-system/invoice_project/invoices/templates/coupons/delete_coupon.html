@@ -1,0 +1,17 @@
+{% extends "base_generic.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Delete Coupon</h1>
+
+    <div class="alert alert-warning">
+        <p>Are you sure you want to delete the coupon <strong>{{ coupon.code }}</strong> with {{ coupon.discount_percentage }}% discount?</p>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Yes, Delete</button>
+        <a href="{% url 'coupon_list' %}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

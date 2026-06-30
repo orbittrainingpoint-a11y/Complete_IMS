@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Edit Corporate Training Lead</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('main.edit_corporate_lead', id=lead.id) }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- Company Information -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-1">Company Information</h6>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.company_name.label(class="form-label") }}
+                                    {{ form.company_name(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.location.label(class="form-label") }}
+                                    {{ form.location(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.industry.label(class="form-label") }}
+                                    {{ form.industry(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.company_size.label(class="form-label") }}
+                                    {{ form.company_size(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contact Person -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-1">Contact Person</h6>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.contact_person_name.label(class="form-label") }}
+                                    {{ form.contact_person_name(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.contact_person_email.label(class="form-label") }}
+                                    {{ form.contact_person_email(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    {{ form.contact_person_country_code.label(class="form-label") }}
+                                    {{ form.contact_person_country_code(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    {{ form.contact_person_phone.label(class="form-label") }}
+                                    {{ form.contact_person_phone(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Training Details -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-1">Training Details</h6>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.course_names.label(class="form-label") }}
+                                    {{ form.course_names(class="form-control", multiple=True) }}
+                                    <div class="form-text">Hold Ctrl to select multiple courses</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.training_mode.label(class="form-label") }}
+                                    {{ form.training_mode(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    {{ form.trainee_count.label(class="form-label") }}
+                                    {{ form.trainee_count(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    {{ form.quotation_amount.label(class="form-label") }}
+                                    {{ form.quotation_amount(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    {{ form.expected_start_date.label(class="form-label") }}
+                                    {{ form.expected_start_date(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.budget_range.label(class="form-label") }}
+                                    {{ form.budget_range(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="mb-3">
+                                    {{ form.special_requirements.label(class="form-label") }}
+                                    {{ form.special_requirements(class="form-control", rows="3") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Update Corporate Lead</button>
+                            <a href="{{ url_for('main.corporate_leads') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

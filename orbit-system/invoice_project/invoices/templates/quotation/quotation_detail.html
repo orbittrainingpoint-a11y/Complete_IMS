@@ -1,0 +1,550 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Corporate Training Quotation - Orbit Training Centre</title>
+
+<style>
+@page {
+  size: A4;
+  margin: 10mm;
+}
+
+:root {
+  --brand: #0b4ba3;
+  --brand-dark: #073474;
+  --border: #d6e1ef;
+  --text: #1f2937;
+  --muted: #667085;
+  --soft: #f8fbff;
+  --discount: #fff8e6;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: #eef2f7;
+  color: var(--text);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10.8px;
+  line-height: 1.34;
+}
+
+/* ── Page wrapper ── */
+.page {
+  width: 210mm;
+  margin: 0 auto;
+  background: #ffffff;
+  padding: 8mm 10mm 16mm 10mm; /* extra bottom for fixed footer */
+}
+
+.no-break, thead, tfoot { break-inside: avoid; page-break-inside: avoid; }
+tr { break-inside: avoid; page-break-inside: avoid; }
+
+/* ── Page-break hints: encourage break BEFORE bank section, not mid-table ── */
+.bank-sign  { break-before: auto; break-inside: avoid; page-break-inside: avoid; }
+.approval-box { break-inside: avoid; page-break-inside: avoid; }
+
+/* ── Header ── */
+.header {
+  display: grid;
+  grid-template-columns: 30% 70%;
+  gap: 8px;
+  align-items: start;
+  padding-bottom: 7px;
+  border-bottom: 3px solid var(--brand);
+}
+
+.logo { width: 120px; max-height: 48px; object-fit: contain; }
+
+.company-details {
+  text-align: right;
+  color: #222;
+  font-size: 9.8px;
+  line-height: 1.32;
+}
+
+.company-name {
+  font-size: 12.8px;
+  font-weight: 800;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.doc-type {
+  margin-top: 1px;
+  color: var(--brand);
+  font-weight: 800;
+  font-size: 11px;
+}
+
+/* ── Hero ── */
+.hero {
+  display: grid;
+  grid-template-columns: 1.18fr 0.82fr;
+  border: 1px solid var(--border);
+  margin-top: 7px;
+}
+
+.hero-left {
+  padding: 9px 11px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.hero-left h1 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.06;
+  color: var(--brand);
+  letter-spacing: -0.3px;
+}
+
+.subtitle { font-size: 11.5px; margin-top: 4px; color: #202938; }
+.prepared { margin-top: 7px; font-size: 11px; }
+
+.hero-right {
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  color: #ffffff;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.mode-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.mode-title { font-size: 16px; font-weight: 800; margin-top: 4px; }
+
+/* ── Intro ── */
+.intro { margin-top: 6px; font-size: 10.8px; text-align: justify; }
+.intro p { margin: 4px 0; }
+
+/* ── Details grid ── */
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--border);
+  margin-top: 7px;
+}
+
+.detail-box {
+  min-height: 40px;
+  padding: 6px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: #ffffff;
+}
+
+.detail-box:nth-child(4n) { border-right: none; }
+.detail-box:nth-child(n+5) { border-bottom: none; background: #f7fbff; }
+
+.detail-label { color: var(--brand); font-weight: 800; font-size: 9.8px; margin-bottom: 2px; }
+.detail-value { font-size: 10.6px; }
+
+/* ── Section / Table ── */
+.section { margin-top: 7px; }
+
+h2 {
+  margin: 7px 0 5px 0;
+  font-size: 13.5px;
+  color: var(--brand);
+  line-height: 1.12;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--border);
+}
+
+table { width: 100%; border-collapse: collapse; }
+
+th {
+  background: var(--brand);
+  color: #ffffff;
+  font-weight: 800;
+  text-align: center;
+  border: 1px solid var(--brand);
+  padding: 5px 4px;
+  font-size: 10.2px;
+}
+
+td {
+  border: 1px solid var(--border);
+  padding: 5px 4px;
+  vertical-align: top;
+  font-size: 10.5px;
+}
+
+tbody tr:nth-child(even) td.data-row { background: var(--soft); }
+
+.center { text-align: center; }
+.right  { text-align: right; }
+.bold   { font-weight: 800; }
+
+.summary-row td  { background: #f3f7fc; font-weight: 800; font-size: 10.5px; }
+.discount-row td { background: var(--discount); font-weight: 800; font-size: 10.5px; }
+.grand-row td    { background: var(--brand); color: #ffffff; font-weight: 900; font-size: 11.5px; }
+
+.small-note { margin-top: 4px; font-size: 9.5px; color: var(--muted); }
+
+/* ── Process + Terms ── */
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--border);
+  margin-top: 7px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.panel { padding: 7px 8px; min-height: 78px; }
+.panel:first-child { border-right: 1px solid var(--border); }
+
+.panel h3, .bank h3, .sign h3 {
+  margin: 0 0 4px 0;
+  color: var(--brand);
+  font-size: 12.5px;
+}
+
+.panel p { margin: 0; font-size: 10.3px; }
+ul { margin: 0; padding-left: 14px; }
+li { margin: 0 0 2px 0; font-size: 10.3px; }
+
+/* ── Bank + Sign ── */
+.bank-sign {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  border: 1px solid var(--border);
+  margin-top: 7px;
+}
+
+.bank, .sign { padding: 7px 8px; }
+.bank { border-right: 1px solid var(--border); }
+.bank-line { margin-bottom: 2px; font-size: 10.2px; }
+
+/* ── Approval ── */
+.approval-box {
+  margin-top: 7px;
+  border: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.approval-left, .approval-right { padding: 7px 8px; min-height: 68px; }
+.approval-left { border-right: 1px solid var(--border); }
+
+.approval-title { color: var(--brand); font-weight: 800; font-size: 12px; margin-bottom: 5px; }
+
+.line-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 7px;
+  margin-top: 6px;
+  align-items: end;
+  font-size: 10.3px;
+}
+
+.line { border-bottom: 1px solid #7b8794; height: 12px; }
+
+.stamp-area {
+  height: 38px;
+  border: 1px dashed #9aa8bd;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7b8794;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Footer — fixed at bottom of every printed page ── */
+.footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 5px 10mm;
+  border-top: 2px solid var(--brand);
+  color: var(--muted);
+  font-size: 9.2px;
+  line-height: 1.28;
+  background: #fff;
+}
+
+.footer-right { text-align: right; }
+
+/* ── Screen-only helpers ── */
+.print-note {
+  width: 210mm;
+  margin: 8px auto;
+  background: #fff7e6;
+  border: 1px solid #f3c875;
+  color: #5f4100;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.print-btn {
+  display: block;
+  width: 210mm;
+  margin: 6px auto;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  padding: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+@media print {
+  html, body {
+    background: #ffffff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .page {
+    width: 100%;
+    margin: 0;
+    padding: 0 0 16mm 0; /* bottom space for fixed footer */
+  }
+
+  .print-note, .print-btn { display: none; }
+}
+</style>
+</head>
+
+<body>
+<div class="print-note">
+  Print setting: A4 size, scale 100%, background graphics/colors enabled. Text size has been increased for better readability.
+</div>
+<button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+
+<main class="page">
+
+  <!-- ── HEADER ── -->
+  <header class="header no-break">
+    <div>
+      <img class="logo" src="{% static 'Orbit-Logo-1.png' %}" alt="Orbit Logo" />
+    </div>
+    <div class="company-details">
+      <div class="company-name">Max Orbit Education and Training Computer Software</div>
+      <div class="doc-type">Corporate Training Quotation</div>
+      <div style="margin-top:4px;">
+        211, Pinnacle Sheikh Zayed Road, Al Barsha 1, Dubai, United Arab Emirates, PO Box No. 450450<br>
+        +971 55 204 8878 | info@orbittraining.ae<br>
+        www.orbittraining.ae
+      </div>
+    </div>
+  </header>
+
+  <!-- ── HERO ── -->
+  <section class="hero no-break">
+    <div class="hero-left">
+      <h1>Corporate Training Quotation</h1>
+      <div class="subtitle">
+        Training Proposal for
+        {% for item in items_data %}{{ item.course_name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </div>
+      <div class="prepared">
+        <strong>Prepared for:</strong> {{ quotation.client_name }}
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="mode-label">Training Mode</div>
+      <div class="mode-title">{{ training_mode_display }}</div>
+    </div>
+  </section>
+
+  <!-- ── INTRO ── -->
+  <section class="intro">
+    <p>Dear {{ quotation.client_name }},</p>
+    <p>
+      Thank you for considering Orbit Training Centre for your corporate training requirement. We are pleased to submit this quotation for the required software training programs. The training will be arranged based on the agreed schedule, participant level, and selected training delivery mode.
+    </p>
+    <p>
+      Our training approach is focused on delivering practical, industry-relevant learning that can support your team with applicable knowledge and professional software skills.
+    </p>
+  </section>
+
+  <!-- ── DETAILS GRID ── -->
+  <section class="details-grid no-break">
+    <div class="detail-box">
+      <div class="detail-label">Client</div>
+      <div class="detail-value">{{ quotation.client_name }}</div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Participants</div>
+      <div class="detail-value">{{ participants_display }}</div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Schedule</div>
+      <div class="detail-value">{{ quotation.schedule }}</div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Pricing Basis</div>
+      <div class="detail-value">Per participant / per course</div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Training Venue</div>
+      <div class="detail-value">{{ venue_label }}</div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Payment</div>
+      <div class="detail-value">Before training start</div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">VAT</div>
+      <div class="detail-value">Excluded</div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Discount</div>
+      <div class="detail-value">{% if quotation.discount %}{{ quotation.discount }}%{% else %}None{% endif %}</div>
+    </div>
+  </section>
+
+  <!-- ── PRICING TABLE ── -->
+  <section class="section">
+    <h2>Training Program Pricing</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:6%;">S. No.</th>
+          <th style="width:29%;">Software / Course Name</th>
+          <th style="width:12%;">Duration</th>
+          <th style="width:18%;">Training Mode</th>
+          <th style="width:15%;">Fee / Pax</th>
+          <th style="width:8%;">Pax</th>
+          <th style="width:12%;">Total</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for item in items_data %}
+        <tr>
+          <td class="data-row center">{{ forloop.counter }}</td>
+          <td class="data-row">{{ item.course_name }}</td>
+          <td class="data-row center">{{ item.duration }} Hours</td>
+          <td class="data-row center">{{ venue_label }}</td>
+          <td class="data-row right">AED {{ item.fee_per_pax_fmt }}</td>
+          <td class="data-row center">{{ item.pax }}</td>
+          <td class="data-row right">AED {{ item.line_total_fmt }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="center" style="color:var(--muted);padding:12px;">No course items added.</td>
+        </tr>
+        {% endfor %}
+
+        <tr class="summary-row">
+          <td colspan="6" class="right">Total Cost</td>
+          <td class="right">AED {{ subtotal_fmt }}</td>
+        </tr>
+        {% if quotation.discount %}
+        <tr class="discount-row">
+          <td colspan="6" class="right">Discount</td>
+          <td class="right">{{ quotation.discount }}%</td>
+        </tr>
+        {% endif %}
+        <tr class="grand-row">
+          <td colspan="6" class="right">Final Total</td>
+          <td class="right">AED {{ final_total_fmt }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="small-note">
+      Note: Keep only the required software/course rows. If more courses are added and the page becomes full, the remaining content will automatically continue on the next A4 page during printing.
+    </div>
+  </section>
+
+  <!-- ── PROCESS + TERMS ── -->
+  <section class="columns no-break">
+    <div class="panel">
+      <h3>Process</h3>
+      <p>
+        To proceed with the quotation or to discuss specific requirements, please contact {{ quotation.consultant_name }} at {{ quotation.consultant_number }} or {{ quotation.consultant_email }}. We will be glad to address your queries and align the training schedule accordingly.
+      </p>
+    </div>
+
+    <div class="panel">
+      <h3>Terms and Conditions</h3>
+      <ul>
+        <li>Training will be based on agreed parameters and schedule.</li>
+        <li>Full payment is required before starting the training.</li>
+        <li>The organization should provide equipment and proper training space, where applicable.</li>
+        <li>Training will be scheduled after 1 week from the payment date.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ── BANK + SIGNATURE ── -->
+  <section class="bank-sign no-break">
+    <div class="bank">
+      <h3>Bank Transfer Details</h3>
+      <div class="bank-line"><strong>Bank Name:</strong> Wio Bank</div>
+      <div class="bank-line"><strong>Account Name:</strong> Max Orbit Education and Training Computer Software</div>
+      <div class="bank-line"><strong>BIC:</strong> WIOBAEADXXX</div>
+      <div class="bank-line"><strong>IBAN:</strong> AE460860000009548530832</div>
+      <div class="bank-line"><strong>Address:</strong> 211, Pinnacle Sheikh Zayed Road, Al Barsha First, Dubai</div>
+    </div>
+
+    <div class="sign">
+      <h3>Best Regards</h3>
+      <div><strong>{{ quotation.consultant_name }}</strong></div>
+      <div>{{ quotation.consultant_position }}</div>
+      <div>Orbit Training Center</div>
+      <div>{{ quotation.consultant_number }}</div>
+    </div>
+  </section>
+
+  <!-- ── APPROVAL ── -->
+  <section class="approval-box no-break">
+    <div class="approval-left">
+      <div class="approval-title">Client Acceptance</div>
+      <div class="line-row"><span>Name</span><div class="line"></div></div>
+      <div class="line-row"><span>Designation</span><div class="line"></div></div>
+      <div class="line-row"><span>Date</span><div class="line"></div></div>
+    </div>
+
+    <div class="approval-right">
+      <div class="approval-title">Authorized Stamp &amp; Signature</div>
+      <div class="stamp-area">Company Stamp</div>
+      <div class="line-row"><span>Signature</span><div class="line"></div></div>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ── -->
+  <footer class="footer no-break">
+    <div>
+      211, Pinnacle Sheikh Zayed Road, Al Barsha 1, Dubai, United Arab Emirates, PO Box No. 450450
+    </div>
+    <div class="footer-right">
+      +971 55 204 8878&nbsp;&nbsp;|&nbsp;&nbsp;info@orbittraining.ae<br>
+      www.orbittraining.ae
+    </div>
+  </footer>
+
+</main>
+<script>
+if (new URLSearchParams(window.location.search).get('autoprint') === '1') {
+  window.addEventListener('load', function() { setTimeout(window.print, 600); });
+}
+</script>
+</body>
+</html>

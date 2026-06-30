@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Leads Customization{% endblock %}
+
+{% block content %}
+<!-- Remove modal classes and show content directly -->
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-user-plus me-2"></i>
+                        <span id="leadModalTitle">{{ title | default('Add New Lead') }}</span>
+                    </h5>
+                </div>
+
+                <form method="POST" action="{{ url_for('main.add_lead') if title == 'Add New Lead' else url_for('main.edit_lead', id=lead.id if lead is defined and lead is not none else 0) }}" id="leadForm">
+                    {{ lead_form.csrf_token }}
+                    <div class="card-body p-4">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <!-- Lead Information -->
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-user me-2"></i>Lead Information
+                                </h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ lead_form.name(class="form-control", placeholder="Full Name") }}
+                                            <label for="name">Full Name *</label>
+                                            {% if lead_form.name.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.name.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ lead_form.phone(class="form-control", placeholder="Phone Number") }}
+                                            <label for="phone">Phone Number *</label>
+                                            {% if lead_form.phone.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.phone.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ lead_form.whatsapp(class="form-control", placeholder="WhatsApp Number") }}
+                                            <label for="whatsapp">WhatsApp Number</label>
+                                            {% if lead_form.whatsapp.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.whatsapp.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ lead_form.email(class="form-control", placeholder="Email Address") }}
+                                            <label for="email">Email Address</label>
+                                            {% if lead_form.email.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.email.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ lead_form.course_interest_id(class="form-select") }}
+                                            <label for="course_interest_id">Course Interest</label>
+                                            {% if lead_form.course_interest_id.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.course_interest_id.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ lead_form.lead_source(class="form-control") }}
+                                            <label for="lead_source">Lead Source</label>
+                                            {% if lead_form.lead_source.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.lead_source.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ lead_form.status(class="form-select") }}
+                                            <label for="status">Status</label>
+                                            {% if lead_form.status.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.status.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ lead_form.quoted_amount(class="form-control") }}
+                                            <label for="quoted_amount">Quoted Amount</label>
+                                            {% if lead_form.quoted_amount.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.quoted_amount.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ lead_form.next_followup_date(class="form-control") }}
+                                            <label for="next_followup_date">Next Follow-up Date</label>
+                                            {% if lead_form.next_followup_date.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.next_followup_date.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            {{ lead_form.followup_type(class="form-control") }}
+                                            <label for="followup_type">Follow-up Type</label>
+                                            {% if lead_form.followup_type.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.followup_type.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="form-floating">
+                                            {{ lead_form.comments(class="form-control", style="height: 100px") }}
+                                            <label for="comments">Comments</label>
+                                            {% if lead_form.comments.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in lead_form.comments.errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light">
+                        {% if title == 'Add New Lead' %}
+                        <button type="submit" class="btn btn-primary" name="save_and_add_another">Save & Add Another</button>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <a href="{{ url_for('main.leads') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

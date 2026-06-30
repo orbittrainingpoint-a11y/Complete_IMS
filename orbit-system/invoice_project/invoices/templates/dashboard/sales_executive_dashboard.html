@@ -1,0 +1,253 @@
+{% extends "base_generic.html" %}
+{% load static %}
+
+{% block title %}My Dashboard{% endblock %}
+{% block breadcrumb_label %}<span class="current">My Performance</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.target-card {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+    border-radius: 16px; padding: 24px; color: #fff;
+    position: relative; overflow: hidden;
+}
+.target-card::before {
+    content: ''; position: absolute;
+    width: 200px; height: 200px; border-radius: 50%;
+    background: rgba(37,99,235,.15);
+    top: -60px; right: -60px;
+}
+.target-card::after {
+    content: ''; position: absolute;
+    width: 120px; height: 120px; border-radius: 50%;
+    background: rgba(37,99,235,.1);
+    bottom: -40px; left: 40px;
+}
+
+.fc-card { border-left: 4px solid; border-radius: 10px; padding: 16px 18px; background: #fff; }
+.fc-blue { border-color: var(--primary); }
+.fc-green { border-color: var(--success); }
+.fc-orange { border-color: var(--warning); }
+.fc-red { border-color: var(--danger); }
+
+.followup-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+.followup-item:last-child { border-bottom: none; }
+.priority-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="page-title">My Dashboard</div>
+        <div class="page-subtitle">{{ current_month_label }} — Track your performance & targets</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'registration_form' %}" class="btn btn-primary btn-sm"><i class="fas fa-user-plus me-1"></i>New Registration</a>
+    </div>
+</div>
+
+<!-- ── TARGET HERO CARD ────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-8">
+        <div class="target-card">
+            <div class="d-flex align-items-center gap-4 flex-wrap" style="position:relative;z-index:1">
+                <!-- ring -->
+                <div class="target-ring" style="width:130px;height:130px;">
+                    <svg width="130" height="130" viewBox="0 0 130 130">
+                        <circle cx="65" cy="65" r="55" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="12"/>
+                        <circle cx="65" cy="65" r="55" fill="none" stroke="#3b82f6" stroke-width="12"
+                            stroke-dasharray="{{ target_dash }} 345.4"
+                            stroke-linecap="round"/>
+                    </svg>
+                    <div class="target-ring-text">
+                        <div class="target-ring-pct" style="color:#fff;font-size:26px;">{{ target_pct }}%</div>
+                        <div class="target-ring-lbl" style="color:rgba(255,255,255,.6);">of Target</div>
+                    </div>
+                </div>
+                <!-- stats -->
+                <div style="flex:1;">
+                    <div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:4px;">Revenue This Month</div>
+                    <div style="font-size:36px;font-weight:800;letter-spacing:-1.5px;color:#fff;">AED {{ my_revenue|floatformat:0 }}</div>
+                    <div class="d-flex gap-3 mt-3 flex-wrap">
+                        <div>
+                            <div style="font-size:11px;color:rgba(255,255,255,.5);">Target</div>
+                            <div style="font-size:18px;font-weight:700;color:#93c5fd;">AED {{ my_target|floatformat:0 }}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px;color:rgba(255,255,255,.5);">Remaining</div>
+                            <div style="font-size:18px;font-weight:700;color:{% if remaining > 0 %}#fca5a5{% else %}#6ee7b7{% endif %};">
+                                AED {{ remaining|floatformat:0 }}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px;color:rgba(255,255,255,.5);">Registrations</div>
+                            <div style="font-size:18px;font-weight:700;color:#fff;">{{ my_registrations }} / {{ target_reg }}</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- run rate -->
+                <div style="background:rgba(255,255,255,.08);border-radius:12px;padding:16px 20px;min-width:160px;">
+                    <div style="font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;">Run Rate</div>
+                    <div style="font-size:22px;font-weight:800;color:#fff;margin:4px 0;">AED {{ run_rate|floatformat:0 }}<span style="font-size:12px;font-weight:400;color:rgba(255,255,255,.5);">/day</span></div>
+                    <div style="font-size:11px;color:rgba(255,255,255,.5);">{{ days_remaining }} days left</div>
+                    <div style="margin-top:10px;font-size:12px;color:{% if projected_revenue >= my_target %}#6ee7b7{% else %}#fca5a5{% endif %};">
+                        <i class="fas fa-chart-line me-1"></i>Projected: AED {{ projected_revenue|floatformat:0 }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="row g-3 h-100">
+            <div class="col-6">
+                <div class="kpi-card h-100">
+                    <div class="kpi-icon icon-blue"><i class="fas fa-file-alt"></i></div>
+                    <div class="kpi-value" data-count="{{ my_quotations }}">0</div>
+                    <div class="kpi-label">Quotations</div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="kpi-card h-100">
+                    <div class="kpi-icon icon-green"><i class="fas fa-user-graduate"></i></div>
+                    <div class="kpi-value" data-count="{{ my_registrations }}">0</div>
+                    <div class="kpi-label">Registrations</div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="kpi-card h-100">
+                    <div class="kpi-icon icon-orange"><i class="fas fa-chart-line"></i></div>
+                    <div class="kpi-value" data-count="{{ avg_deal|floatformat:0 }}" data-prefix="AED ">AED 0</div>
+                    <div class="kpi-label">Avg Deal Size</div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="kpi-card h-100">
+                    <div class="kpi-icon icon-purple"><i class="fas fa-bullseye"></i></div>
+                    <div class="kpi-value" data-count="{{ target_pct }}" data-suffix="%">0%</div>
+                    <div class="kpi-label">Target Hit</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── FORECASTING CARDS ─────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="fc-card fc-blue">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;">Daily Run Rate</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0;">AED {{ run_rate|floatformat:0 }}</div>
+            <div style="font-size:12px;color:var(--text-muted);">Needed: AED {{ needed_daily|floatformat:0 }}/day</div>
+            <div class="mt-2">
+                <div class="progress"><div class="progress-bar bg-primary" style="width:{{ run_rate_pct }}%"></div></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="fc-card fc-green">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;">Projected Month End</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0;">AED {{ projected_revenue|floatformat:0 }}</div>
+            <div style="font-size:12px;color:{% if projected_revenue >= my_target %}var(--success){% else %}var(--danger){% endif %};">
+                {% if projected_revenue >= my_target %}On track to hit target ✓{% else %}{{ gap_to_target|floatformat:0 }} AED below target{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="fc-card fc-orange">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;">Quotations Sent</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0;">{{ my_quotations }}</div>
+            <div style="font-size:12px;color:var(--text-muted);">Total quotations this period</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="fc-card fc-red">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;">Avg Deal Size</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0;">AED {{ avg_deal|floatformat:0 }}</div>
+            <div style="font-size:12px;color:var(--text-muted);">This month's average</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── CHARTS + ACTIVITY ──────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-6">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-chart-bar me-2 text-primary"></i>My Weekly Revenue</div>
+            <div class="card-body">
+                <canvas id="weeklyChart" height="120"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-user-graduate me-2 text-success"></i>My Recent Registrations Summary</div>
+            <div class="card-body d-flex align-items-center justify-content-center" style="min-height:200px;">
+                <div class="text-center">
+                    <div style="font-size:48px;font-weight:800;color:var(--primary);">{{ my_registrations }}</div>
+                    <div style="font-size:14px;color:var(--text-muted);">Registrations this month</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Target: {{ target_reg }} | AED {{ my_revenue|floatformat:0 }} revenue</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── MY RECENT REGISTRATIONS ───────────────────────────────── -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-user-graduate me-2 text-success"></i>My Recent Registrations</span>
+        <a href="{% url 'student_dashboard' %}" class="btn btn-sm btn-outline-primary">View All</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead><tr><th>Reg #</th><th>Student</th><th>Course(s)</th><th>Type</th><th>Date</th><th>Invoice</th></tr></thead>
+            <tbody>
+                {% for reg in my_registrations_list %}
+                <tr>
+                    <td><span class="pill pill-blue">{{ reg.registration_number }}</span></td>
+                    <td><strong>{{ reg.first_name }} {{ reg.last_name }}</strong></td>
+                    <td style="font-size:12px;color:var(--text-muted);">
+                        {% for rc in reg.registrationcourse_set.all|slice:":2" %}{{ rc.course.name|truncatechars:18 }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    </td>
+                    <td><span class="pill {% if reg.class_type == 'online' %}pill-blue{% elif reg.class_type == 'batch' %}pill-purple{% elif reg.class_type == 'private' %}pill-red{% else %}pill-green{% endif %}">{{ reg.class_type }}</span></td>
+                    <td style="font-size:12px;color:var(--text-muted);">{{ reg.date }}</td>
+                    <td>
+                        {% if reg.invoice_set.exists %}<span class="pill pill-green">Invoiced</span>
+                        {% else %}<a href="{% url 'create_invoice' %}" class="btn btn-xs btn-outline-warning" style="font-size:11px;padding:2px 8px;">Create</a>{% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-center text-muted py-3">No registrations this month</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const wCtx = document.getElementById('weeklyChart').getContext('2d');
+new Chart(wCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ weekly_labels|safe }},
+        datasets: [{
+            label: 'Revenue (AED)',
+            data: {{ weekly_data|safe }},
+            backgroundColor: 'rgba(37,99,235,.7)',
+            borderRadius: 6, borderSkipped: false,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { grid: { color: '#f1f5f9' }, beginAtZero: true, ticks: { callback: v => 'AED '+v } },
+            x: { grid: { display: false } }
+        }
+    }
+});
+</script>
+{% endblock %}

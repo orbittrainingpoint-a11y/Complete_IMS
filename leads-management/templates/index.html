@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Training Center CRM{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<li class="breadcrumb-item active">Dashboard</li>
+{% endblock %}
+
+{% block content %}
+<!-- Dashboard Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-blue"><i class="fas fa-user-friends"></i></div>
+            <div class="kpi-value">{{ total_leads }}</div>
+            <div class="kpi-label">Total Leads</div>
+            <span class="kpi-trend up"><i class="fas fa-arrow-up"></i> This month</span>
+            <div class="kpi-bg"><i class="fas fa-user-friends"></i></div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-green"><i class="fas fa-user-graduate"></i></div>
+            <div class="kpi-value">{{ total_students }}</div>
+            <div class="kpi-label">Active Students</div>
+            <span class="kpi-trend up"><i class="fas fa-arrow-up"></i> Growing</span>
+            <div class="kpi-bg"><i class="fas fa-user-graduate"></i></div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-purple"><i class="fas fa-book"></i></div>
+            <div class="kpi-value">{{ total_courses }}</div>
+            <div class="kpi-label">Active Courses</div>
+            <span class="kpi-trend up"><i class="fas fa-check"></i> Stable</span>
+            <div class="kpi-bg"><i class="fas fa-book"></i></div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-orange"><i class="fas fa-coins"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ "{:,.0f}".format(monthly_revenue) }}</div>
+            <div class="kpi-label">Monthly Revenue</div>
+            <span class="kpi-trend up"><i class="fas fa-arrow-up"></i> This month</span>
+            <div class="kpi-bg"><i class="fas fa-coins"></i></div>
+        </div>
+    </div>
+</div>
+
+<!-- Overdue alert banner (shown when there are overdue leads) -->
+{% if overdue_count and overdue_count > 0 %}
+<div class="alert d-flex align-items-center gap-3 mb-4" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:12px;color:#dc2626;">
+    <div style="width:36px;height:36px;border-radius:50%;background:rgba(239,68,68,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="fas fa-exclamation-triangle" style="font-size:15px;"></i>
+    </div>
+    <div style="flex:1;">
+        <div style="font-weight:700;font-size:14px;">{{ overdue_count }} overdue follow-up{{ 's' if overdue_count != 1 }} need{{ '' if overdue_count != 1 else 's' }} attention</div>
+        <div style="font-size:12px;opacity:.8;">These leads had follow-ups scheduled for past dates and haven't been actioned.</div>
+    </div>
+    <a href="{{ url_for('main.overdue_followups') }}" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;font-weight:700;border-radius:8px;white-space:nowrap;">
+        View Follow-ups <i class="fas fa-arrow-right ms-1"></i>
+    </a>
+</div>
+{% endif %}
+
+<!-- Charts Row -->
+<div class="row mb-4">
+    <div class="col-lg-8 mb-4">
+        <div class="chart-container">
+            <canvas id="pipelineChart" height="300"></canvas>
+        </div>
+    </div>
+    <div class="col-lg-4 mb-4">
+        <div class="chart-container">
+            <canvas id="conversionChart" height="300"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-lg-6 mb-4">
+        <div class="chart-container">
+            <canvas id="revenueChart" height="250"></canvas>
+        </div>
+    </div>
+    <div class="col-lg-6 mb-4">
+        <div class="dashboard-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Today's Follow-ups</h5>
+                <a href="{{ url_for('main.leads') }}" class="btn btn-sm btn-outline-primary">View All Leads</a>
+            </div>
+            
+            {% if today_followups %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Course Interest</th>
+                            <th>Follow-up Type</th>
+                            <th>Time</th>
+                            <th>Priority</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lead in today_followups %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar bg-primary text-white rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                        {{ lead.name[0].upper() }}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">{{ lead.name }}</div>
+                                        <small class="text-muted">{{ lead.phone }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if lead.course_interest %}
+                                    {{ lead.course_interest.name }}
+                                {% else %}
+                                    <span class="text-muted">Not specified</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ lead.followup_type or 'Not set' }}</td>
+                            <td>
+                                {% if lead.followup_time %}
+                                    {{ lead.followup_time.strftime('%I:%M %p') }}
+                                {% else %}
+                                    <span class="text-muted">Not set</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="status-badge status-{{ lead.followup_priority.lower() if lead.followup_priority else 'not-set' }}">
+                                    {{ lead.followup_priority or 'Not set' }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-success" title="WhatsApp">
+                                        <i class="fab fa-whatsapp"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" title="Email">
+                                        <i class="fas fa-envelope"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No follow-ups scheduled for today</p>
+                <a href="{{ url_for('main.leads') }}" class="btn btn-primary-custom">
+                    <i class="fas fa-plus me-2"></i>Manage Leads
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="dashboard-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Recent Leads</h5>
+                <a href="{{ url_for('main.leads') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            
+            {% if recent_leads %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Course Interest</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lead in recent_leads %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar bg-primary text-white rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                        {{ lead.name[0].upper() }}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">{{ lead.name }}</div>
+                                        <small class="text-muted">{{ lead.phone }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if lead.course_interest %}
+                                    {{ lead.course_interest.name }}
+                                {% else %}
+                                    <span class="text-muted">Not specified</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="status-badge status-{{ lead.status.lower() }}">
+                                    {{ lead.status }}
+                                </span>
+                            </td>
+                            <td>
+                                <small class="text-muted">
+                                    {{ lead.created_at.strftime('%b %d, %Y') }}
+                                </small>
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="btn btn-sm btn-outline-primary" title="Call">
+                                        <i class="fas fa-phone"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-success" title="WhatsApp">
+                                        <i class="fab fa-whatsapp"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" title="Email">
+                                        <i class="fas fa-envelope"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No recent leads found</p>
+                <a href="{{ url_for('main.add_lead') }}" class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#leadModal">
+                    <i class="fas fa-plus me-2"></i>Add First Lead
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- Pipeline Summary -->
+        <div class="dashboard-card mb-4">
+            <h5 class="mb-3">Pipeline Summary</h5>
+            {% if pipeline_data %}
+                {% for status, count in pipeline_data.items() %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="status-badge status-{{ status.lower() }}">{{ status }}</span>
+                    <span class="fw-bold">{{ count }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-muted">No pipeline data available.</p>
+            {% endif %}
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="dashboard-card">
+            <h5 class="mb-3">Quick Actions</h5>
+            <div class="d-grid gap-2">
+                <button class="btn btn-primary-custom" data-bs-toggle="modal" data-bs-target="#leadModal">
+                    <i class="fas fa-user-plus me-2"></i>Add New Lead
+                </button>
+                <button class="btn btn-success-custom" data-bs-toggle="modal" data-bs-target="#meetingModal">
+                    <i class="fas fa-calendar-plus me-2"></i>Schedule Meeting
+                </button>
+                <button class="btn btn-warning-custom" data-bs-toggle="modal" data-bs-target="#courseModal">
+                    <i class="fas fa-book me-2"></i>Create Course
+                </button>
+                <a href="{{ url_for('main.reports') }}" class="btn btn-info text-white">
+                    <i class="fas fa-chart-bar me-2"></i>View Reports
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Consultant Performance (admin/manager only) -->
+{% if consultant_stats %}
+<div class="row mt-2 mb-4">
+    <div class="col-12">
+        <div class="dashboard-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="fas fa-trophy me-2 text-warning"></i>Consultant Performance — This Month</h5>
+                <a href="{{ url_for('main.overdue_followups') }}" class="btn btn-sm btn-outline-danger">
+                    <i class="fas fa-bell me-1"></i>View Overdue
+                </a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover" style="font-size:13px;">
+                    <thead>
+                        <tr>
+                            <th>Consultant</th>
+                            <th>Total Leads</th>
+                            <th>Added This Month</th>
+                            <th>Converted</th>
+                            <th>Conv. Rate</th>
+                            <th>Overdue</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for cs in consultant_stats %}
+                    <tr>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:9px;">
+                                <div style="width:32px;height:32px;border-radius:50%;background:rgba(37,99,235,.12);color:var(--primary);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                    {{ cs.user.username[:2].upper() }}
+                                </div>
+                                <div>
+                                    <div style="font-weight:600;">{{ cs.user.username }}</div>
+                                    <div style="font-size:11px;color:var(--text-muted);">{{ cs.user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><span style="font-weight:700;">{{ cs.total }}</span></td>
+                        <td>
+                            <span style="background:rgba(37,99,235,.08);color:var(--primary);padding:2px 9px;border-radius:10px;font-weight:700;font-size:12px;">{{ cs.this_month }}</span>
+                        </td>
+                        <td>
+                            <span style="background:rgba(16,185,129,.1);color:#059669;padding:2px 9px;border-radius:10px;font-weight:700;font-size:12px;">{{ cs.converted }}</span>
+                        </td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div style="flex:1;background:var(--border);border-radius:4px;height:6px;min-width:60px;">
+                                    <div style="width:{{ [cs.rate,100]|min }}%;background:{% if cs.rate >= 30 %}#10b981{% elif cs.rate >= 15 %}#f59e0b{% else %}#ef4444{% endif %};height:6px;border-radius:4px;"></div>
+                                </div>
+                                <span style="font-weight:700;font-size:12px;min-width:36px;">{{ cs.rate }}%</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if cs.overdue > 0 %}
+                            <span style="background:rgba(239,68,68,.1);color:#dc2626;padding:2px 9px;border-radius:10px;font-weight:700;font-size:12px;">{{ cs.overdue }} overdue</span>
+                            {% else %}
+                            <span style="color:#10b981;font-size:12px;"><i class="fas fa-check fa-xs me-1"></i>On track</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('main.leads') }}?assigned_to={{ cs.user.id }}" class="btn btn-sm btn-outline-primary" style="font-size:11px;">View Leads</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modals -->
+{% include 'modals/meeting_modal.html' %}
+{% include 'modals/course_modal.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Dashboard-specific JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Animate numbers on page load
+    const numbers = document.querySelectorAll('.dashboard-card h3');
+    numbers.forEach(number => {
+        const finalValue = parseInt(number.textContent.replace(/[^0-9]/g, ''));
+        let currentValue = 0;
+        const increment = finalValue / 50;
+        
+        const updateNumber = () => {
+            currentValue += increment;
+            if (currentValue < finalValue) {
+                number.textContent = Math.floor(currentValue).toLocaleString();
+                requestAnimationFrame(updateNumber);
+            } else {
+                number.textContent = finalValue.toLocaleString();
+            }
+        };
+        
+        updateNumber();
+    });
+    
+    // Add fade-in animation to cards
+    const cards = document.querySelectorAll('.dashboard-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+});
+</script>
+{% endblock %}

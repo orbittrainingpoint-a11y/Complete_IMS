@@ -1,0 +1,140 @@
+{% extends "base_generic.html" %}
+{% block title %}Edit Coupon{% endblock %}
+{% block breadcrumb_label %}<span class="current">Edit Coupon</span>{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <div class="page-title"><i class="fas fa-tag me-2 text-primary"></i>Edit Coupon</div>
+        <div class="page-subtitle">Update discount coupon settings</div>
+    </div>
+    <a href="{% url 'coupon_list' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-7">
+        <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-tag"></i></div>
+                <div>
+                    <div class="form-section-title">Coupon Details</div>
+                    <div style="font-size:12px;opacity:.7">Update the discount code and its rules</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Coupon Code *</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-tag"></i></span>
+                            {{ form.code }}
+                        </div>
+                        {% if form.code.errors %}<div class="text-danger" style="font-size:12px;margin-top:4px;">{{ form.code.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Discount % *</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-percent"></i></span>
+                            {{ form.discount_percentage }}
+                            <span class="input-group-text">%</span>
+                        </div>
+                        {% if form.discount_percentage.errors %}<div class="text-danger" style="font-size:12px;margin-top:4px;">{{ form.discount_percentage.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Expiry Date</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-calendar"></i></span>
+                            {{ form.expiry_date }}
+                        </div>
+                        {% if form.expiry_date.errors %}<div class="text-danger" style="font-size:12px;margin-top:4px;">{{ form.expiry_date.errors.0 }}</div>{% endif %}
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Leave blank for no expiry</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Max Uses</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-users"></i></span>
+                            {{ form.max_uses }}
+                        </div>
+                        {% if form.max_uses.errors %}<div class="text-danger" style="font-size:12px;margin-top:4px;">{{ form.max_uses.errors.0 }}</div>{% endif %}
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Leave blank for unlimited uses</div>
+                    </div>
+                    {% if coupon %}
+                    <div class="col-12">
+                        <div style="background:var(--bg);border-radius:10px;padding:14px 16px;border:1px solid var(--border);">
+                            <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Usage Stats (Read Only)</div>
+                            <div class="d-flex gap-4">
+                                <div>
+                                    <div style="font-size:22px;font-weight:800;color:var(--primary);">{{ coupon.used_count|default:"0" }}</div>
+                                    <div style="font-size:12px;color:var(--text-muted);">Times Used</div>
+                                </div>
+                                {% if coupon.max_uses %}
+                                <div>
+                                    <div style="font-size:22px;font-weight:800;color:var(--warning);">{{ coupon.max_uses }}</div>
+                                    <div style="font-size:12px;color:var(--text-muted);">Max Allowed</div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="col-12">
+                        <div class="form-check form-switch" style="margin-top:4px;">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}" style="font-weight:600;">Active</label>
+                            <div style="font-size:12px;color:var(--text-muted);">Only active coupons can be applied at checkout</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-1"></i>Save Changes</button>
+            <a href="{% url 'coupon_list' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+        </form>
+    </div>
+
+    <div class="col-xl-5">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-eye me-2 text-primary"></i>Live Preview</div>
+            <div class="card-body">
+                <div style="background:linear-gradient(135deg,#0f1b2d,#1a2d47);border-radius:12px;padding:20px;color:#fff;text-align:center;">
+                    <div style="font-size:11px;opacity:.6;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Coupon Code</div>
+                    <div id="previewCode" style="font-size:28px;font-weight:900;letter-spacing:3px;color:#93c5fd;font-family:monospace;">—</div>
+                    <div id="previewDisc" style="font-size:48px;font-weight:900;margin:12px 0;">0%</div>
+                    <div style="font-size:12px;opacity:.7;">OFF</div>
+                    <div id="previewExpiry" style="font-size:12px;opacity:.6;margin-top:12px;">No expiry</div>
+                    <div id="previewUses" style="font-size:12px;opacity:.6;">Unlimited uses</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const codeInput = document.getElementById('{{ form.code.id_for_label }}');
+const discInput = document.getElementById('{{ form.discount_percentage.id_for_label }}');
+const expInput  = document.getElementById('{{ form.expiry_date.id_for_label }}');
+const usesInput = document.getElementById('{{ form.max_uses.id_for_label }}');
+
+function updatePreview() {
+    document.getElementById('previewCode').textContent = codeInput?.value || '—';
+    document.getElementById('previewDisc').textContent = (discInput?.value || '0') + '%';
+    document.getElementById('previewExpiry').textContent = expInput?.value ? 'Expires: ' + expInput.value : 'No expiry';
+    document.getElementById('previewUses').textContent = usesInput?.value ? 'Max ' + usesInput.value + ' uses' : 'Unlimited uses';
+}
+[codeInput, discInput, expInput, usesInput].forEach(el => el?.addEventListener('input', updatePreview));
+updatePreview();
+
+document.querySelectorAll('.form-section input[type="text"],.form-section input[type="number"],.form-section input[type="date"]').forEach(el => {
+    if(!el.classList.contains('form-control')) el.classList.add('form-control');
+});
+document.querySelectorAll('.form-section input[type="checkbox"]').forEach(el => {
+    if(!el.classList.contains('form-check-input')) el.classList.add('form-check-input');
+});
+</script>
+{% endblock %}

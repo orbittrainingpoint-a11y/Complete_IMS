@@ -1,0 +1,139 @@
+{% extends 'base_generic.html' %}
+{% block title %}Receivables Aging Report{% endblock %}
+{% block breadcrumb_label %}<span class="current">Aging Report</span>{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="page-title"><i class="fas fa-clock me-2 text-warning"></i>Receivables Aging Report</div>
+        <div class="page-subtitle">Outstanding invoices by overdue period — as of {{ today }}</div>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <a href="{% url 'orbit_dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Dashboard</a>
+        <a href="?export=csv" class="btn btn-outline-success btn-sm"><i class="fas fa-file-csv me-1"></i>Export CSV</a>
+        <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
+    </div>
+</div>
+
+<!-- Summary KPIs -->
+<div class="row g-3 mb-4">
+    <div class="col-md-2 col-sm-4">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-green"><i class="fas fa-check-circle"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ totals.current|floatformat:0 }}</div>
+            <div class="kpi-label">Current (Not Due)</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-blue"><i class="fas fa-clock"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ totals.1_30|floatformat:0 }}</div>
+            <div class="kpi-label">1–30 Days</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-orange"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ totals.31_60|floatformat:0 }}</div>
+            <div class="kpi-label">31–60 Days</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-red"><i class="fas fa-fire"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ totals.61_90|floatformat:0 }}</div>
+            <div class="kpi-label">61–90 Days</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="kpi-card" style="border-color:var(--danger);">
+            <div class="kpi-icon icon-red"><i class="fas fa-skull-crossbones"></i></div>
+            <div class="kpi-value" style="font-size:20px;color:var(--danger);">AED {{ totals.over_90|floatformat:0 }}</div>
+            <div class="kpi-label">90+ Days (Critical)</div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="kpi-card" style="border-color:var(--primary);background:rgba(37,99,235,.04);">
+            <div class="kpi-icon icon-blue"><i class="fas fa-sigma"></i></div>
+            <div class="kpi-value" style="font-size:20px;color:var(--primary);">AED {{ grand_total|floatformat:0 }}</div>
+            <div class="kpi-label">Grand Total Outstanding</div>
+        </div>
+    </div>
+</div>
+
+<!-- Direct bucket rendering -->
+{% if not buckets.current and not buckets.1_30 and not buckets.31_60 and not buckets.61_90 and not buckets.over_90 %}
+<div class="card text-center py-5">
+    <i class="fas fa-check-circle fa-3x text-success mb-3 d-block"></i>
+    <div class="fw-bold" style="font-size:18px;">All invoices are paid!</div>
+    <div class="text-muted mt-2">No outstanding receivables found.</div>
+</div>
+{% else %}
+
+<!-- Direct bucket rendering -->
+{% if buckets.current %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-circle text-success me-2"></i><strong>Current — Not Yet Due</strong> <span class="pill pill-green ms-2">{{ buckets.current|length }} invoices</span></span>
+        <strong class="text-success">AED {{ totals.current|floatformat:2 }}</strong>
+    </div>
+    <div class="table-responsive"><table class="table mb-0" data-sortable>
+        <thead><tr><th data-sort="0">Invoice #</th><th data-sort="1">Client</th><th data-sort="2">Due Date</th><th data-sort="3">Total</th><th data-sort="4">Outstanding</th></tr></thead>
+        <tbody>{% for inv in buckets.current %}<tr><td><strong class="text-primary">{{ inv.invoice_number }}</strong></td><td>{{ inv.client.name }}</td><td>{{ inv.due_date }}</td><td>AED {{ inv.total_amount|floatformat:2 }}</td><td><strong>AED {{ inv.outstanding|floatformat:2 }}</strong></td></tr>{% endfor %}</tbody>
+    </table></div>
+</div>
+{% endif %}
+
+{% if buckets.1_30 %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-circle text-primary me-2"></i><strong>1–30 Days Overdue</strong> <span class="pill pill-blue ms-2">{{ buckets.1_30|length }} invoices</span></span>
+        <strong class="text-primary">AED {{ totals.1_30|floatformat:2 }}</strong>
+    </div>
+    <div class="table-responsive"><table class="table mb-0" data-sortable>
+        <thead><tr><th data-sort="0">Invoice #</th><th data-sort="1">Client</th><th data-sort="2">Due Date</th><th data-sort="3">Days Over</th><th data-sort="4">Outstanding</th></tr></thead>
+        <tbody>{% for inv in buckets.1_30 %}<tr><td><strong class="text-primary">{{ inv.invoice_number }}</strong></td><td>{{ inv.client.name }}</td><td>{{ inv.due_date }}</td><td><span class="pill pill-blue">{{ inv.days_overdue }}d</span></td><td><strong class="text-danger">AED {{ inv.outstanding|floatformat:2 }}</strong></td></tr>{% endfor %}</tbody>
+    </table></div>
+</div>
+{% endif %}
+
+{% if buckets.31_60 %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-circle text-warning me-2"></i><strong>31–60 Days Overdue</strong> <span class="pill pill-orange ms-2">{{ buckets.31_60|length }} invoices</span></span>
+        <strong class="text-warning">AED {{ totals.31_60|floatformat:2 }}</strong>
+    </div>
+    <div class="table-responsive"><table class="table mb-0" data-sortable>
+        <thead><tr><th data-sort="0">Invoice #</th><th data-sort="1">Client</th><th data-sort="2">Due Date</th><th data-sort="3">Days Over</th><th data-sort="4">Outstanding</th></tr></thead>
+        <tbody>{% for inv in buckets.31_60 %}<tr><td><strong class="text-primary">{{ inv.invoice_number }}</strong></td><td>{{ inv.client.name }}</td><td>{{ inv.due_date }}</td><td><span class="pill pill-orange">{{ inv.days_overdue }}d</span></td><td><strong class="text-danger">AED {{ inv.outstanding|floatformat:2 }}</strong></td></tr>{% endfor %}</tbody>
+    </table></div>
+</div>
+{% endif %}
+
+{% if buckets.61_90 %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-circle text-danger me-2"></i><strong>61–90 Days Overdue</strong> <span class="pill pill-red ms-2">{{ buckets.61_90|length }} invoices</span></span>
+        <strong class="text-danger">AED {{ totals.61_90|floatformat:2 }}</strong>
+    </div>
+    <div class="table-responsive"><table class="table mb-0" data-sortable>
+        <thead><tr><th data-sort="0">Invoice #</th><th data-sort="1">Client</th><th data-sort="2">Due Date</th><th data-sort="3">Days Over</th><th data-sort="4">Outstanding</th></tr></thead>
+        <tbody>{% for inv in buckets.61_90 %}<tr><td><strong class="text-primary">{{ inv.invoice_number }}</strong></td><td>{{ inv.client.name }}</td><td>{{ inv.due_date }}</td><td><span class="pill pill-red">{{ inv.days_overdue }}d</span></td><td><strong class="text-danger">AED {{ inv.outstanding|floatformat:2 }}</strong></td></tr>{% endfor %}</tbody>
+    </table></div>
+</div>
+{% endif %}
+
+{% if buckets.over_90 %}
+<div class="card mb-4" style="border-color:var(--danger);">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background:rgba(239,68,68,.05);">
+        <span><i class="fas fa-fire text-danger me-2"></i><strong>90+ Days Overdue — CRITICAL</strong> <span class="pill pill-red ms-2">{{ buckets.over_90|length }} invoices</span></span>
+        <strong class="text-danger">AED {{ totals.over_90|floatformat:2 }}</strong>
+    </div>
+    <div class="table-responsive"><table class="table mb-0" data-sortable>
+        <thead><tr><th data-sort="0">Invoice #</th><th data-sort="1">Client</th><th data-sort="2">Due Date</th><th data-sort="3">Days Over</th><th data-sort="4">Outstanding</th></tr></thead>
+        <tbody>{% for inv in buckets.over_90 %}<tr style="background:rgba(239,68,68,.03);"><td><strong class="text-primary">{{ inv.invoice_number }}</strong></td><td>{{ inv.client.name }}</td><td style="color:var(--danger);">{{ inv.due_date }}</td><td><span class="pill pill-red">{{ inv.days_overdue }}d</span></td><td><strong class="text-danger" style="font-size:15px;">AED {{ inv.outstanding|floatformat:2 }}</strong></td></tr>{% endfor %}</tbody>
+    </table></div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

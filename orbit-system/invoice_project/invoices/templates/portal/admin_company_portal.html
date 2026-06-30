@@ -1,0 +1,196 @@
+{% extends 'base_generic.html' %}
+{% block title %}Company Portal Requests{% endblock %}
+{% block breadcrumb_label %}<span class="current">Company Portal</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.portal-card { background:var(--card-bg); border-radius:14px; border:1px solid var(--border); padding:20px; margin-bottom:16px; transition:box-shadow .2s; }
+.portal-card:hover { box-shadow:0 4px 20px rgba(0,0,0,.08); }
+.company-name { font-size:17px; font-weight:800; color:var(--text); }
+.portal-meta { font-size:12px; color:var(--text-muted); margin-top:4px; }
+.status-badge { font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; }
+.status-pending { background:rgba(245,158,11,.1); color:#d97706; }
+.status-approved { background:rgba(16,185,129,.1); color:#059669; }
+.status-rejected { background:rgba(239,68,68,.1); color:#dc2626; }
+.doc-link { font-size:12px; color:var(--primary); text-decoration:none; }
+.doc-link:hover { text-decoration:underline; }
+.generate-box { background:linear-gradient(135deg,#0f1b2d,#1a2d47); border-radius:16px; padding:24px; color:#fff; margin-bottom:24px; }
+.generate-box .form-control::placeholder { color:rgba(255,255,255,.45); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <div class="page-title"><i class="fas fa-building me-2 text-primary"></i>Company Portal</div>
+        <div class="page-subtitle">Manage company registration requests and generate portal links</div>
+    </div>
+</div>
+
+<!-- Generate Link Box -->
+<div class="generate-box">
+    <div class="row align-items-center g-3">
+        <div class="col-md-6">
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px;"><i class="fas fa-link me-2"></i>Generate Company Portal Link</div>
+            <div style="font-size:13px;opacity:.7;">After closing a deal, generate a secure link for the company to register their details</div>
+        </div>
+        <div class="col-md-6">
+            <div class="d-flex gap-2">
+                <input type="text" id="newCompanyName" class="form-control" placeholder="Company name (optional)" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:10px;">
+                <button class="btn btn-primary" id="genPortalBtn" style="white-space:nowrap;border-radius:10px;font-weight:700;">
+                    <i class="fas fa-link me-1"></i>Generate
+                </button>
+            </div>
+            <div id="generatedLink" style="display:none;margin-top:10px;background:rgba(255,255,255,.1);border-radius:8px;padding:10px 14px;">
+                <div style="font-size:11px;opacity:.7;margin-bottom:6px;">Share this link with the company:</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <code id="linkText" style="font-size:12px;color:#93c5fd;word-break:break-all;flex:1;"></code>
+                    <button onclick="copyPortalLink()" class="btn btn-sm btn-outline-light" style="white-space:nowrap;border-radius:7px;">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    {% with requests|length as total %}
+    <div class="col-md-3">
+        <div class="kpi-card"><div class="kpi-icon icon-blue"><i class="fas fa-building"></i></div>
+            <div class="kpi-value">{{ total }}</div><div class="kpi-label">Total Requests</div></div>
+    </div>
+    {% endwith %}
+    <div class="col-md-3">
+        <div class="kpi-card"><div class="kpi-icon icon-orange"><i class="fas fa-clock"></i></div>
+            <div class="kpi-value">{{ requests|length }}</div><div class="kpi-label">Pending Review</div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card"><div class="kpi-icon icon-green"><i class="fas fa-check-circle"></i></div>
+            <div class="kpi-value">0</div><div class="kpi-label">Approved</div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card"><div class="kpi-icon icon-purple"><i class="fas fa-users"></i></div>
+            <div class="kpi-value">0</div><div class="kpi-label">Total Attendees</div></div>
+    </div>
+</div>
+
+<!-- Requests List -->
+{% for req in requests %}
+<div class="portal-card">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+            <div class="company-name">{{ req.company_name }}</div>
+            <div class="portal-meta">
+                <i class="fas fa-user me-1"></i>{{ req.contact_person|default:"Not submitted" }}
+                {% if req.email %} &bull; {{ req.email }}{% endif %}
+                {% if req.phone %} &bull; {{ req.phone }}{% endif %}
+            </div>
+            <div class="portal-meta mt-1">
+                <i class="fas fa-calendar me-1"></i>Generated: {{ req.created_at|date:"d M Y" }}
+                {% if req.submitted_at %} &bull; <i class="fas fa-check me-1 text-success"></i>Submitted: {{ req.submitted_at|date:"d M Y" }}{% else %} &bull; <span style="color:#f59e0b;">Awaiting company submission</span>{% endif %}
+                {% if req.generated_by %} &bull; By: {{ req.generated_by.get_full_name|default:req.generated_by.username }}{% endif %}
+            </div>
+            {% if req.vat_number %}
+            <div class="portal-meta mt-1"><i class="fas fa-receipt me-1"></i>VAT: {{ req.vat_number }}</div>
+            {% endif %}
+            {% if req.trade_license_number %}
+            <div class="portal-meta"><i class="fas fa-id-card me-1"></i>TL: {{ req.trade_license_number }}</div>
+            {% endif %}
+        </div>
+        <div class="d-flex flex-column align-items-end gap-2">
+            <span class="status-badge status-{{ req.status }}">{{ req.get_status_display }}</span>
+            <div class="d-flex gap-1 flex-wrap">
+                {% if req.submitted_at %}
+                <a href="{% url 'company_portal_add_attendees' token=req.token %}" class="btn btn-outline-primary btn-sm" target="_blank" title="View Attendees">
+                    <i class="fas fa-users me-1"></i>Attendees ({{ req.attendees.count }})
+                </a>
+                {% if req.status == 'pending' %}
+                <button class="btn btn-success btn-sm btn-approve" data-pk="{{ req.pk }}" data-csrf="{{ csrf_token }}">
+                    <i class="fas fa-check me-1"></i>Approve
+                </button>
+                {% endif %}
+                {% endif %}
+                <button class="btn btn-outline-secondary btn-sm" onclick="copyLink('{{ request.scheme }}://{{ request.get_host }}/portal/company/{{ req.token }}/')" title="Copy Portal Link">
+                    <i class="fas fa-link"></i>
+                </button>
+                {% if req.trade_license_doc %}
+                <a href="{{ req.trade_license_doc.url }}" class="btn btn-outline-info btn-sm" target="_blank" title="Trade License">
+                    <i class="fas fa-file-pdf"></i>
+                </a>
+                {% endif %}
+                {% if req.vat_certificate %}
+                <a href="{{ req.vat_certificate.url }}" class="btn btn-outline-warning btn-sm" target="_blank" title="VAT Certificate">
+                    <i class="fas fa-certificate"></i>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% if req.attendees.count %}
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);">
+        <i class="fas fa-users me-1"></i><strong>{{ req.attendees.count }}</strong> attendee{{ req.attendees.count|pluralize }} registered:
+        {% for a in req.attendees.all|slice:":5" %}
+        <span style="background:rgba(37,99,235,.08);border-radius:6px;padding:2px 8px;margin:2px;display:inline-block;">{{ a.full_name }}</span>
+        {% endfor %}
+        {% if req.attendees.count > 5 %}<span style="color:var(--primary);">+{{ req.attendees.count|add:"-5" }} more</span>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% empty %}
+<div style="text-align:center;padding:60px;color:var(--text-muted);">
+    <i class="fas fa-building fa-3x mb-3" style="opacity:.2;"></i>
+    <div>No company portal requests yet. Generate a link to get started.</div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _generatedUrl = '';
+
+document.getElementById('genPortalBtn').addEventListener('click', function() {
+    const name = document.getElementById('newCompanyName').value || 'New Company';
+    fetch('{% url "generate_company_portal_link" %}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'company_name=' + encodeURIComponent(name)
+    }).then(r => r.json()).then(d => {
+        _generatedUrl = d.url;
+        document.getElementById('linkText').textContent = d.url;
+        document.getElementById('generatedLink').style.display = 'block';
+        setTimeout(() => location.reload(), 3000);
+    });
+});
+
+function copyPortalLink() {
+    navigator.clipboard.writeText(_generatedUrl).then(() => {
+        const btn = document.querySelector('#generatedLink .btn-outline-light');
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 1500);
+    });
+}
+
+function copyLink(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        const orig = event.target.closest('button').innerHTML;
+        event.target.closest('button').innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(() => event.target.closest('button').innerHTML = orig, 1500);
+    });
+}
+
+document.querySelectorAll('.btn-approve').forEach(btn => {
+    btn.addEventListener('click', function() {
+        if(!confirm('Approve this company registration?')) return;
+        const pk = this.dataset.pk;
+        fetch(`/admin-portal/${pk}/approve/`, {
+            method: 'POST',
+            headers: {'X-CSRFToken': this.dataset.csrf}
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'approved') location.reload();
+        });
+    });
+});
+</script>
+{% endblock %}

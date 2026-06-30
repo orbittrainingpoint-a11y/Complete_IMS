@@ -1,0 +1,399 @@
+<!-- Course Modal -->
+<div class="modal fade" id="courseModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-book me-2"></i>
+                    <span id="courseModalTitle">Create New Course</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <form method="POST" action="{{ url_for('main.add_course') }}" id="courseForm" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <!-- Course Tabs -->
+                    <ul class="nav nav-tabs" id="courseTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#basic" type="button" role="tab">
+                                <i class="fas fa-info-circle me-2"></i>Basic Information
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="content-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#content" type="button" role="tab">
+                                <i class="fas fa-file-alt me-2"></i>Content & Materials
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="keypoints-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#keypoints" type="button" role="tab">
+                                <i class="fas fa-list-ul me-2"></i>Key Learning Points
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="settings-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#settings" type="button" role="tab">
+                                <i class="fas fa-cog me-2"></i>Settings
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content mt-4" id="courseTabContent">
+                        <!-- Basic Information Tab -->
+                        <div class="tab-pane fade show active" id="basic" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="form-floating mb-3">
+                                        <input type="text" class="form-control" id="name" name="name" 
+                                               placeholder="Course Name" required>
+                                        <label for="name">Course Name *</label>
+                                    </div>
+                                    
+                                    <div class="form-floating mb-3">
+                                        <textarea class="form-control" id="description" name="description" 
+                                                  placeholder="Course description..." style="height: 120px"></textarea>
+                                        <label for="description">Course Description</label>
+                                        <div class="form-text">
+                                            <span id="descriptionCount">0</span>/1000 characters
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="course-preview-card">
+                                        <div class="text-center mb-3">
+                                            <div class="course-icon-large bg-primary text-white rounded-circle mx-auto d-flex align-items-center justify-content-center" 
+                                                 style="width: 80px; height: 80px;">
+                                                <i class="fas fa-book fa-2x"></i>
+                                            </div>
+                                        </div>
+                                        <h6 class="text-center" id="previewName">Course Name</h6>
+                                        <p class="text-center text-muted small" id="previewDescription">Course description will appear here...</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-floating mb-3">
+                                        <input type="number" class="form-control" id="price" name="price" 
+                                               placeholder="Course Price" step="0.01" min="0" required>
+                                        <label for="price">Course Price (AED) *</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-floating mb-3">
+                                        <input type="text" class="form-control" id="duration" name="duration" 
+                                               placeholder="e.g., 3, 6, 12" required>
+                                        <label for="duration">Duration *</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-floating mb-3">
+                                        <select class="form-select" id="duration_type" name="duration_type" required>
+                                            <option value="">Select Unit</option>
+                                            <option value="days">Days</option>
+                                            <option value="weeks">Weeks</option>
+                                            <option value="months">Months</option>
+                                        </select>
+                                        <label for="duration_type">Duration Unit *</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-floating mb-3">
+                                        <input type="text" class="form-control" id="category" name="category" 
+                                               placeholder="e.g., Programming, Design, Marketing">
+                                        <label for="category">Category</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-floating mb-3">
+                                        <input type="number" class="form-control" id="max_students" name="max_students" 
+                                               placeholder="Maximum students" min="1">
+                                        <label for="max_students">Max Students</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Content & Materials Tab -->
+                        <div class="tab-pane fade" id="content" role="tabpanel">
+                            <div class="mb-4">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-upload me-2"></i>Course Materials
+                                </h6>
+                                
+                                <div class="upload-area" id="courseUploadArea">
+                                    <div class="text-center">
+                                        <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                                        <h6>Upload Course Materials</h6>
+                                        <p class="text-muted">
+                                            Drag and drop files here or click to browse<br>
+                                            <small>Supported formats: PDF, DOC, DOCX, PPT, PPTX, ZIP (Max: 50MB)</small>
+                                        </p>
+                                        <input type="file" id="course_materials" name="course_materials" 
+                                               accept=".pdf,.doc,.docx,.ppt,.pptx,.zip" multiple style="display: none;">
+                                        <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('course_materials').click()">
+                                            <i class="fas fa-folder-open me-2"></i>Choose Files
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div id="uploadProgressContainer" style="display: none;" class="mt-3">
+                                    <div class="progress-custom">
+                                        <div id="uploadProgress" class="progress-bar-custom" style="width: 0%">0%</div>
+                                    </div>
+                                </div>
+                                
+                                <div id="uploadedFiles" class="mt-3">
+                                    <!-- Uploaded files will be listed here -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Key Learning Points Tab -->
+                        <div class="tab-pane fade" id="keypoints" role="tabpanel">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="text-primary mb-0">
+                                        <i class="fas fa-list-ul me-2"></i>Key Learning Points
+                                    </h6>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="addKeyPoint">
+                                        <i class="fas fa-plus me-2"></i>Add Point
+                                    </button>
+                                </div>
+                                
+                                <div id="keyPointsList" class="sortable-list">
+                                    <div class="key-point-item mb-3">
+                                        <div class="input-group">
+                                            <span class="input-group-text handle" style="cursor: move;">
+                                                <i class="fas fa-grip-vertical"></i>
+                                            </span>
+                                            <input type="text" class="form-control key-point-input" 
+                                                   placeholder="Enter key learning point..." name="key_points[]">
+                                            <button type="button" class="btn btn-outline-danger remove-point">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Drag to reorder points. These will be displayed as course highlights.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Settings Tab -->
+                        <div class="tab-pane fade" id="settings" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="text-primary mb-3">
+                                        <i class="fas fa-toggle-on me-2"></i>Course Status
+                                    </h6>
+                                    
+                                    <div class="form-check form-switch mb-4">
+                                        <input class="form-check-input" type="checkbox" id="is_active" name="is_active" checked>
+                                        <label class="form-check-label" for="is_active">
+                                            <strong>Active Course</strong><br>
+                                            <small class="text-muted">Course is visible and available for enrollment</small>
+                                        </label>
+                                    </div>
+                                    
+                                    <h6 class="text-primary mb-3">
+                                        <i class="fas fa-calendar me-2"></i>Scheduling
+                                    </h6>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-floating mb-3">
+                                                <input type="date" class="form-control" id="start_date" name="start_date">
+                                                <label for="start_date">Start Date</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating mb-3">
+                                                <input type="date" class="form-control" id="end_date" name="end_date">
+                                                <label for="end_date">End Date</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <h6 class="text-primary mb-3">
+                                        <i class="fas fa-cog me-2"></i>Advanced Settings
+                                    </h6>
+                                    
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="allow_installments" name="allow_installments">
+                                        <label class="form-check-label" for="allow_installments">
+                                            Allow Payment Installments
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="certificate_eligible" name="certificate_eligible" checked>
+                                        <label class="form-check-label" for="certificate_eligible">
+                                            Certificate Eligible
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="early_bird_discount" name="early_bird_discount">
+                                        <label class="form-check-label" for="early_bird_discount">
+                                            Early Bird Discount Available
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-floating mb-3">
+                                        <input type="number" class="form-control" id="discount_percentage" name="discount_percentage" 
+                                               min="0" max="100" step="1" disabled>
+                                        <label for="discount_percentage">Discount Percentage (%)</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-outline-info" id="previewCourse">
+                        <i class="fas fa-eye me-2"></i>Preview
+                    </button>
+                    <button type="submit" class="btn btn-primary-custom">
+                        <i class="fas fa-save me-2"></i>Create Course
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Live preview updates
+    document.getElementById('name').addEventListener('input', function() {
+        document.getElementById('previewName').textContent = this.value || 'Course Name';
+    });
+    
+    document.getElementById('description').addEventListener('input', function() {
+        const count = this.value.length;
+        document.getElementById('descriptionCount').textContent = count;
+        document.getElementById('previewDescription').textContent = 
+            this.value || 'Course description will appear here...';
+        
+        if (count > 1000) {
+            this.value = this.value.substring(0, 1000);
+        }
+    });
+    
+    // Key points management
+    document.getElementById('addKeyPoint').addEventListener('click', function() {
+        const container = document.getElementById('keyPointsList');
+        const newPoint = document.createElement('div');
+        newPoint.className = 'key-point-item mb-3';
+        newPoint.innerHTML = `
+            <div class="input-group">
+                <span class="input-group-text handle" style="cursor: move;">
+                    <i class="fas fa-grip-vertical"></i>
+                </span>
+                <input type="text" class="form-control key-point-input" 
+                       placeholder="Enter key learning point..." name="key_points[]">
+                <button type="button" class="btn btn-outline-danger remove-point">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `;
+        container.appendChild(newPoint);
+        
+        // Add remove functionality
+        newPoint.querySelector('.remove-point').addEventListener('click', function() {
+            newPoint.remove();
+        });
+    });
+    
+    // Remove point functionality for existing points
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.remove-point')) {
+            e.target.closest('.key-point-item').remove();
+        }
+    });
+    
+    // Early bird discount toggle
+    document.getElementById('early_bird_discount').addEventListener('change', function() {
+        document.getElementById('discount_percentage').disabled = !this.checked;
+        if (!this.checked) {
+            document.getElementById('discount_percentage').value = '';
+        }
+    });
+    
+    // File upload handling
+    document.getElementById('course_materials').addEventListener('change', function() {
+        const files = this.files;
+        const container = document.getElementById('uploadedFiles');
+        
+        Array.from(files).forEach(file => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'uploaded-file-item d-flex justify-content-between align-items-center p-2 border rounded mb-2';
+            fileItem.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-file-alt text-primary me-2"></i>
+                    <span>${file.name}</span>
+                    <small class="text-muted ms-2">(${(file.size / 1024 / 1024).toFixed(2)} MB)</small>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-file">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            container.appendChild(fileItem);
+            
+            fileItem.querySelector('.remove-file').addEventListener('click', function() {
+                fileItem.remove();
+            });
+        });
+    });
+    
+    // Form validation
+    document.getElementById('courseForm').addEventListener('submit', function(e) {
+        if (!validateForm('courseForm')) {
+            e.preventDefault();
+        }
+    });
+    
+    // Tab navigation with validation
+    document.querySelectorAll('#courseTabs button').forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Validate current tab before switching
+            const currentTab = document.querySelector('#courseTabs .nav-link.active');
+            if (currentTab && currentTab !== this) {
+                validateCurrentTab(currentTab.getAttribute('data-bs-target'));
+            }
+        });
+    });
+});
+
+function validateCurrentTab(tabId) {
+    if (tabId === '#basic') {
+        const name = document.getElementById('name').value;
+        const price = document.getElementById('price').value;
+        const duration = document.getElementById('duration').value;
+        const durationType = document.getElementById('duration_type').value;
+        
+        if (!name || !price || !duration || !durationType) {
+            showNotification('Please fill in all required fields in Basic Information', 'warning');
+            return false;
+        }
+    }
+    return true;
+}
+</script>

@@ -1,0 +1,12 @@
+{% extends 'base_generic.html' %}
+
+{% block title %}Add Invoice Items{% endblock %}
+
+{% block content %}
+  <h2>Add Items to Invoice</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Add Items</button>
+  </form>
+{% endblock %}

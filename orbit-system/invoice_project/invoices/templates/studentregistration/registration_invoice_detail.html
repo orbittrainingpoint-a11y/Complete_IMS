@@ -1,0 +1,290 @@
+{% extends 'base_generic.html' %}
+{% load custom_filters %}
+{% load static %}
+
+{% block title %}Registration {{ registration.registration_number }}{% endblock %}
+{% block breadcrumb_label %}
+  <a href="{% url 'student_dashboard' %}">Registrations</a> /
+  <span class="current">{{ registration.registration_number }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-section { background:#fff;border:1px solid var(--border);border-radius:12px;padding:22px 24px;margin-bottom:20px; }
+.detail-section h5 { font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border); }
+.info-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px 24px; }
+.info-item label { font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);display:block;margin-bottom:3px; }
+.info-item .val { font-size:14px;font-weight:600;color:#1a1a2e; }
+.inv-row { font-size:13px;vertical-align:middle; }
+.inv-row td { padding:10px 12px; }
+.status-bar { display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px; }
+.status-pill { display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:30px;font-size:12px;font-weight:600; }
+.sp-green { background:#dcfce7;color:#166534; }
+.sp-blue  { background:#dbeafe;color:#1e40af; }
+.sp-gray  { background:#f1f5f9;color:#475569; }
+.sp-orange { background:#fff7ed;color:#c2410c; }
+.action-strip { display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px; }
+.course-chip { display:inline-block;background:#ede9fe;color:#6d28d9;font-size:11px;padding:3px 10px;border-radius:12px;font-weight:500; }
+.pay-timeline { list-style:none;padding:0;margin:0; }
+.pay-timeline li { display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border); }
+.pay-timeline li:last-child { border-bottom:none; }
+.pay-dot { width:10px;height:10px;border-radius:50%;background:var(--primary);flex-shrink:0; }
+.summary-bar { display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px; }
+.sum-box { flex:1;min-width:140px;background:#f8faff;border:1px solid #e0e7ff;border-radius:10px;padding:12px 16px;text-align:center; }
+.sum-box .val { font-size:18px;font-weight:800;color:var(--primary); }
+.sum-box .lbl { font-size:11px;color:var(--text-muted);margin-top:2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ── PAGE HEADER ── -->
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <div class="page-title">{{ registration.registration_number }}</div>
+    <div class="page-subtitle">{{ registration.first_name }} {{ registration.last_name }} &nbsp;·&nbsp; {{ registration.date }}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'edit_registration' registration.id %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-pen me-1"></i>Edit</a>
+    {% if user.username == 'admin' or user.profile.role == 'admin' %}
+    <button type="button" class="btn btn-primary btn-sm" id="createCertificateBtn"><i class="fas fa-certificate me-1"></i>Create Certificate</button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── STATUS CHIPS ── -->
+<div class="status-bar">
+  {% if form_uploaded %}
+    <span class="status-pill sp-green"><i class="fas fa-check-circle"></i>Form Uploaded</span>
+  {% else %}
+    <span class="status-pill sp-gray"><i class="fas fa-file"></i>Form Pending</span>
+  {% endif %}
+  {% if certificate_uploaded %}
+    <span class="status-pill sp-blue"><i class="fas fa-certificate"></i>Certificate Received</span>
+  {% else %}
+    <span class="status-pill sp-gray"><i class="fas fa-ribbon"></i>Certificate Pending</span>
+  {% endif %}
+</div>
+
+<!-- ── QUICK ACTIONS ── -->
+<div class="action-strip">
+  {% if not form_uploaded %}
+  <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#formUploadModal"><i class="fas fa-upload me-1"></i>Upload Form</button>
+  {% endif %}
+  {% if not certificate_uploaded %}
+  <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#certificateUploadModal"><i class="fas fa-upload me-1"></i>Upload Certificate</button>
+  {% endif %}
+  <a href="{% url 'create_invoice' %}" class="btn btn-outline-success btn-sm"><i class="fas fa-file-invoice me-1"></i>Create Tax Invoice</a>
+</div>
+
+<!-- ── STUDENT INFO ── -->
+<div class="detail-section">
+  <h5><i class="fas fa-user me-2"></i>Student Information</h5>
+  <div class="info-grid">
+    <div class="info-item"><label>Full Name</label><div class="val">{{ registration.first_name }} {{ registration.last_name }}</div></div>
+    <div class="info-item"><label>Email</label><div class="val" style="word-break:break-all;">{{ registration.email }}</div></div>
+    <div class="info-item"><label>Phone</label><div class="val">{{ registration.phone_no }}</div></div>
+    <div class="info-item"><label>Nationality</label><div class="val">{{ registration.nationality|default:"—" }}</div></div>
+    <div class="info-item"><label>Consultant</label><div class="val">{{ registration.consultant_name|default:"—" }}</div></div>
+    <div class="info-item"><label>Class Type</label><div class="val">{{ registration.class_type|default:"—" }}</div></div>
+    <div class="info-item">
+      <label>Courses</label>
+      <div class="val" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+        {% for course in unique_courses %}<span class="course-chip">{{ course.name }}</span>{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── INVOICE PAYMENT SUMMARY ── -->
+{% if invoices %}
+{% with total_inv=invoices|length %}
+<div class="detail-section">
+  <h5><i class="fas fa-receipt me-2"></i>Payment Summary</h5>
+  <div class="summary-bar" id="sumBar">
+    <div class="sum-box"><div class="val" id="sumTotal">—</div><div class="lbl">Total Invoiced</div></div>
+    <div class="sum-box"><div class="val" id="sumPaid">—</div><div class="lbl">Total Paid</div></div>
+    <div class="sum-box"><div class="val" id="sumDue" style="color:#dc2626;">—</div><div class="lbl">Outstanding</div></div>
+    <div class="sum-box"><div class="val">{{ invoices|length }}</div><div class="lbl">Invoices</div></div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Invoice #</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Date</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Total</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Paid</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Status</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Method</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for invoice in invoices %}
+        <tr class="inv-row" data-total="{{ invoice.total_amount }}" data-paid="{{ invoice.amount_paid }}">
+          <td style="font-weight:700;color:var(--primary);">{{ invoice.invoice_number }}</td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ invoice.date }}</td>
+          <td style="font-weight:600;">AED {{ invoice.total_amount|floatformat:2 }}</td>
+          <td style="font-weight:600;">AED {% with adj=invoice.amount_paid|multiply:0.05 %}{% with tot=invoice.amount_paid|add:adj %}{{ tot|floatformat:2 }}{% endwith %}{% endwith %}</td>
+          <td>
+            {% if invoice.status == 'paid' %}
+              <span class="pill pill-green">Paid</span>
+            {% elif invoice.status == 'partial' %}
+              <span class="pill pill-orange">Partial</span>
+            {% else %}
+              <span class="pill pill-red">Pending</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px;">{{ invoice.get_payment_display }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endwith %}
+{% else %}
+<div class="detail-section">
+  <h5><i class="fas fa-receipt me-2"></i>Invoices</h5>
+  <div class="text-center py-4 text-muted">
+    <i class="fas fa-file-invoice fa-2x mb-3 d-block opacity-30"></i>
+    No invoices yet. <a href="{% url 'create_invoice' %}">Create the first invoice.</a>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── MODALS (preserved from original) ── -->
+<div class="modal fade" id="createCertificateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create Certificate</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="certificateForm" method="post" action="{% url 'create_certificate' %}">
+          {% csrf_token %}
+          <input type="hidden" name="register_number" value="{{ registration.registration_number }}">
+          <input type="hidden" name="student_name" value="{{ registration.first_name }} {{ registration.last_name }}">
+          <div class="mb-3">
+            <label class="form-label">Course</label>
+            <select class="form-select" name="course_name" required>
+              {% for course in unique_courses %}
+              <option value="{{ course.name }}">{{ course.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Start Date</label>
+            <input type="date" class="form-control" name="from_date" value="{{ registration.date|date:'Y-m-d' }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">End Date</label>
+            <input type="date" class="form-control" name="end_date" value="{% now 'Y-m-d' %}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Grade</label>
+            <select class="form-select" name="grade" required>
+              <option>A+</option><option>A</option><option>B+</option><option>B</option><option>C</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Create Certificate</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="certificateUploadModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Upload Certificate</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form method="post" action="{% url 'upload_certificate' registration.id %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Certificate File</label>
+            <input type="file" class="form-control" name="certificate_file" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Upload Certificate</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="formUploadModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Upload Registration Form</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form method="post" action="{% url 'upload_form' registration.id %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Registration Form File</label>
+            <input type="file" class="form-control" name="form_file" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Upload Form</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Certificate button
+  const certBtn = document.getElementById('createCertificateBtn');
+  const certModal = document.getElementById('createCertificateModal') ? new bootstrap.Modal(document.getElementById('createCertificateModal')) : null;
+  if (certBtn && certModal) {
+    certBtn.addEventListener('click', function() {
+      if (confirm('Create a certificate for this student?')) certModal.show();
+    });
+  }
+
+  // Certificate form AJAX
+  const certForm = document.getElementById('certificateForm');
+  if (certForm) {
+    certForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      fetch(this.action, {
+        method: 'POST',
+        body: new FormData(this),
+        headers: { 'X-CSRFToken': this.querySelector('[name=csrfmiddlewaretoken]').value }
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          alert('Certificate created!');
+          certModal.hide();
+          window.location.href = data.redirect_url;
+        } else {
+          alert('Error: ' + (data.error || 'Unknown'));
+        }
+      })
+      .catch(() => alert('Network error creating certificate.'));
+    });
+  }
+
+  // Payment summary computation
+  let tot = 0, paid = 0;
+  document.querySelectorAll('.inv-row').forEach(r => {
+    tot  += parseFloat(r.dataset.total) || 0;
+    paid += parseFloat(r.dataset.paid)  || 0;
+  });
+  const fmt = v => 'AED ' + v.toLocaleString('en-AE', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const el = id => document.getElementById(id);
+  if (el('sumTotal')) el('sumTotal').textContent = fmt(tot);
+  if (el('sumPaid'))  el('sumPaid').textContent  = fmt(paid * 1.05);
+  if (el('sumDue'))   el('sumDue').textContent   = fmt(Math.max(0, tot - paid * 1.05));
+});
+</script>
+{% endblock %}

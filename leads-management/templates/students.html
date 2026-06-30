@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}Students — Orbit CRM{% endblock %}
+
+{% block breadcrumb %}<span class="current">Students</span>{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 class="page-title mb-1">Students</h4>
+        <p class="page-subtitle">
+            All enrolled students (ERP-registered + CRM-enrolled)
+            {% if not (current_user.is_admin() or current_user.can_view_all_leads) %}
+            — showing your students
+            {% endif %}
+            {% if course_id_filter %}
+            {% for c in courses %}{% if c.id|string == course_id_filter %}
+            &nbsp;·&nbsp;<span class="badge bg-primary">{{ c.name }}</span>
+            {% endif %}{% endfor %}
+            {% endif %}
+        </p>
+    </div>
+    <a href="{{ url_for('main.student_management') }}" class="btn btn-success">
+        <i class="fas fa-user-plus me-2"></i>Add Student
+    </a>
+</div>
+
+<!-- KPI cards -->
+<div class="row g-3 mb-4">
+    {% set counts = namespace(active=0, completed=0, dropped=0, other=0) %}
+    {% for s in students %}
+        {% if s.status == 'Active' %}{% set counts.active = counts.active + 1 %}{% endif %}
+        {% if s.status == 'Completed' %}{% set counts.completed = counts.completed + 1 %}{% endif %}
+        {% if s.status == 'Dropped' %}{% set counts.dropped = counts.dropped + 1 %}{% endif %}
+        {% if s.status not in ['Active', 'Completed', 'Dropped'] %}{% set counts.other = counts.other + 1 %}{% endif %}
+    {% endfor %}
+    <div class="col-6 col-md-3">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-blue"><i class="fas fa-users"></i></div>
+            <div class="kpi-value">{{ pagination.total }}</div>
+            <div class="kpi-label">Total Students</div>
+            <i class="fas fa-users kpi-bg"></i>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-green"><i class="fas fa-check-circle"></i></div>
+            <div class="kpi-value">{{ counts.active }}</div>
+            <div class="kpi-label">Active (this page)</div>
+            <i class="fas fa-check kpi-bg"></i>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-purple"><i class="fas fa-graduation-cap"></i></div>
+            <div class="kpi-value">{{ counts.completed }}</div>
+            <div class="kpi-label">Completed</div>
+            <i class="fas fa-graduation-cap kpi-bg"></i>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-orange"><i class="fas fa-user-times"></i></div>
+            <div class="kpi-value">{{ counts.dropped }}</div>
+            <div class="kpi-label">Dropped</div>
+            <i class="fas fa-user-times kpi-bg"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-transparent border-end-0">
+                        <i class="fas fa-search text-muted"></i>
+                    </span>
+                    <input type="text" name="search" value="{{ search }}"
+                           class="form-control border-start-0 ps-0"
+                           placeholder="Name, phone, email…">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All Statuses</option>
+                    {% for st in statuses %}
+                    <option value="{{ st }}" {% if status_filter == st %}selected{% endif %}>{{ st }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="course_id" class="form-select form-select-sm">
+                    <option value="">All Courses</option>
+                    {% for c in courses %}
+                    <option value="{{ c.id }}" {% if course_id_filter == c.id|string %}selected{% endif %}>
+                        {{ c.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1 d-flex gap-1">
+                <button type="submit" class="btn btn-primary btn-sm flex-fill">
+                    <i class="fas fa-filter"></i>
+                </button>
+                {% if search or status_filter or course_id_filter %}
+                <a href="{{ url_for('main.students') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-times"></i>
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Students table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-user-graduate me-2 text-primary"></i>Student List</span>
+        <div class="d-flex align-items-center gap-2">
+            <span style="font-size:11px;color:var(--text-muted);">
+                <span class="badge" style="background:rgba(37,99,235,.15);color:#2563eb;">ERP</span> registered via Orbit ERP &nbsp;
+                <span class="badge" style="background:rgba(16,185,129,.15);color:#059669;">CRM</span> enrolled via CRM
+            </span>
+            <span class="badge bg-primary rounded-pill">{{ pagination.total }}</span>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Student</th>
+                    <th>Phone</th>
+                    <th>Course</th>
+                    <th>Consultant</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Source</th>
+                    <th style="width:80px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if students %}
+                {% for s in students %}
+                {% set row = loop.index + (pagination.page - 1) * pagination.per_page %}
+                <tr>
+                    <td style="color:var(--text-muted);font-size:11px;">{{ row }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;">
+                                {{ (s.first_name[:1] + (s.last_name[:1] if s.last_name else ''))|upper }}
+                            </div>
+                            <div>
+                                <div style="font-weight:600;font-size:13.5px;">{{ s.name }}</div>
+                                <div style="font-size:11px;color:var(--text-muted);">{{ s.email or '—' }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="font-size:13px;">{{ s.phone or '—' }}</td>
+                    <td>
+                        {% if s.course_name and s.course_name != '—' %}
+                        <span class="badge" style="background:rgba(37,99,235,.1);color:var(--primary);font-weight:500;font-size:11px;">
+                            {{ s.course_name }}
+                        </span>
+                        {% else %}
+                        <span class="text-muted" style="font-size:12px;">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:13px;">
+                        {% if s.consultant_display and s.consultant_display != '—' %}
+                        <span style="display:flex;align-items:center;gap:5px;">
+                            <i class="fas fa-user-tie" style="font-size:11px;color:var(--text-muted);"></i>
+                            {{ s.consultant_display }}
+                        </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td style="font-size:12px;color:var(--text-muted);">
+                        {{ s.date_display.strftime('%d %b %Y') if s.date_display else '—' }}
+                    </td>
+                    <td>
+                        {% if s.status == 'Active' %}
+                            <span class="pill pill-green">Active</span>
+                        {% elif s.status == 'Completed' %}
+                            <span class="pill pill-blue">Completed</span>
+                        {% elif s.status == 'Dropped' %}
+                            <span class="pill pill-red">Dropped</span>
+                        {% elif s.status == 'Suspended' %}
+                            <span class="pill pill-orange">Suspended</span>
+                        {% else %}
+                            <span class="pill pill-gray">{{ s.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if s.source == 'erp' %}
+                        <span class="badge" style="background:rgba(37,99,235,.15);color:#2563eb;font-size:10px;">ERP</span>
+                        {% else %}
+                        <span class="badge" style="background:rgba(16,185,129,.15);color:#059669;font-size:10px;">CRM</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            <a href="{{ s.detail_url }}"
+                               class="btn btn-outline-primary btn-sm" title="View details">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            {% if s.lead_id %}
+                            <a href="{{ url_for('main.lead_detail', lead_id=s.lead_id) }}"
+                               class="btn btn-outline-secondary btn-sm" title="View lead"
+                               style="font-family:monospace;font-size:11px;padding:3px 6px;">
+                                L-{{ s.lead_id }}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="9" class="text-center py-5">
+                        <i class="fas fa-user-graduate fa-3x mb-3 d-block" style="color:var(--border);"></i>
+                        <div style="font-weight:600;color:var(--text-muted);">No students found</div>
+                        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                            {% if search or status_filter or course_id_filter %}
+                            No students match your filters.
+                            <a href="{{ url_for('main.students') }}">Clear filters</a>
+                            {% else %}
+                            No students enrolled yet.
+                            {% endif %}
+                        </div>
+                        <a href="{{ url_for('main.student_management') }}" class="btn btn-primary btn-sm mt-3">
+                            <i class="fas fa-user-plus me-2"></i>Add Student
+                        </a>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <div class="card-body border-top d-flex justify-content-between align-items-center py-3">
+        <span style="font-size:13px;color:var(--text-muted);">
+            Showing {{ ((pagination.page-1)*pagination.per_page)+1 }}–{{ [pagination.page*pagination.per_page, pagination.total]|min }}
+            of {{ pagination.total }}
+        </span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ pagination.prev_num }}&search={{ search }}&status={{ status_filter }}&course_id={{ course_id_filter }}">
+                        <i class="fas fa-chevron-left" style="font-size:10px;"></i>
+                    </a>
+                </li>
+                {% endif %}
+                {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if p %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="?page={{ p }}&search={{ search }}&status={{ status_filter }}&course_id={{ course_id_filter }}">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ pagination.next_num }}&search={{ search }}&status={{ status_filter }}&course_id={{ course_id_filter }}">
+                        <i class="fas fa-chevron-right" style="font-size:10px;"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

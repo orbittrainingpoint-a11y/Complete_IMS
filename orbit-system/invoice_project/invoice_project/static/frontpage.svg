@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 595.28 841.89">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #fff;
+      }
+
+      .cls-2 {
+        font-size: 144.04px;
+      }
+
+      .cls-2, .cls-3, .cls-4 {
+        fill: #262262;
+      }
+
+      .cls-5, .cls-3 {
+        font-family: Poppins-SemiBold, Poppins;
+        font-weight: 600;
+      }
+
+      .cls-6 {
+        font-size: 45px;
+      }
+
+      .cls-7 {
+        fill: none;
+        stroke: #f7941d;
+        stroke-miterlimit: 10;
+        stroke-width: 5px;
+      }
+
+      .cls-3 {
+        font-size: 30px;
+      }
+
+      .cls-8 {
+        fill: #f7941d;
+      }
+
+      .cls-9 {
+        fill: #231f20;
+      }
+    </style>
+  </defs>
+  <g id="Layer_1" data-name="Layer 1">
+    <rect class="cls-4" width="595.28" height="841.89"/>
+  </g>
+  <g id="Layer_2" data-name="Layer 2">
+    <g>
+      <path class="cls-8" d="m0,42.56h313.53c62,0,112.34,50.34,112.34,112.34h0c0,62-50.34,112.34-112.34,112.34H0V42.56H0Z"/>
+      <path class="cls-7" d="m0,280.27h318.19c34.62,0,65.96-14.03,88.64-36.72,22.69-22.68,36.72-54.02,36.72-88.64,0-69.24-56.12-125.36-125.36-125.36H0"/>
+    </g>
+    <text class="cls-5" transform="translate(15.48 173.45)"><tspan class="cls-2"><tspan x="0" y="0">Orbit</tspan></tspan><tspan class="cls-6"><tspan class="cls-1" x="0" y="54">Training</tspan><tspan class="cls-9" x="189.67" y="54"> </tspan><tspan class="cls-4" x="200.38" y="54">Center</tspan></tspan></text>
+    <rect class="cls-8" x="0" y="571.79" width="595.28" height="167.15"/>
+    <text class="cls-3" transform="translate(42.72 606.2)"><tspan x="0" y="0">Presented By:</tspan></text>
+    <text class="cls-3" transform="translate(344.14 606.2)"><tspan x="0" y="0">Proposal Info</tspan></text>
+  </g>
+</svg>

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Edit Student: {{ student.name }}</h4>
+                    <a href="{{ url_for('main.student_management') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Student Management
+                    </a>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('main.edit_student', id=student.id) }}">
+                        {{ form.hidden_tag() }}
+
+                        <!-- Personal Information -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-1">Personal Information</h6>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.first_name.label(class="form-label") }}
+                                    {{ form.first_name(class="form-control", value=student.first_name) }}
+                                    {% if form.first_name.errors %}
+                                        {% for error in form.first_name.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.last_name.label(class="form-label") }}
+                                    {{ form.last_name(class="form-control", value=student.last_name) }}
+                                    {% if form.last_name.errors %}
+                                        {% for error in form.last_name.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    {{ form.country_code.label(class="form-label") }}
+                                    {{ form.country_code(class="form-control", value=student.country_code) }}
+                                    {% if form.country_code.errors %}
+                                        {% for error in form.country_code.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    {{ form.phone.label(class="form-label") }}
+                                    {{ form.phone(class="form-control", value=student.phone) }}
+                                    {% if form.phone.errors %}
+                                        {% for error in form.phone.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.email.label(class="form-label") }}
+                                    {{ form.email(class="form-control", value=student.email) }}
+                                    {% if form.email.errors %}
+                                        {% for error in form.email.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Course and Schedule -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-1">Course & Schedule</h6>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.course_id.label(class="form-label") }}
+                                    {{ form.course_id(class="form-control") }}
+                                    {% if form.course_id.errors %}
+                                        {% for error in form.course_id.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.batch_name.label(class="form-label") }}
+                                    {{ form.batch_name(class="form-control", value=student.batch_name) }}
+                                    {% if form.batch_name.errors %}
+                                        {% for error in form.batch_name.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.schedule_days.label(class="form-label") }}
+                                    {{ form.schedule_days(class="form-control", onchange="toggleScheduleOptions(this)") }}
+                                    <div class="form-text">
+                                        Note: If weekends are selected, weekday options will be disabled
+                                    </div>
+                                    {% if form.schedule_days.errors %}
+                                        {% for error in form.schedule_days.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.schedule_time.label(class="form-label") }}
+                                    {{ form.schedule_time(class="form-control") }}
+                                    {% if form.schedule_time.errors %}
+                                        {% for error in form.schedule_time.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.start_date.label(class="form-label") }}
+                                    {{ form.start_date(class="form-control", value=student.start_date) }}
+                                    {% if form.start_date.errors %}
+                                        {% for error in form.start_date.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.end_date.label(class="form-label") }}
+                                    {{ form.end_date(class="form-control", value=student.end_date) }}
+                                    {% if form.end_date.errors %}
+                                        {% for error in form.end_date.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Payment Information -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-1">Payment Information</h6>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    {{ form.total_fee.label(class="form-label") }}
+                                    {{ form.total_fee(class="form-control", value=student.total_fee) }}
+                                    {% if form.total_fee.errors %}
+                                        {% for error in form.total_fee.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    {{ form.fee_paid.label(class="form-label") }}
+                                    {{ form.fee_paid(class="form-control", value=student.fee_paid) }}
+                                    {% if form.fee_paid.errors %}
+                                        {% for error in form.fee_paid.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    {{ form.payment_plan.label(class="form-label") }}
+                                    {{ form.payment_plan(class="form-control") }}
+                                    {% if form.payment_plan.errors %}
+                                        {% for error in form.payment_plan.errors %}
+                                            <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Update Student</button>
+                        <a href="{{ url_for('main.student_management') }}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleScheduleOptions(selectElement) {
+    const timeSelect = document.querySelector('select[name="schedule_time"]');
+    const selectedValue = selectElement.value;
+    
+    if (selectedValue === 'weekends') {
+        // Disable weekday time options, keep only weekend appropriate times
+        Array.from(timeSelect.options).forEach(option => {
+            if (option.value.includes('09:00-11:00') || 
+                option.value.includes('11:00-13:00') || 
+                option.value.includes('14:00-16:00')) {
+                option.disabled = false;
+            } else {
+                option.disabled = false; // Keep all options for flexibility
+            }
+        });
+    } else if (selectedValue === 'weekdays') {
+        // Enable all time options for weekdays
+        Array.from(timeSelect.options).forEach(option => {
+            option.disabled = false;
+        });
+    }
+}
+</script>
+{% endblock %}

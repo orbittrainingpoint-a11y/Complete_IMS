@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Providers Configuration{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Payment Providers</h1>
+            <p class="text-muted">Configure your payment gateway integrations</p>
+        </div>
+        <a href="{{ url_for('main.payments') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Payments
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Provider Configuration Cards -->
+            <div class="row mb-4">
+                <!-- Vault Pay -->
+                <div class="col-md-12 mb-4">
+                    <div class="card border-start-primary">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-shield-alt fa-2x text-primary me-3"></i>
+                                <div>
+                                    <h5 class="mb-0">Vault Pay</h5>
+                                    <small class="text-muted">Secure payment processing</small>
+                                </div>
+                            </div>
+                            {% set vault_provider = providers|selectattr("name", "equalto", "Vault")|first %}
+                            {% if vault_provider and vault_provider.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            {% if vault_provider %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>Environment:</strong> {{ vault_provider.environment|title }}</p>
+                                        <p><strong>API Key:</strong> {{ vault_provider.api_key[:10] }}...</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p><strong>Last Updated:</strong> {{ vault_provider.created_at.strftime('%Y-%m-%d') }}</p>
+                                        <p><strong>Webhook URL:</strong> {{ vault_provider.webhook_url or 'Not set' }}</p>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <p class="text-muted">Not configured yet. Click "Configure" to set up Vault Pay integration.</p>
+                            {% endif %}
+                            <button class="btn btn-primary btn-sm" onclick="configureProvider('Vault', {{ vault_provider.id if vault_provider else 'null' }})">
+                                <i class="fas fa-cog me-1"></i>Configure
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabby -->
+                <div class="col-md-12 mb-4">
+                    <div class="card border-start-info">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-credit-card fa-2x text-info me-3"></i>
+                                <div>
+                                    <h5 class="mb-0">Tabby</h5>
+                                    <small class="text-muted">Buy now, pay later solutions</small>
+                                </div>
+                            </div>
+                            {% set tabby_provider = providers|selectattr("name", "equalto", "Tabby")|first %}
+                            {% if tabby_provider and tabby_provider.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            {% if tabby_provider %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>Environment:</strong> {{ tabby_provider.environment|title }}</p>
+                                        <p><strong>API Key:</strong> {{ tabby_provider.api_key[:10] }}...</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p><strong>Last Updated:</strong> {{ tabby_provider.created_at.strftime('%Y-%m-%d') }}</p>
+                                        <p><strong>Webhook URL:</strong> {{ tabby_provider.webhook_url or 'Not set' }}</p>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <p class="text-muted">Not configured yet. Click "Configure" to set up Tabby integration.</p>
+                            {% endif %}
+                            <button class="btn btn-info btn-sm" onclick="configureProvider('Tabby', {{ tabby_provider.id if tabby_provider else 'null' }})">
+                                <i class="fas fa-cog me-1"></i>Configure
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tamara -->
+                <div class="col-md-12 mb-4">
+                    <div class="card border-start-success">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-wallet fa-2x text-success me-3"></i>
+                                <div>
+                                    <h5 class="mb-0">Tamara</h5>
+                                    <small class="text-muted">Flexible payment options</small>
+                                </div>
+                            </div>
+                            {% set tamara_provider = providers|selectattr("name", "equalto", "Tamara")|first %}
+                            {% if tamara_provider and tamara_provider.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            {% if tamara_provider %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>Environment:</strong> {{ tamara_provider.environment|title }}</p>
+                                        <p><strong>API Key:</strong> {{ tamara_provider.api_key[:10] }}...</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p><strong>Last Updated:</strong> {{ tamara_provider.created_at.strftime('%Y-%m-%d') }}</p>
+                                        <p><strong>Webhook URL:</strong> {{ tamara_provider.webhook_url or 'Not set' }}</p>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <p class="text-muted">Not configured yet. Click "Configure" to set up Tamara integration.</p>
+                            {% endif %}
+                            <button class="btn btn-success btn-sm" onclick="configureProvider('Tamara', {{ tamara_provider.id if tamara_provider else 'null' }})">
+                                <i class="fas fa-cog me-1"></i>Configure
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Integration Guide -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="m-0 font-weight-bold text-primary">Integration Guide</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Getting Started</h6>
+                    <ol class="small">
+                        <li>Create accounts with your preferred payment providers</li>
+                        <li>Obtain API keys and secrets from provider dashboards</li>
+                        <li>Configure each provider using the forms below</li>
+                        <li>Test in sandbox mode before going live</li>
+                        <li>Set up webhooks for payment status updates</li>
+                    </ol>
+
+                    <hr>
+
+                    <h6>Provider Links</h6>
+                    <ul class="list-unstyled small">
+                        <li><a href="https://vault.com" target="_blank" class="text-primary">
+                            <i class="fas fa-external-link-alt me-1"></i>Vault Pay Developer Portal
+                        </a></li>
+                        <li><a href="https://tabby.ai/developers" target="_blank" class="text-info">
+                            <i class="fas fa-external-link-alt me-1"></i>Tabby Developer Docs
+                        </a></li>
+                        <li><a href="https://tamara.co/developers" target="_blank" class="text-success">
+                            <i class="fas fa-external-link-alt me-1"></i>Tamara API Documentation
+                        </a></li>
+                    </ul>
+
+                    <hr>
+
+                    <h6>Security Notice</h6>
+                    <div class="alert alert-warning alert-sm">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        Always use sandbox/test credentials during development. Never share your production API keys.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configure Provider Modal -->
+<div class="modal fade" id="configureProviderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('main.add_payment_provider') }}">
+                {{ provider_form.hidden_tag() }}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="providerModalTitle">Configure Payment Provider</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        {{ provider_form.name.label(class="form-label") }}
+                        {{ provider_form.name(class="form-select", id="providerNameField", readonly=True) }}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ provider_form.environment.label(class="form-label") }}
+                                {{ provider_form.environment(class="form-select") }}
+                                <div class="form-text">Use sandbox for testing, production for live transactions</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ provider_form.is_active.label(class="form-check-label") }}
+                                <div class="form-check">
+                                    {{ provider_form.is_active(class="form-check-input") }}
+                                    <label class="form-check-label">Enable this provider</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ provider_form.api_key.label(class="form-label") }}
+                        {{ provider_form.api_key(class="form-control", placeholder="Enter your API key") }}
+                        <div class="form-text">Your public API key from the provider dashboard</div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ provider_form.api_secret.label(class="form-label") }}
+                        {{ provider_form.api_secret(class="form-control", type="password", placeholder="Enter your secret key") }}
+                        <div class="form-text">Your private/secret key (keep this secure)</div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ provider_form.webhook_url.label(class="form-label") }}
+                        {{ provider_form.webhook_url(class="form-control", placeholder="https://yourdomain.com/webhook") }}
+                        <div class="form-text">URL where payment notifications will be sent</div>
+                    </div>
+
+                    <!-- Provider-specific help -->
+                    <div class="alert alert-info" id="providerHelp" style="display: none;">
+                        <div id="vaultHelp" class="provider-help" style="display: none;">
+                            <strong>Vault Pay Configuration:</strong><br>
+                            1. Login to your Vault Pay dashboard<br>
+                            2. Navigate to API Settings<br>
+                            3. Generate or copy your API Key and Secret<br>
+                            4. Set up webhook endpoint for payment notifications
+                        </div>
+                        <div id="tabbyHelp" class="provider-help" style="display: none;">
+                            <strong>Tabby Configuration:</strong><br>
+                            1. Access your Tabby merchant portal<br>
+                            2. Go to Developer section<br>
+                            3. Copy your Public Key and Secret Key<br>
+                            4. Configure webhook URL for order updates
+                        </div>
+                        <div id="tamaraHelp" class="provider-help" style="display: none;">
+                            <strong>Tamara Configuration:</strong><br>
+                            1. Login to Tamara merchant dashboard<br>
+                            2. Access API credentials section<br>
+                            3. Copy your API Token and Merchant credentials<br>
+                            4. Set notification URL for payment status
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Save Configuration
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function configureProvider(providerName, providerId) {
+    document.getElementById('providerModalTitle').textContent = `Configure ${providerName}`;
+    document.getElementById('providerNameField').value = providerName;
+    
+    // Show provider-specific help
+    document.querySelectorAll('.provider-help').forEach(el => el.style.display = 'none');
+    document.getElementById('providerHelp').style.display = 'block';
+    document.getElementById(providerName.toLowerCase() + 'Help').style.display = 'block';
+    
+    // If editing existing provider, populate fields
+    if (providerId) {
+        // You would populate the form fields here with existing data
+        // This would typically be done with AJAX or server-side rendering
+    }
+    
+    new bootstrap.Modal(document.getElementById('configureProviderModal')).show();
+}
+</script>
+{% endblock %}

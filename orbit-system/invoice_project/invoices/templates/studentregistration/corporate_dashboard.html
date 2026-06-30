@@ -1,0 +1,221 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Corporate Registrations{% endblock %}
+{% block breadcrumb_label %}<span class="current">Corporate</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.corp-table th { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600; }
+.corp-table td { font-size:13px;vertical-align:middle; }
+.corp-table tbody tr:hover { background:#f8faff; }
+.filter-card { background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px; }
+.filter-card .form-control { font-size:13px;border-radius:8px;border-color:var(--border); }
+.filter-card .form-label { font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px; }
+.course-chips { display:flex;flex-wrap:wrap;gap:4px; }
+.course-chip { font-size:10px;background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap; }
+.empty-state { text-align:center;padding:60px 20px;color:var(--text-muted); }
+.empty-state i { font-size:48px;margin-bottom:16px;opacity:.3; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <div class="page-title">Corporate Registrations</div>
+    <div class="page-subtitle">Company / organisational training registrations</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'corporate_registration' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>New Corporate Reg</a>
+    <a href="{% url 'admin_company_portal' %}" class="btn btn-outline-info btn-sm"><i class="fas fa-building me-1"></i>Company Portal</a>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-blue"><i class="fas fa-briefcase"></i></div>
+      <div class="kpi-value">{{ registrations|length }}</div>
+      <div class="kpi-label">Total Corporate Regs</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-purple"><i class="fas fa-building"></i></div>
+      <div class="kpi-value" id="uniqueCompanies">—</div>
+      <div class="kpi-label">Unique Companies</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter -->
+<div class="filter-card">
+  <form method="get" action="{% url 'corporate_dashboard' %}" id="corpFilter">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Registration #</label>
+        <input type="text" name="registration_number" class="form-control" placeholder="e.g. CORP-001" value="{{ registration_number }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Company Name</label>
+        <input type="text" name="company_name" class="form-control" placeholder="Company name" value="{{ company_name }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Consultant</label>
+        <input type="text" name="consultant" class="form-control" placeholder="Consultant name" value="{{ consultant|default:'' }}">
+      </div>
+      <div class="col-md-3 d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-primary flex-fill">Filter</button>
+        <a href="{% url 'corporate_dashboard' %}" class="btn btn-outline-secondary flex-fill">Clear</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Table -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table corp-table mb-0">
+      <thead>
+        <tr>
+          <th style="width:120px;">Reg #</th>
+          <th>Company</th>
+          <th style="width:130px;">Consultant</th>
+          <th>Courses</th>
+          <th style="width:90px;">Date</th>
+          <th style="width:170px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for registration in registrations %}
+        <tr class="corp-row"
+            data-regnum="{{ registration.registration_number|lower }}"
+            data-company="{{ registration.corporate_details.company_name|lower }}"
+            data-consultant="{{ registration.consultant_name|lower }}">
+          <td style="font-weight:700;color:var(--primary);">{{ registration.registration_number }}</td>
+          <td>
+            <div style="font-weight:600;">{{ registration.corporate_details.company_name }}</div>
+            {% if registration.corporate_details.company_email %}
+            <div style="font-size:11px;color:var(--text-muted);">{{ registration.corporate_details.company_email }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <div style="font-size:13px;">{{ registration.consultant_name }}</div>
+          </td>
+          <td>
+            <div class="course-chips">
+              {% for reg_course in registration.registration_courses.all %}
+              <span class="course-chip">{{ reg_course.course.name }}</span>
+              {% endfor %}
+            </div>
+          </td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ registration.date|date:"d M Y" }}</td>
+          <td>
+            <div class="d-flex gap-1 flex-wrap">
+              <a href="{% url 'corporate_invoice_detail' registration.id %}" class="btn btn-sm btn-primary" title="View Details"><i class="fas fa-eye"></i></a>
+              <a href="{% url 'create_invoice' %}?reg={{ registration.registration_number }}" class="btn btn-sm btn-success" title="Create Invoice"><i class="fas fa-file-invoice-dollar"></i></a>
+              <button class="btn btn-sm btn-outline-info" title="Generate Company Portal Link"
+                  onclick="genPortalLink('{{ registration.corporate_details.company_name }}', this)">
+                  <i class="fas fa-link"></i>
+              </button>
+              <a href="{% url 'print_corporate_registration' registration.id %}" class="btn btn-sm btn-outline-secondary" title="Print"><i class="fas fa-print"></i></a>
+              {% if user.profile.role == 'admin' or user.is_superuser %}
+              <a href="{% url 'delete_registration' registration.id %}" class="btn btn-sm btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6"><div class="empty-state"><i class="fas fa-briefcase d-block"></i>No corporate registrations found.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if registrations.has_other_pages %}
+  <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top" style="background:var(--bg);border-radius:0 0 12px 12px;">
+    <small class="text-muted">Showing {{ registrations.start_index }}–{{ registrations.end_index }} of {{ paginator.count }} registrations</small>
+    <nav><ul class="pagination pagination-sm mb-0 gap-1">
+      {% if registrations.has_previous %}
+      <li class="page-item"><a class="page-link" href="?{% if company_name %}company_name={{ company_name }}&{% endif %}{% if consultant %}consultant={{ consultant }}&{% endif %}page={{ registrations.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
+      {% endif %}
+      {% for num in registrations.paginator.page_range %}
+        {% if num == registrations.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num >= registrations.number|add:"-2" and num <= registrations.number|add:"2" %}<li class="page-item"><a class="page-link" href="?{% if company_name %}company_name={{ company_name }}&{% endif %}{% if consultant %}consultant={{ consultant }}&{% endif %}page={{ num }}">{{ num }}</a></li>
+        {% endif %}
+      {% endfor %}
+      {% if registrations.has_next %}
+      <li class="page-item"><a class="page-link" href="?{% if company_name %}company_name={{ company_name }}&{% endif %}{% if consultant %}consultant={{ consultant }}&{% endif %}page={{ registrations.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
+      {% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+<!-- Company Portal Link Modal -->
+<div class="modal fade" id="portalModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:16px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#0f1b2d,#1a2d47);color:#fff;border-radius:16px 16px 0 0;border:none;">
+        <h5 class="modal-title" style="font-weight:700;font-size:15px;"><i class="fas fa-building me-2"></i>Company Registration Portal</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div id="portalModalContent">
+          <div class="text-center py-3"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}
+<script>
+function genPortalLink(companyName, btn) {
+    const modal = new bootstrap.Modal(document.getElementById('portalModal'));
+    document.getElementById('portalModalContent').innerHTML = `
+        <div class="text-center py-3"><i class="fas fa-spinner fa-spin fa-2x text-primary"></i></div>`;
+    modal.show();
+    fetch('{% url "generate_company_portal_link" %}', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `company_name=${encodeURIComponent(companyName)}`
+    }).then(r => r.json()).then(d => {
+        const url = d.url;
+        const waMsg = encodeURIComponent('Dear ' + companyName + ', please complete your company registration using this secure portal link: ' + url);
+        document.getElementById('portalModalContent').innerHTML = `
+            <p style="font-size:13px;color:#64748b;margin-bottom:12px;">Share this portal link with <strong>${companyName}</strong>. They will upload their trade license, VAT certificate, and contact details:</p>
+            <div style="background:#f1f5f9;border-radius:10px;padding:14px;word-break:break-all;font-size:12px;font-family:monospace;color:#2563eb;margin-bottom:16px;">${url}</div>
+            <div class="d-flex gap-2">
+                <button id="cpyBtn" onclick="navigator.clipboard.writeText('${url}');document.getElementById('cpyBtn').innerHTML='<i class=\'fas fa-check me-1\'></i>Copied!';document.getElementById('cpyBtn').classList.replace('btn-primary','btn-success');" class="btn btn-primary flex-fill"><i class="fas fa-copy me-1"></i>Copy Link</button>
+                <a href="https://wa.me/?text=${waMsg}" target="_blank" class="btn btn-success flex-fill"><i class="fab fa-whatsapp me-1"></i>WhatsApp</a>
+            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:10px;"><i class="fas fa-info-circle me-1"></i><a href="{% url 'admin_company_portal' %}" style="color:inherit;">View all company portal requests →</a></div>`;
+    }).catch(() => {
+        document.getElementById('portalModalContent').innerHTML = '<div class="alert alert-danger m-0">Failed. Please try again.</div>';
+    });
+}
+
+// live client-side filter while typing
+document.querySelectorAll('#corpFilter input').forEach(inp => {
+  inp.addEventListener('input', () => {
+    const rn = document.querySelector('[name=registration_number]').value.toLowerCase();
+    const cn = document.querySelector('[name=company_name]').value.toLowerCase();
+    const cs = document.querySelector('[name=consultant]').value.toLowerCase();
+    document.querySelectorAll('.corp-row').forEach(r => {
+      const ok = r.dataset.regnum.includes(rn)
+              && r.dataset.company.includes(cn)
+              && r.dataset.consultant.includes(cs);
+      r.style.display = ok ? '' : 'none';
+    });
+  });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  const companies = new Set();
+  document.querySelectorAll('.corp-row').forEach(r => companies.add(r.dataset.company));
+  document.getElementById('uniqueCompanies').textContent = companies.size;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Proposal Dashboard</h1>
+    <a href="{% url 'create_proposal' %}" class="btn btn-primary mb-3">Create New Proposal</a>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="thead-dark">
+                <tr>
+                    <th>Proposal Number</th>
+                    <th>Client Name</th>
+                    <th>Course</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for proposal in proposals %}
+                <tr>
+                    <td>{{ proposal.proposal_number }}</td>
+                    <td>{{ proposal.client_name }}</td>
+                    <td>{{ proposal.course.name }}</td>
+                    <td>{{ proposal.date }}</td>
+                    <td>
+                        <a href="{% url 'edit_proposal' proposal.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+                        {% if user.username == 'admin' %}
+                        <a href="{% url 'delete_proposal' proposal.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
+                        {% endif %}
+                        <a href="{% url 'print_proposal' proposal.pk %}" class="btn btn-sm btn-outline-secondary">Print</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if proposals.has_other_pages %}
+    <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top" style="background:var(--bg);border-radius:0 0 12px 12px;">
+      <small class="text-muted">Showing {{ proposals.start_index }}–{{ proposals.end_index }} of {{ paginator.count }} proposals</small>
+      <nav><ul class="pagination pagination-sm mb-0 gap-1">
+        {% if proposals.has_previous %}
+        <li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ proposals.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
+        {% endif %}
+        {% for num in proposals.paginator.page_range %}
+          {% if num == proposals.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+          {% elif num >= proposals.number|add:"-2" and num <= proposals.number|add:"2" %}<li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ num }}">{{ num }}</a></li>
+          {% endif %}
+        {% endfor %}
+        {% if proposals.has_next %}
+        <li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ proposals.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
+        {% endif %}
+      </ul></nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

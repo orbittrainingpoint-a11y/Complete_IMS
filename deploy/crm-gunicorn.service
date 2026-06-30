@@ -1,0 +1,21 @@
+[Unit]
+Description=Orbit CRM (Flask) Gunicorn
+After=network.target mysql.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/orbit/leads-management
+EnvironmentFile=/var/www/orbit/.env.crm
+ExecStart=/var/www/orbit/venv_crm/bin/gunicorn \
+    --workers 3 \
+    --bind 127.0.0.1:5001 \
+    --timeout 120 \
+    --access-logfile /var/log/orbit/crm-access.log \
+    --error-logfile /var/log/orbit/crm-error.log \
+    "app:create_app()"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

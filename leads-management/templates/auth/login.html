@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Training Center CRM</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/uiverse.css') }}" rel="stylesheet">
+    
+    <style>
+        body {
+            background: var(--uiverse-gradient-1);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .auth-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: var(--uiverse-shadow-soft);
+            overflow: hidden;
+            max-width: 900px;
+            width: 100%;
+            min-height: 600px;
+        }
+        
+        .auth-left {
+            background: var(--uiverse-gradient-1);
+            color: white;
+            padding: 60px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .auth-left::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100%" height="100%" fill="url(%23grain)"/></svg>');
+            opacity: 0.3;
+        }
+        
+        .auth-right {
+            padding: 60px 40px;
+            position: relative;
+        }
+        
+        .brand-logo {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .feature-icon {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .feature-item:hover .feature-icon {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .login-form {
+            position: relative;
+        }
+        
+        .form-floating {
+            margin-bottom: 25px;
+        }
+        
+        .form-control {
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            padding: 15px 20px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .form-control:focus {
+            border-color: var(--uiverse-primary);
+            box-shadow: 0 0 20px rgba(52, 152, 219, 0.3);
+            background: white;
+        }
+        
+        .btn-login {
+            background: var(--uiverse-gradient-1);
+            border: none;
+            border-radius: 50px;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            width: 100%;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--uiverse-shadow-hover);
+        }
+        
+        .btn-login::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn-login:hover::before {
+            left: 100%;
+        }
+        
+        .demo-credentials {
+            background: linear-gradient(135deg, rgba(52, 152, 219, 0.1), rgba(155, 89, 182, 0.1));
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 25px;
+            border: 1px solid rgba(52, 152, 219, 0.2);
+        }
+        
+        .demo-btn {
+            background: rgba(52, 152, 219, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            border-radius: 10px;
+            padding: 8px 16px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .demo-btn:hover {
+            background: rgba(52, 152, 219, 0.2);
+            transform: translateY(-1px);
+        }
+        
+        @media (max-width: 768px) {
+            .auth-left {
+                display: none;
+            }
+            
+            .auth-right {
+                padding: 40px 30px;
+            }
+            
+            .brand-logo {
+                font-size: 2.5rem;
+            }
+        }
+        
+        .floating-elements {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        
+        .floating-element {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="row g-0 h-100">
+            <!-- Left Side - Features -->
+            <div class="col-lg-6 auth-left">
+                <div class="floating-elements">
+                    <div class="floating-element" style="top: 10%; left: 10%; width: 20px; height: 20px; animation-delay: 0s;"></div>
+                    <div class="floating-element" style="top: 70%; left: 80%; width: 15px; height: 15px; animation-delay: 2s;"></div>
+                    <div class="floating-element" style="top: 30%; left: 70%; width: 25px; height: 25px; animation-delay: 4s;"></div>
+                </div>
+                
+                <div class="text-center mb-5">
+                    <i class="fas fa-graduation-cap brand-logo"></i>
+                    <h2 class="mb-3 fw-bold">Training Center CRM</h2>
+                    <p class="lead opacity-90">Transform your training business with our comprehensive CRM solution</p>
+                </div>
+                
+                <div class="features">
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-1 fw-bold">Smart Lead Management</h6>
+                            <small class="opacity-80">Capture, track, and nurture potential students with AI-powered insights</small>
+                        </div>
+                    </div>
+                    
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-1 fw-bold">Visual Sales Pipeline</h6>
+                            <small class="opacity-80">Drag-and-drop pipeline management with real-time analytics</small>
+                        </div>
+                    </div>
+                    
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-1 fw-bold">Intelligent Scheduling</h6>
+                            <small class="opacity-80">Automated meeting scheduling with smart reminders</small>
+                        </div>
+                    </div>
+                    
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="fas fa-building"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-1 fw-bold">Enterprise Solutions</h6>
+                            <small class="opacity-80">Dedicated corporate training management tools</small>
+                        </div>
+                    </div>
+                    
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="fas fa-chart-bar"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-1 fw-bold">Advanced Analytics</h6>
+                            <small class="opacity-80">Comprehensive reporting and business intelligence</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Side - Login Form -->
+            <div class="col-lg-6 auth-right d-flex align-items-center">
+                <div class="w-100">
+                    <div class="text-center mb-4">
+                        <h3 class="fw-bold text-dark mb-2">Welcome Back!</h3>
+                        <p class="text-muted">Please sign in to your account to continue</p>
+                    </div>
+                    
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                                    <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'info-circle' }} me-2"></i>
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form method="POST" class="login-form" id="loginForm">
+                        <div class="form-floating">
+                            <input type="text" class="form-control" id="username" name="username" placeholder="Username" required>
+                            <label for="username"><i class="fas fa-user me-2"></i>Username</label>
+                        </div>
+                        
+                        <div class="form-floating">
+                            <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
+                            <label for="password"><i class="fas fa-lock me-2"></i>Password</label>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="rememberMe">
+                                <label class="form-check-label" for="rememberMe">
+                                    Remember me
+                                </label>
+                            </div>
+                            <a href="#" class="text-decoration-none">
+                                <i class="fas fa-key me-1"></i>Forgot password?
+                            </a>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-login">
+                            <i class="fas fa-sign-in-alt me-2"></i>
+                            <span>Sign In Securely</span>
+                        </button>
+                    </form>
+                    
+                    <!-- Demo Credentials -->
+                    <div class="demo-credentials">
+                        <div class="text-center mb-3">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Demo Environment - Quick Access
+                            </small>
+                        </div>
+                        <div class="d-flex gap-2 justify-content-center">
+                            <button class="btn demo-btn" onclick="fillCredentials('admin', 'admin123')">
+                                <i class="fas fa-crown me-1"></i>Admin Access
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <p class="text-muted small mb-0">
+                            <i class="fas fa-shield-alt me-1"></i>
+                            Secured with enterprise-grade encryption
+                        </p>
+                        <p class="text-muted small">
+                            © 2024 Training Center CRM. All rights reserved.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Auto-fill credentials for demo
+        function fillCredentials(username, password) {
+            document.getElementById('username').value = username;
+            document.getElementById('password').value = password;
+            
+            // Add visual feedback
+            const form = document.getElementById('loginForm');
+            form.classList.add('pulse');
+            setTimeout(() => form.classList.remove('pulse'), 600);
+        }
+        
+        // Enhanced form validation and animation
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalContent = submitBtn.innerHTML;
+            
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Authenticating...';
+            submitBtn.disabled = true;
+            
+            // Re-enable if there's an error (form doesn't submit)
+            setTimeout(() => {
+                if (document.getElementById('loginForm')) {
+                    submitBtn.innerHTML = originalContent;
+                    submitBtn.disabled = false;
+                }
+            }, 3000);
+        });
+        
+        // Enhanced floating label animation
+        document.querySelectorAll('.form-floating input').forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.classList.add('focused');
+            });
+            
+            input.addEventListener('blur', function() {
+                if (!this.value) {
+                    this.parentElement.classList.remove('focused');
+                }
+            });
+            
+            // Check if input has value on load
+            if (input.value) {
+                input.parentElement.classList.add('focused');
+            }
+        });
+        
+        // Animate container on page load
+        window.addEventListener('load', function() {
+            const container = document.querySelector('.auth-container');
+            container.style.opacity = '0';
+            container.style.transform = 'translateY(30px) scale(0.95)';
+            
+            setTimeout(() => {
+                container.style.transition = 'all 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)';
+                container.style.opacity = '1';
+                container.style.transform = 'translateY(0) scale(1)';
+            }, 100);
+        });
+        
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Alt + D for demo credentials
+            if (e.altKey && e.key === 'd') {
+                e.preventDefault();
+                fillCredentials('admin', 'admin123');
+            }
+        });
+        
+        // Password visibility toggle
+        const passwordInput = document.getElementById('password');
+        const toggleIcon = document.createElement('span');
+        toggleIcon.className = 'position-absolute top-50 end-0 translate-middle-y me-3 cursor-pointer';
+        toggleIcon.innerHTML = '<i class="fas fa-eye text-muted"></i>';
+        toggleIcon.style.cursor = 'pointer';
+        toggleIcon.style.zIndex = '10';
+        
+        passwordInput.parentElement.style.position = 'relative';
+        passwordInput.parentElement.appendChild(toggleIcon);
+        
+        toggleIcon.addEventListener('click', function() {
+            const icon = this.querySelector('i');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.className = 'fas fa-eye-slash text-muted';
+            } else {
+                passwordInput.type = 'password';
+                icon.className = 'fas fa-eye text-muted';
+            }
+        });
+    </script>
+</body>
+</html>

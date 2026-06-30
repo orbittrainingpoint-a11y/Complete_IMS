@@ -1,0 +1,113 @@
+{% extends 'base_generic.html' %}
+{% block title %}Student Enrollment Report{% endblock %}
+{% block breadcrumb_label %}<span class="current">Enrollment Report</span>{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="page-title"><i class="fas fa-user-graduate me-2 text-success"></i>Student Enrollment Report</div>
+        <div class="page-subtitle">{{ total_count }} registrations in selected period</div>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <a href="{% url 'orbit_dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Dashboard</a>
+        <a href="?export=csv{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}{% if request.GET.consultant %}&consultant={{ request.GET.consultant }}{% endif %}{% if request.GET.class_type %}&class_type={{ request.GET.class_type }}{% endif %}" class="btn btn-outline-success btn-sm"><i class="fas fa-file-csv me-1"></i>Export CSV</a>
+        <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4 no-print">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Date From</label>
+                <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Date To</label>
+                <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Consultant</label>
+                <input type="text" name="consultant" value="{{ consultant }}" placeholder="Any" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Class Type</label>
+                <select name="class_type" class="form-select">
+                    <option value="">All Types</option>
+                    {% for val, label in class_type_choices %}
+                    <option value="{{ val }}" {% if class_type == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i>Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-list me-2"></i>Registrations ({{ total_count }} total)</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table mb-0" data-sortable>
+            <thead>
+                <tr>
+                    <th data-sort="0">Reg #</th>
+                    <th data-sort="1">Student Name</th>
+                    <th data-sort="2">Email</th>
+                    <th data-sort="3">Courses</th>
+                    <th data-sort="4">Type</th>
+                    <th data-sort="5">Consultant</th>
+                    <th data-sort="6">Date</th>
+                    <th data-sort="7">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reg in registrations %}
+                <tr>
+                    <td><span class="pill pill-blue">{{ reg.registration_number }}</span></td>
+                    <td><strong>{{ reg.first_name }} {{ reg.last_name }}</strong></td>
+                    <td style="font-size:12px;color:var(--text-muted);">{{ reg.email }}</td>
+                    <td style="font-size:12px;">
+                        {% for rc in reg.registration_courses.all|slice:":3" %}
+                        <span class="pill pill-gray" style="margin-bottom:2px;">{{ rc.course.name|truncatechars:20 }}</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <span class="pill {% if reg.class_type == 'online' %}pill-blue{% elif reg.class_type == 'batch' %}pill-purple{% elif reg.class_type == 'private' %}pill-red{% else %}pill-green{% endif %}">
+                            {{ reg.class_type }}
+                        </span>
+                    </td>
+                    <td style="font-size:12px;">{{ reg.consultant_name|default:'—' }}</td>
+                    <td style="font-size:12px;color:var(--text-muted);">{{ reg.date }}</td>
+                    <td>
+                        {% if reg.invoice_set.exists %}
+                        <span class="pill pill-green">Invoiced</span>
+                        {% else %}
+                        <span class="pill pill-orange">Pending</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-center py-4 text-muted"><i class="fas fa-search me-2"></i>No registrations found for the selected filters.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if registrations.has_other_pages %}
+    <div class="card-body py-2 border-top">
+        <nav>
+            <ul class="pagination pagination-sm mb-0 justify-content-center">
+                {% if registrations.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ registrations.previous_page_number }}&date_from={{ date_from }}&date_to={{ date_to }}&consultant={{ consultant }}&class_type={{ class_type }}">‹ Prev</a></li>{% endif %}
+                <li class="page-item disabled"><span class="page-link">Page {{ registrations.number }} of {{ registrations.paginator.num_pages }}</span></li>
+                {% if registrations.has_next %}<li class="page-item"><a class="page-link" href="?page={{ registrations.next_page_number }}&date_from={{ date_from }}&date_to={{ date_to }}&consultant={{ consultant }}&class_type={{ class_type }}">Next ›</a></li>{% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

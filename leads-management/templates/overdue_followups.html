@@ -1,0 +1,590 @@
+{% extends "base.html" %}
+{% block title %}Follow-ups — Orbit CRM{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ url_for('main.dashboard') }}" style="color:var(--text-muted);text-decoration:none;">Dashboard</a>
+<span style="color:var(--border);margin:0 6px;">/</span>
+<span class="current">Follow-ups</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.heat-overdue { background:rgba(239,68,68,.12); color:#dc2626; font-weight:700; font-size:11px; padding:3px 9px; border-radius:10px; border:1px solid rgba(239,68,68,.25); }
+.heat-today   { background:rgba(245,158,11,.12); color:#d97706; font-weight:700; font-size:11px; padding:3px 9px; border-radius:10px; border:1px solid rgba(245,158,11,.25); }
+.days-badge   { display:inline-block; min-width:44px; text-align:center; font-family:monospace; font-weight:800; }
+.section-header { display:flex; align-items:center; gap:12px; padding:14px 0 10px; border-bottom:2px solid var(--border); margin-bottom:0; }
+.section-header h5 { margin:0; font-weight:700; }
+.action-pill  { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:4px 12px; border-radius:20px; border:1px solid; cursor:pointer; background:transparent; transition:background .15s; }
+.action-pill.reschedule { color:#2563eb; border-color:rgba(37,99,235,.35); }
+.action-pill.reschedule:hover { background:rgba(37,99,235,.1); }
+.action-pill.contacted  { color:#059669; border-color:rgba(16,185,129,.35); }
+.action-pill.contacted:hover { background:rgba(16,185,129,.1); }
+.row-done { opacity:.4; transition:opacity .3s; }
+.empty-state { padding:56px 0; text-align:center; }
+
+/* Reschedule modal */
+.rs-type-btn { border:1.5px solid var(--border); border-radius:8px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer; background:var(--card-bg); color:var(--text-muted); transition:all .15s; display:inline-flex; align-items:center; gap:5px; }
+.rs-type-btn.active { background:#2563eb; color:#fff; border-color:#2563eb; }
+.rs-priority-btn { border:1.5px solid var(--border); border-radius:8px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; background:var(--card-bg); color:var(--text-muted); transition:all .15s; }
+.rs-priority-btn.active { color:#fff; border-color:transparent; }
+.rs-priority-btn.active.high   { background:#ef4444; }
+.rs-priority-btn.active.medium { background:#f59e0b; }
+.rs-priority-btn.active.low    { background:#10b981; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Summary bar -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card" style="border-left:4px solid #ef4444;">
+            <div class="card-body py-3">
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;">Overdue</div>
+                <div style="font-size:28px;font-weight:800;color:#dc2626;">{{ overdue_leads|length }}</div>
+                <div style="font-size:12px;color:var(--text-muted);">follow-ups missed</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card" style="border-left:4px solid #f59e0b;">
+            <div class="card-body py-3">
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;">Due Today</div>
+                <div style="font-size:28px;font-weight:800;color:#d97706;">{{ today_leads|length }}</div>
+                <div style="font-size:12px;color:var(--text-muted);">follow-ups today</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card" style="border-left:4px solid #2563eb;">
+            <div class="card-body py-3">
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;">Total Attention</div>
+                <div style="font-size:28px;font-weight:800;color:var(--primary);">{{ overdue_leads|length + today_leads|length }}</div>
+                <div style="font-size:12px;color:var(--text-muted);">leads need action</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 d-flex align-items-center">
+        <a href="{{ url_for('main.leads') }}" class="btn btn-outline-primary w-100">
+            <i class="fas fa-list me-2"></i>All Leads
+        </a>
+    </div>
+</div>
+
+<!-- OVERDUE section -->
+{% if overdue_leads %}
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="section-header">
+            <span style="background:#ef4444;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                <i class="fas fa-exclamation" style="font-size:14px;"></i>
+            </span>
+            <h5>Overdue Follow-ups</h5>
+            <span style="font-size:12px;color:var(--text-muted);">Sorted by most overdue first</span>
+        </div>
+        <div class="table-responsive mt-3">
+            <table class="table table-hover" style="font-size:13px;">
+                <thead>
+                    <tr>
+                        <th>Lead</th>
+                        <th>Overdue</th>
+                        <th>Course</th>
+                        <th>Status</th>
+                        <th>Last Interaction</th>
+                        <th>Quick Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for lead in overdue_leads %}
+                {% set days_late = (today - lead.next_followup_date).days %}
+                {% set last_int = last_int_map.get(lead.id) %}
+                <tr id="row-{{ lead.id }}">
+                    <td>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <div style="width:34px;height:34px;border-radius:50%;background:rgba(239,68,68,.15);color:#dc2626;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                {{ lead.name[0].upper() }}
+                            </div>
+                            <div>
+                                <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" style="font-weight:700;color:var(--text);text-decoration:none;">{{ lead.name }}</a>
+                                <div style="font-size:11px;color:var(--text-muted);">
+                                    <i class="fas fa-phone fa-xs me-1"></i>{{ lead.phone }}
+                                    {% if lead.whatsapp %}
+                                    <a href="https://wa.me/{{ lead.whatsapp|replace(' ','')|replace('+','') }}?text=Hi+{{ lead.name|urlencode }}%2C+following+up+on+your+enquiry." target="_blank" style="color:#25d366;margin-left:6px;" title="WhatsApp">
+                                        <i class="fab fa-whatsapp"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="heat-overdue days-badge">{{ days_late }}d late</span>
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">due {{ lead.next_followup_date.strftime('%d %b') }}</div>
+                    </td>
+                    <td>
+                        {% if lead.course_interest %}
+                        <span style="background:rgba(37,99,235,.08);color:var(--primary);padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600;">{{ lead.course_interest.name }}</span>
+                        {% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    <td><span class="status-badge status-{{ lead.status.lower() }}">{{ lead.status }}</span></td>
+                    <td>
+                        {% if last_int %}
+                        <span style="font-size:12px;">{{ last_int.strftime('%d %b %Y') }}</span>
+                        <div style="font-size:11px;color:var(--text-muted);">{{ ((today - last_int.date()).days) }}d ago</div>
+                        {% else %}
+                        <span class="text-muted" style="font-size:12px;">Never contacted</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                            <button class="action-pill reschedule" onclick="openReschedule({{ lead.id }}, '{{ lead.name|e }}', 'row')">
+                                <i class="fas fa-calendar-alt"></i>Reschedule
+                            </button>
+                            <button class="action-pill contacted" onclick="markContacted({{ lead.id }}, 'row')">
+                                <i class="fas fa-check"></i>Contacted
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card mb-4">
+    <div class="card-body empty-state">
+        <i class="fas fa-check-circle fa-3x mb-3" style="color:#10b981;"></i>
+        <h5 style="color:#10b981;">No overdue follow-ups!</h5>
+        <p class="text-muted">All follow-ups are on schedule.</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- TODAY section -->
+{% if today_leads %}
+<div class="card">
+    <div class="card-body">
+        <div class="section-header">
+            <span style="background:#f59e0b;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                <i class="fas fa-calendar-day" style="font-size:14px;"></i>
+            </span>
+            <h5>Today's Follow-ups</h5>
+            <span style="font-size:12px;color:var(--text-muted);">{{ today.strftime('%A, %d %B %Y') }}</span>
+        </div>
+        <div class="table-responsive mt-3">
+            <table class="table table-hover" style="font-size:13px;">
+                <thead>
+                    <tr>
+                        <th>Lead</th>
+                        <th>Time</th>
+                        <th>Type</th>
+                        <th>Course</th>
+                        <th>Priority</th>
+                        <th>Last Contact</th>
+                        <th>Quick Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for lead in today_leads %}
+                {% set last_int = last_int_map.get(lead.id) %}
+                <tr id="row-today-{{ lead.id }}">
+                    <td>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <div style="width:34px;height:34px;border-radius:50%;background:rgba(245,158,11,.15);color:#d97706;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                {{ lead.name[0].upper() }}
+                            </div>
+                            <div>
+                                <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" style="font-weight:700;color:var(--text);text-decoration:none;">{{ lead.name }}</a>
+                                <div style="font-size:11px;color:var(--text-muted);">
+                                    <i class="fas fa-phone fa-xs me-1"></i>{{ lead.phone }}
+                                    {% if lead.whatsapp %}
+                                    <a href="https://wa.me/{{ lead.whatsapp|replace(' ','')|replace('+','') }}?text=Hi+{{ lead.name|urlencode }}%2C+following+up+on+your+enquiry." target="_blank" style="color:#25d366;margin-left:6px;">
+                                        <i class="fab fa-whatsapp"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if lead.followup_time %}
+                        <span style="font-weight:700;font-size:14px;">{{ lead.followup_time.strftime('%I:%M %p') }}</span>
+                        {% else %}<span class="text-muted">Any time</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if lead.followup_type %}
+                        {% set t_icons = {'Call':'fa-phone','WhatsApp':'fa-whatsapp fab','Email':'fa-envelope','Meeting':'fa-calendar'} %}
+                        <i class="{{ 'fas ' if not 'fab' in t_icons.get(lead.followup_type,'fa-phone') else '' }}{{ t_icons.get(lead.followup_type,'fa-phone') }} me-1"></i>{{ lead.followup_type }}
+                        {% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if lead.course_interest %}
+                        <span style="background:rgba(37,99,235,.08);color:var(--primary);padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600;">{{ lead.course_interest.name }}</span>
+                        {% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if lead.followup_priority %}
+                        <span class="status-badge status-{{ lead.followup_priority.lower() }}">{{ lead.followup_priority }}</span>
+                        {% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if last_int %}
+                        <span style="font-size:12px;">{{ last_int.strftime('%d %b') }}</span>
+                        {% else %}<span class="text-muted" style="font-size:12px;">Never</span>{% endif %}
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button class="action-pill reschedule" onclick="openReschedule({{ lead.id }}, '{{ lead.name|e }}', 'row-today')">
+                                <i class="fas fa-calendar-alt"></i>Reschedule
+                            </button>
+                            <button class="action-pill contacted" onclick="markContacted({{ lead.id }}, 'row-today')">
+                                <i class="fas fa-check"></i>Done
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body empty-state">
+        <i class="fas fa-calendar-check fa-3x mb-3" style="color:#f59e0b;"></i>
+        <h5 style="color:#d97706;">No follow-ups due today</h5>
+        <p class="text-muted">Check back tomorrow or manage your lead schedule.</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Contacted Modal ──────────────────────────────────────────── -->
+<div class="modal fade" id="contactedModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#064e3b,#059669);padding:1.25rem 1.5rem;border:0;">
+                <div>
+                    <h5 class="modal-title text-white mb-0" style="font-weight:700;">
+                        <i class="fas fa-check-circle me-2 opacity-75"></i>Mark as Contacted
+                    </h5>
+                    <small class="text-white opacity-75">Add a note about what happened</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-4 p-3" style="background:rgba(5,150,105,.07);border-radius:10px;border:1px solid rgba(5,150,105,.18);">
+                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:4px;">Lead</div>
+                    <div style="font-weight:700;font-size:15px;color:var(--text);" id="ctLeadName">—</div>
+                </div>
+
+                <div class="mb-3">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">
+                        What happened? <span class="text-danger">*</span>
+                    </label>
+                    <textarea id="ctNote" class="form-control" rows="3"
+                        placeholder="e.g. Called, left voicemail. Will follow up in 3 days…"
+                        style="border-radius:8px;resize:none;font-size:13px;"></textarea>
+                    <div id="ctNoteErr" style="display:none;font-size:12px;color:#ef4444;margin-top:4px;">
+                        <i class="fas fa-exclamation-circle me-1"></i>Please enter a note
+                    </div>
+                </div>
+
+                <div class="mb-1">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">
+                        Next Follow-up <span style="font-weight:400;font-size:11px;">(optional)</span>
+                    </label>
+                    <input type="date" id="ctNextDate" class="form-control" style="border-radius:8px;font-size:13px;">
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--border);padding:.9rem 1.5rem;gap:8px;">
+                <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+                <button type="button" class="btn px-5" id="ctSaveBtn"
+                    onclick="saveContacted()"
+                    style="border-radius:8px;background:linear-gradient(135deg,#064e3b,#059669);border:0;color:#fff;font-weight:600;">
+                    <i class="fas fa-check me-1"></i>Confirm Contacted
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Reschedule Modal ─────────────────────────────────────────── -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:460px;">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+
+            <!-- Header -->
+            <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:1.25rem 1.5rem;border:0;">
+                <div>
+                    <h5 class="modal-title text-white mb-0" style="font-weight:700;">
+                        <i class="fas fa-calendar-alt me-2 opacity-75"></i>Reschedule Follow-up
+                    </h5>
+                    <small class="text-white opacity-75">Set a new follow-up date and details</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <!-- Body -->
+            <div class="modal-body p-4">
+                <!-- Lead name -->
+                <div class="mb-4 p-3" style="background:rgba(37,99,235,.06);border-radius:10px;border:1px solid rgba(37,99,235,.15);">
+                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:4px;">Lead</div>
+                    <div style="font-weight:700;font-size:15px;color:var(--text);" id="rsLeadName">—</div>
+                </div>
+
+                <!-- Date + time -->
+                <div class="row g-3 mb-3">
+                    <div class="col-7">
+                        <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">
+                            New Date <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text" style="background:var(--card-bg);border-color:var(--border);">
+                                <i class="fas fa-calendar" style="font-size:12px;color:var(--text-muted);"></i>
+                            </span>
+                            <input type="date" id="rsDate" class="form-control" style="border-left:0;">
+                        </div>
+                        <div id="rsDateErr" style="display:none;font-size:12px;color:#ef4444;margin-top:4px;">
+                            <i class="fas fa-exclamation-circle me-1"></i>Please pick a date
+                        </div>
+                    </div>
+                    <div class="col-5">
+                        <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">
+                            Time <span style="font-weight:400;font-size:11px;">(optional)</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text" style="background:var(--card-bg);border-color:var(--border);">
+                                <i class="fas fa-clock" style="font-size:12px;color:var(--text-muted);"></i>
+                            </span>
+                            <input type="time" id="rsTime" class="form-control" style="border-left:0;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Type -->
+                <div class="mb-3">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:8px;">Follow-up Type</label>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;" id="rsTypeGroup">
+                        <button type="button" class="rs-type-btn active" data-val="Call" onclick="selectRsType(this)">
+                            <i class="fas fa-phone"></i>Call
+                        </button>
+                        <button type="button" class="rs-type-btn" data-val="WhatsApp" onclick="selectRsType(this)">
+                            <i class="fab fa-whatsapp"></i>WhatsApp
+                        </button>
+                        <button type="button" class="rs-type-btn" data-val="Email" onclick="selectRsType(this)">
+                            <i class="fas fa-envelope"></i>Email
+                        </button>
+                        <button type="button" class="rs-type-btn" data-val="Meeting" onclick="selectRsType(this)">
+                            <i class="fas fa-calendar-check"></i>Meeting
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Priority -->
+                <div class="mb-3">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:8px;">Priority</label>
+                    <div style="display:flex;gap:8px;" id="rsPriorityGroup">
+                        <button type="button" class="rs-priority-btn" data-val="High" onclick="selectRsPriority(this)">High</button>
+                        <button type="button" class="rs-priority-btn active medium" data-val="Medium" onclick="selectRsPriority(this)">Medium</button>
+                        <button type="button" class="rs-priority-btn" data-val="Low" onclick="selectRsPriority(this)">Low</button>
+                    </div>
+                </div>
+
+                <!-- Note -->
+                <div class="mb-1">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">
+                        Reason / Note
+                        <span style="font-weight:400;font-size:11px;text-transform:none;">(optional — logged as activity)</span>
+                    </label>
+                    <textarea id="rsNote" class="form-control" rows="2"
+                        placeholder="e.g. Customer asked to call next week…"
+                        style="border-radius:8px;resize:none;font-size:13px;"></textarea>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="modal-footer" style="border-top:1px solid var(--border);padding:.9rem 1.5rem;gap:8px;">
+                <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+                <button type="button" class="btn btn-primary px-5" id="rsSaveBtn" onclick="saveReschedule()"
+                    style="border-radius:8px;background:linear-gradient(135deg,#1e3a5f,#2563eb);border:0;">
+                    <i class="fas fa-calendar-check me-1"></i>Save Reschedule
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _rsLeadId = null;
+let _rsRowPfx = 'row';
+
+function openReschedule(leadId, leadName, rowPrefix) {
+    _rsLeadId = leadId;
+    _rsRowPfx = rowPrefix;
+
+    // Default date = tomorrow
+    const tom = new Date();
+    tom.setDate(tom.getDate() + 1);
+    document.getElementById('rsDate').value = tom.toISOString().split('T')[0];
+    document.getElementById('rsTime').value = '';
+    document.getElementById('rsNote').value = '';
+    document.getElementById('rsDateErr').style.display = 'none';
+    document.getElementById('rsLeadName').textContent = leadName;
+
+    // Reset type → Call
+    document.querySelectorAll('#rsTypeGroup .rs-type-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('#rsTypeGroup .rs-type-btn[data-val="Call"]').classList.add('active');
+
+    // Reset priority → Medium
+    document.querySelectorAll('#rsPriorityGroup .rs-priority-btn').forEach(b => {
+        b.classList.remove('active','high','medium','low');
+    });
+    document.querySelector('#rsPriorityGroup .rs-priority-btn[data-val="Medium"]').classList.add('active','medium');
+
+    // Reset button
+    const btn = document.getElementById('rsSaveBtn');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-calendar-check me-1"></i>Save Reschedule';
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('rescheduleModal')).show();
+}
+
+function selectRsType(btn) {
+    document.querySelectorAll('#rsTypeGroup .rs-type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function selectRsPriority(btn) {
+    document.querySelectorAll('#rsPriorityGroup .rs-priority-btn').forEach(b => {
+        b.classList.remove('active','high','medium','low');
+    });
+    btn.classList.add('active', btn.dataset.val.toLowerCase());
+}
+
+function saveReschedule() {
+    const date = document.getElementById('rsDate').value;
+    if (!date) {
+        document.getElementById('rsDateErr').style.display = 'block';
+        document.getElementById('rsDate').focus();
+        return;
+    }
+    document.getElementById('rsDateErr').style.display = 'none';
+
+    const time    = document.getElementById('rsTime').value || null;
+    const note    = document.getElementById('rsNote').value.trim() || null;
+    const typeVal = document.querySelector('#rsTypeGroup .rs-type-btn.active')?.dataset.val || 'Call';
+    const prioVal = document.querySelector('#rsPriorityGroup .rs-priority-btn.active')?.dataset.val || 'Medium';
+
+    const btn = document.getElementById('rsSaveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+    fetch('/leads/' + _rsLeadId + '/quick-followup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            followup_date:     date,
+            followup_time:     time,
+            followup_type:     typeVal,
+            followup_priority: prioVal,
+            note:              note
+        })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            bootstrap.Modal.getInstance(document.getElementById('rescheduleModal')).hide();
+            const row = document.getElementById(_rsRowPfx + '-' + _rsLeadId);
+            if (row) { row.classList.add('row-done'); setTimeout(() => row.remove(), 400); }
+            updateSidebarBadge(-1);
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-calendar-check me-1"></i>Save Reschedule';
+            alert('Failed to save: ' + (d.error || 'Unknown error'));
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-calendar-check me-1"></i>Save Reschedule';
+        alert('Network error — please try again.');
+    });
+}
+
+let _ctLeadId = null, _ctRowPrefix = null;
+
+function markContacted(leadId, rowPrefix) {
+    _ctLeadId    = leadId;
+    _ctRowPrefix = rowPrefix;
+
+    // pre-fill lead name from the row
+    const row = document.getElementById(rowPrefix + '-' + leadId);
+    const nameEl = row ? row.querySelector('td:first-child a, td:first-child .fw-bold, .lead-name') : null;
+    document.getElementById('ctLeadName').textContent = nameEl ? nameEl.textContent.trim() : 'Lead #' + leadId;
+
+    // default next follow-up = +3 days
+    const d = new Date(); d.setDate(d.getDate() + 3);
+    document.getElementById('ctNextDate').value = d.toISOString().split('T')[0];
+
+    // reset
+    document.getElementById('ctNote').value = '';
+    document.getElementById('ctNoteErr').style.display = 'none';
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('contactedModal')).show();
+}
+
+function saveContacted() {
+    const note = document.getElementById('ctNote').value.trim();
+    if (!note) {
+        document.getElementById('ctNoteErr').style.display = 'block';
+        document.getElementById('ctNote').focus();
+        return;
+    }
+    document.getElementById('ctNoteErr').style.display = 'none';
+
+    const nextDate = document.getElementById('ctNextDate').value;
+    const btn = document.getElementById('ctSaveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving…';
+
+    const payload = {status: 'Contacted', note: note};
+    if (nextDate) payload.followup_date = nextDate;
+
+    fetch('/leads/' + _ctLeadId + '/quick-followup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(r => r.json()).then(d => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Confirm Contacted';
+        if (d.success) {
+            bootstrap.Modal.getInstance(document.getElementById('contactedModal')).hide();
+            const row = document.getElementById(_ctRowPrefix + '-' + _ctLeadId);
+            if (row) { row.classList.add('row-done'); setTimeout(() => row.remove(), 400); }
+            updateSidebarBadge(-1);
+        } else {
+            alert(d.error || 'Error saving — please try again.');
+        }
+    }).catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Confirm Contacted';
+        alert('Network error — please try again.');
+    });
+}
+
+function updateSidebarBadge(delta) {
+    const badge = document.getElementById('sidebarOverdueBadge');
+    if (badge) {
+        const curr = parseInt(badge.textContent) || 0;
+        const next = curr + delta;
+        if (next <= 0) badge.style.display = 'none';
+        else { badge.textContent = next; badge.style.display = 'inline-block'; }
+    }
+}
+</script>
+{% endblock %}

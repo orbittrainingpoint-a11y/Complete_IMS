@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Lead - Training Center CRM{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<li class="breadcrumb-item"><a href="{{ url_for('main.leads') }}">Leads</a></li>
+<li class="breadcrumb-item active">Edit Lead</li>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-user-edit me-2"></i>Edit Lead: {{ lead.name }}
+                    </h5>
+                </div>
+
+                <form method="POST" action="{{ url_for('main.edit_lead', id=lead.id) }}" id="editLeadForm">
+                    {{ lead_form.csrf_token }}
+                    <div class="card-body p-4">
+                        <!-- Lead Information -->
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-user me-2"></i>Lead Information
+                        </h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ lead_form.name(class="form-control", placeholder="Full Name") }}
+                                    <label for="name">Full Name *</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ lead_form.phone(class="form-control", placeholder="Phone Number") }}
+                                    <label for="phone">Phone Number *</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ lead_form.email(class="form-control", placeholder="Email Address") }}
+                                    <label for="email">Email Address</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ lead_form.whatsapp(class="form-control", placeholder="WhatsApp Number") }}
+                                    <label for="whatsapp">WhatsApp Number</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Course and Status -->
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-graduation-cap me-2"></i>Course Interest & Status
+                        </h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ lead_form.course_interest_id(class="form-select") }}
+                                    <label for="course_interest_id">Course Interest</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ lead_form.status(class="form-select") }}
+                                    <label for="status">Status *</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ lead_form.lead_source(class="form-select") }}
+                                    <label for="lead_source">Lead Source</label>
+                                </div>
+                            </div>
+                           <!-- <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ lead_form.quoted_amount(class="form-control", placeholder="0.00") }}
+                                    <label for="quoted_amount">Quoted Amount</label>
+                                </div>
+                            </div> -->
+                        </div>
+
+                        <!-- Follow-up Information -->
+                       <!-- <h6 class="text-primary mb-3">
+                            <i class="fas fa-calendar-check me-2"></i>Follow-up Information
+                        </h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ lead_form.next_followup_date(class="form-control") }}
+                                    <label for="next_followup_date">Next Follow-up Date</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    {{ lead_form.followup_type(class="form-select") }}
+                                    <label for="followup_type">Follow-up Type</label>
+                                </div>
+                            </div>
+                        </div> -->
+
+                        <!-- Comments -->
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-comment-alt me-2"></i>Comments
+                        </h6>
+                        <div class="form-floating mb-4">
+                            {{ lead_form.comments(class="form-control", style="height: 100px", placeholder="Additional notes about this lead...") }}
+                            <label for="comments">Comments</label>
+                        </div>
+                    </div>
+
+                    <div class="card-footer bg-light">
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Lead Details
+                            </a>
+                            <div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-2"></i>Update Lead
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

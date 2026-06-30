@@ -1,0 +1,11 @@
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Delete Registration</h2>
+<p>Are you sure you want to delete the registration for {{ registration.first_name }} {{ registration.last_name }}?</p>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Confirm Delete</button>
+    <a href="{% url 'student_dashboard' %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

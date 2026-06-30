@@ -1,0 +1,1137 @@
+{% extends "base.html" %}
+{% block title %}Meetings — Orbit CRM{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Page shell ─────────────────────────────────── */
+.mtg-page { display:flex; flex-direction:column; gap:20px; }
+
+/* ── Stat chips ─────────────────────────────────── */
+.stat-chips { display:flex; gap:12px; flex-wrap:wrap; }
+.stat-chip {
+  flex:1; min-width:110px;
+  background:#fff; border-radius:14px;
+  border:1px solid #e2e8f0;
+  padding:14px 16px;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
+  display:flex; align-items:center; gap:12px;
+}
+.stat-chip .chip-icon {
+  width:40px; height:40px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; flex-shrink:0;
+}
+.stat-chip .chip-val { font-size:22px; font-weight:800; line-height:1; color:#1e293b; }
+.stat-chip .chip-lbl { font-size:11px; color:#64748b; margin-top:2px; }
+
+/* ── Layout ─────────────────────────────────────── */
+.mtg-grid { display:grid; grid-template-columns:1fr 320px; gap:20px; }
+@media(max-width:900px){ .mtg-grid { grid-template-columns:1fr; } }
+
+/* ── Calendar shell ─────────────────────────────── */
+.cal-shell {
+  background:#fff; border-radius:16px;
+  border:1px solid #e2e8f0;
+  box-shadow:0 2px 12px rgba(0,0,0,.05);
+  overflow:hidden;
+}
+.cal-top {
+  background:linear-gradient(135deg,#1e3a5f,#2563eb);
+  padding:16px 20px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+}
+.cal-nav-btn {
+  background:rgba(255,255,255,.15); border:0;
+  color:#fff; width:34px; height:34px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:13px; transition:.15s;
+}
+.cal-nav-btn:hover { background:rgba(255,255,255,.28); }
+.cal-title { color:#fff; font-size:17px; font-weight:700; }
+.view-tabs { display:flex; background:rgba(255,255,255,.15); border-radius:8px; overflow:hidden; }
+.view-tab {
+  border:0; background:transparent; color:rgba(255,255,255,.7);
+  padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; transition:.15s;
+}
+.view-tab.active { background:#fff; color:#2563eb; }
+.today-btn {
+  background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.4);
+  color:#fff; border-radius:8px; padding:5px 14px; font-size:12px; font-weight:600;
+  cursor:pointer; transition:.15s;
+}
+.today-btn:hover { background:rgba(255,255,255,.35); }
+
+/* ── Month grid ─────────────────────────────────── */
+.cal-body { padding:0; }
+.cal-dows {
+  display:grid; grid-template-columns:repeat(7,1fr);
+  background:#f8fafc; border-bottom:1px solid #e2e8f0;
+}
+.cal-dow {
+  text-align:center; padding:10px 4px;
+  font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.4px;
+}
+.cal-weeks { display:grid; grid-template-columns:repeat(7,1fr); }
+.cal-cell {
+  min-height:90px; border-right:1px solid #f1f5f9;
+  border-bottom:1px solid #f1f5f9; padding:6px 5px;
+  cursor:pointer; transition:background .12s; position:relative;
+  vertical-align:top;
+}
+.cal-cell:nth-child(7n){ border-right:0; }
+.cal-cell:hover { background:#f0f7ff; }
+.cal-cell.other-month { background:#fafafa; }
+.cal-cell.other-month .cal-day-num { color:#c8d0da; }
+.cal-cell.is-today { background:#eff6ff; }
+.cal-cell.is-today .cal-day-num {
+  background:#2563eb; color:#fff;
+  width:26px; height:26px; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-weight:800;
+}
+.cal-cell.selected { background:#e0edff; outline:2px solid #2563eb; }
+.cal-day-num { font-size:12px; font-weight:700; color:#374151; margin-bottom:4px; display:inline-block; line-height:1; padding:2px; }
+.cal-dot {
+  display:block; border-radius:4px; padding:1px 5px;
+  font-size:10px; font-weight:600; color:#fff;
+  margin-bottom:2px; white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; cursor:pointer;
+}
+.cal-dot.online    { background:#2563eb; }
+.cal-dot.offline   { background:#7c3aed; }
+.cal-dot.completed { background:#10b981; }
+.cal-dot.cancelled { background:#ef4444; }
+.cal-dot.no-show   { background:#94a3b8; }
+.cal-dot.scheduled { background:#f59e0b; }
+.cal-more { font-size:9px; color:#64748b; font-weight:600; padding-left:3px; }
+
+/* ── Week view ──────────────────────────────────── */
+.week-grid { overflow-x:auto; }
+.week-head { display:grid; grid-template-columns:54px repeat(7,1fr); background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+.week-head-cell { text-align:center; padding:10px 4px; font-size:11px; font-weight:700; color:#64748b; }
+.week-head-cell.is-today .wh-num { background:#2563eb; color:#fff; border-radius:50%; width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; }
+.week-rows { }
+.week-row { display:grid; grid-template-columns:54px repeat(7,1fr); border-bottom:1px solid #f1f5f9; min-height:52px; }
+.week-time { font-size:10px; color:#94a3b8; font-weight:600; padding:4px 6px; text-align:right; border-right:1px solid #e2e8f0; }
+.week-cell { border-right:1px solid #f1f5f9; padding:2px 3px; position:relative; cursor:pointer; }
+.week-cell:last-child { border-right:0; }
+.week-cell:hover { background:#f0f7ff; }
+.week-block {
+  border-radius:5px; padding:2px 6px; margin-bottom:2px;
+  font-size:10px; font-weight:600; color:#fff; cursor:pointer;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* ── Day view ───────────────────────────────────── */
+.day-slots { }
+.day-slot { display:flex; gap:0; border-bottom:1px solid #f1f5f9; min-height:60px; }
+.day-time { width:64px; font-size:11px; color:#94a3b8; font-weight:600; padding:8px 8px; border-right:1px solid #e2e8f0; flex-shrink:0; text-align:right; }
+.day-content { flex:1; padding:4px 10px; }
+.day-block {
+  border-radius:8px; padding:6px 10px; margin-bottom:4px;
+  color:#fff; cursor:pointer; transition:.12s;
+}
+.day-block:hover { opacity:.9; transform:translateX(2px); }
+.day-block .db-title { font-size:13px; font-weight:700; }
+.day-block .db-meta  { font-size:11px; opacity:.85; margin-top:2px; }
+
+/* ── Sidebar ────────────────────────────────────── */
+.mtg-sidebar { display:flex; flex-direction:column; gap:16px; }
+.side-card {
+  background:#fff; border-radius:14px;
+  border:1px solid #e2e8f0;
+  box-shadow:0 1px 6px rgba(0,0,0,.04);
+  overflow:hidden;
+}
+.side-card-head {
+  padding:14px 16px;
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid #f1f5f9;
+}
+.side-card-head h6 { margin:0; font-size:13px; font-weight:700; color:#1e293b; }
+.side-card-body { padding:12px 14px; }
+
+/* ── Upcoming meeting row ───────────────────────── */
+.upcoming-row {
+  display:flex; gap:10px; align-items:flex-start;
+  padding:10px 0; border-bottom:1px solid #f8fafc;
+}
+.upcoming-row:last-child { border-bottom:0; }
+.upcoming-dot {
+  width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:4px;
+}
+.upcoming-info { flex:1; min-width:0; }
+.upcoming-title { font-size:13px; font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.upcoming-meta  { font-size:11px; color:#64748b; margin-top:1px; }
+.upcoming-time  { font-size:11px; font-weight:700; color:#2563eb; white-space:nowrap; }
+
+/* ── Day detail panel (inside sidebar) ─────────── */
+.day-detail-item {
+  border-radius:10px; border:1px solid #e2e8f0; padding:10px 12px; margin-bottom:8px;
+  cursor:pointer; transition:.12s;
+}
+.day-detail-item:hover { border-color:#93c5fd; background:#f0f7ff; }
+.day-detail-item:last-child { margin-bottom:0; }
+
+/* ── Status badge ───────────────────────────────── */
+.mtg-badge {
+  display:inline-block; border-radius:20px;
+  padding:2px 10px; font-size:10px; font-weight:700;
+}
+.mtg-badge.scheduled { background:rgba(245,158,11,.12); color:#b45309; }
+.mtg-badge.completed { background:rgba(16,185,129,.12); color:#065f46; }
+.mtg-badge.cancelled { background:rgba(239,68,68,.1);   color:#991b1b; }
+.mtg-badge.no-show   { background:rgba(100,116,139,.1); color:#374151; }
+
+/* ── Meeting detail modal ───────────────────────── */
+.mtg-detail-header {
+  background:linear-gradient(135deg,#1e3a5f,#2563eb);
+  padding:20px 24px; color:#fff;
+}
+.mtg-action-btn {
+  border-radius:8px; padding:6px 16px; font-size:12px; font-weight:600; cursor:pointer; border:0;
+}
+
+/* ── Meeting form validation ────────────────────── */
+.mtg-field-err {
+  border: 2px solid #ef4444 !important;
+  border-radius: 8px !important;
+  outline: none !important;
+}
+.mtg-err-msg {
+  color: #ef4444;
+  font-size: 11px;
+  margin-top: 4px;
+  display: block;
+}
+.mtg-type-err {
+  border: 2px solid #ef4444 !important;
+  border-radius: 10px !important;
+  padding: 4px !important;
+}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}<span class="current">Meetings</span>{% endblock %}
+
+{% block content %}
+<div class="mtg-page">
+
+<!-- ── Page header ──────────────────────────────── -->
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+  <div class="d-flex align-items-center gap-3">
+    <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#1e3a5f,#2563eb);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <i class="fas fa-calendar-alt text-white" style="font-size:20px;"></i>
+    </div>
+    <div>
+      <h4 class="mb-0 fw-700" style="color:#1e293b;">Meeting Calendar</h4>
+      <small class="text-muted">Schedule and track meetings with leads &amp; students</small>
+    </div>
+  </div>
+  <button class="btn btn-primary px-4" style="border-radius:10px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border:0;font-weight:600;"
+          data-bs-toggle="modal" data-bs-target="#meetingModal">
+    <i class="fas fa-plus me-2"></i>Schedule Meeting
+  </button>
+</div>
+
+<!-- ── Stat chips ───────────────────────────────── -->
+<div class="stat-chips">
+  {% set today_count   = meetings | selectattr('meeting_date') | selectattr('meeting_date', 'defined') %}
+  {% set all_count     = meetings | length %}
+  {% set completed_ct  = meetings | selectattr('status','equalto','Completed')  | list | length %}
+  {% set scheduled_ct  = meetings | selectattr('status','equalto','Scheduled')  | list | length %}
+  {% set cancelled_ct  = meetings | selectattr('status','equalto','Cancelled')  | list | length %}
+  {% set today_ct      = meetings | selectattr('meeting_date') | list | selectattr('meeting_date') | list %}
+
+  <div class="stat-chip">
+    <div class="chip-icon" style="background:rgba(37,99,235,.1);color:#2563eb;"><i class="fas fa-calendar-day"></i></div>
+    <div>
+      <div class="chip-val" id="statToday">0</div>
+      <div class="chip-lbl">Today</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="chip-icon" style="background:rgba(124,58,237,.1);color:#7c3aed;"><i class="fas fa-calendar-week"></i></div>
+    <div>
+      <div class="chip-val" id="statWeek">0</div>
+      <div class="chip-lbl">This Week</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="chip-icon" style="background:rgba(16,185,129,.1);color:#10b981;"><i class="fas fa-check-circle"></i></div>
+    <div>
+      <div class="chip-val">{{ completed_ct }}</div>
+      <div class="chip-lbl">Completed</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="chip-icon" style="background:rgba(245,158,11,.1);color:#d97706;"><i class="fas fa-clock"></i></div>
+    <div>
+      <div class="chip-val">{{ scheduled_ct }}</div>
+      <div class="chip-lbl">Scheduled</div>
+    </div>
+  </div>
+  <div class="stat-chip">
+    <div class="chip-icon" style="background:rgba(239,68,68,.1);color:#ef4444;"><i class="fas fa-times-circle"></i></div>
+    <div>
+      <div class="chip-val">{{ cancelled_ct }}</div>
+      <div class="chip-lbl">Cancelled</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main grid ─────────────────────────────────── -->
+<div class="mtg-grid">
+
+  <!-- Calendar -->
+  <div class="cal-shell">
+    <div class="cal-top">
+      <div class="d-flex align-items-center gap-10" style="gap:10px;">
+        <button class="cal-nav-btn" onclick="navCal(-1)"><i class="fas fa-chevron-left"></i></button>
+        <span class="cal-title" id="calTitle">—</span>
+        <button class="cal-nav-btn" onclick="navCal(1)"><i class="fas fa-chevron-right"></i></button>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <button class="today-btn" onclick="goToday()">Today</button>
+        <div class="view-tabs">
+          <button class="view-tab active" id="vt-month" onclick="setView('month')">Month</button>
+          <button class="view-tab"        id="vt-week"  onclick="setView('week')">Week</button>
+          <button class="view-tab"        id="vt-day"   onclick="setView('day')">Day</button>
+        </div>
+      </div>
+    </div>
+    <div class="cal-body" id="calBody"></div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="mtg-sidebar">
+
+    <!-- Selected day meetings -->
+    <div class="side-card">
+      <div class="side-card-head">
+        <h6><i class="fas fa-list-ul me-2 text-primary"></i><span id="dayPanelTitle">Select a date</span></h6>
+        <span class="badge" style="background:#eff6ff;color:#2563eb;font-size:10px;" id="dayPanelBadge"></span>
+      </div>
+      <div class="side-card-body" id="dayPanel">
+        <div class="text-center py-3" style="color:#94a3b8;">
+          <i class="fas fa-hand-pointer fa-2x mb-2 d-block"></i>
+          <small>Click a date to see meetings</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upcoming meetings -->
+    <div class="side-card">
+      <div class="side-card-head">
+        <h6><i class="fas fa-hourglass-half me-2 text-warning"></i>Upcoming</h6>
+      </div>
+      <div class="side-card-body" id="upcomingPanel">
+        <div class="text-center py-2" style="color:#94a3b8;"><small>Loading…</small></div>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="side-card">
+      <div class="side-card-head"><h6><i class="fas fa-bolt me-2 text-warning"></i>Quick Actions</h6></div>
+      <div class="side-card-body">
+        <div class="d-grid gap-2">
+          <button class="btn btn-outline-primary btn-sm" style="border-radius:8px;font-weight:600;"
+                  data-bs-toggle="modal" data-bs-target="#meetingModal">
+            <i class="fas fa-calendar-plus me-2"></i>Schedule New Meeting
+          </button>
+          <button class="btn btn-outline-success btn-sm" style="border-radius:8px;font-weight:600;"
+                  onclick="filterView('today')">
+            <i class="fas fa-calendar-day me-2"></i>Show Today's Meetings
+          </button>
+          <button class="btn btn-outline-info btn-sm" style="border-radius:8px;font-weight:600;"
+                  onclick="filterView('upcoming')">
+            <i class="fas fa-forward me-2"></i>Show Upcoming Only
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- .mtg-page -->
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Schedule Meeting Modal                         -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal fade" id="meetingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+      <form method="POST" action="{{ url_for('main.add_meeting') }}" id="meetingForm" novalidate
+            style="display:flex;flex-direction:column;flex:1 1 auto;overflow:hidden;min-height:0;">
+        {{ meeting_form.csrf_token }}
+        <div class="modal-header p-0 border-0">
+          <div class="mtg-detail-header w-100" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);border-radius:0;">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <h5 class="mb-1 fw-700"><i class="fas fa-calendar-plus me-2 opacity-75"></i>Schedule Meeting</h5>
+                <small class="opacity-75">Set up a meeting with a lead or student</small>
+              </div>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-body p-4" style="min-height:0;overflow-y:auto;">
+          <!-- Participant -->
+          <div class="pb-2 mb-3" style="border-bottom:1px solid #e2e8f0;">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">
+              <i class="fas fa-user me-1"></i>Participant
+            </span>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Lead</label>
+              {{ meeting_form.lead_id(class="form-select", style="border-radius:8px;") }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Student</label>
+              {{ meeting_form.student_id(class="form-select", style="border-radius:8px;") }}
+            </div>
+          </div>
+          <div class="mb-3 p-2" style="background:#f0f7ff;border-radius:8px;border:1px solid #bfdbfe;">
+            <small style="color:#1d4ed8;"><i class="fas fa-info-circle me-1"></i>Select either a lead or a student — not both.</small>
+          </div>
+
+          <!-- Details -->
+          <div class="pb-2 mb-3" style="border-bottom:1px solid #e2e8f0;">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">
+              <i class="fas fa-info-circle me-1"></i>Meeting Details
+            </span>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Title <span class="text-danger">*</span></label>
+            {{ meeting_form.title(class="form-control", placeholder="e.g. Course Consultation Call", style="border-radius:8px;") }}
+          </div>
+
+          <!-- Type buttons -->
+          <div class="mb-3">
+            <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Meeting Type <span class="text-danger">*</span></label>
+            <div class="d-flex gap-2" id="typeButtons">
+              <button type="button" class="btn btn-outline-primary flex-fill" id="tb-online"
+                      style="border-radius:8px;font-weight:600;" onclick="selectMtgType('Online')">
+                <i class="fas fa-video me-2"></i>Online
+              </button>
+              <button type="button" class="btn btn-outline-purple flex-fill" id="tb-offline"
+                      style="border-radius:8px;font-weight:600;border-color:#7c3aed;color:#7c3aed;" onclick="selectMtgType('Offline')">
+                <i class="fas fa-map-marker-alt me-2"></i>In-Person
+              </button>
+              <button type="button" class="btn btn-outline-secondary flex-fill" id="tb-phone"
+                      style="border-radius:8px;font-weight:600;" onclick="selectMtgType('Phone')">
+                <i class="fas fa-phone me-2"></i>Phone
+              </button>
+            </div>
+            {{ meeting_form.meeting_type(class="d-none", id="meeting_type") }}
+          </div>
+
+          <!-- Date / Time / Duration -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Date <span class="text-danger">*</span></label>
+              {{ meeting_form.meeting_date(class="form-control", style="border-radius:8px;") }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Time <span class="text-danger">*</span></label>
+              {{ meeting_form.meeting_time(class="form-control", style="border-radius:8px;") }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Duration (min)</label>
+              {{ meeting_form.duration(class="form-control", style="border-radius:8px;", placeholder="60") }}
+            </div>
+          </div>
+
+          <!-- Online link / Offline location -->
+          <div id="onlineFields" class="mb-3" style="display:none;">
+            <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Meeting Link</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                <i class="fas fa-link text-secondary" style="font-size:12px;"></i>
+              </span>
+              {{ meeting_form.meeting_link(class="form-control border-start-0", placeholder="https://zoom.us/j/...", style="border-radius:0 8px 8px 0;") }}
+            </div>
+          </div>
+          <div id="offlineFields" class="mb-3" style="display:none;">
+            <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Location</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                <i class="fas fa-map-marker-alt text-secondary" style="font-size:12px;"></i>
+              </span>
+              {{ meeting_form.location(class="form-control border-start-0", placeholder="Office, conference room, address…", style="border-radius:0 8px 8px 0;") }}
+            </div>
+          </div>
+
+          <!-- Agenda -->
+          <div class="mb-3">
+            <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Agenda / Notes</label>
+            {{ meeting_form.agenda(class="form-control", rows=3, placeholder="Discussion points, objectives…", style="border-radius:8px;resize:vertical;") }}
+          </div>
+
+          <!-- Reminders -->
+          <div class="pb-2 mb-3" style="border-bottom:1px solid #e2e8f0;">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">
+              <i class="fas fa-bell me-1"></i>Reminders
+            </span>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label" style="font-size:13px;color:#374151;font-weight:500;">Remind me</label>
+              {{ meeting_form.reminder_time(class="form-select", style="border-radius:8px;") }}
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="d-flex align-items-center gap-2 p-3" style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;width:100%;">
+                {{ meeting_form.email_reminder(class="form-check-input mb-0") }}
+                <label class="form-check-label mb-0" style="font-size:13px;">Email reminder</label>
+              </div>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="d-flex align-items-center gap-2 p-3" style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;width:100%;">
+                {{ meeting_form.sms_reminder(class="form-check-input mb-0") }}
+                <label class="form-check-label mb-0" style="font-size:13px;">SMS reminder</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;">
+          <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+          <button type="submit" class="btn btn-primary px-5" style="border-radius:8px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border:0;font-weight:600;">
+            <i class="fas fa-calendar-check me-2"></i>Schedule Meeting
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Meeting Detail Modal                           -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal fade" id="mtgDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-scrollable">
+    <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+      <div class="mtg-detail-header" id="mtgDetailHeader">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1;min-width:0;">
+            <div class="mb-1" style="font-size:11px;opacity:.7;" id="mdType">—</div>
+            <h5 class="mb-1 fw-700" id="mdTitle" style="word-break:break-word;">—</h5>
+            <div style="font-size:13px;opacity:.85;" id="mdParticipant">—</div>
+          </div>
+          <button type="button" class="btn-close btn-close-white ms-3 flex-shrink-0" data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+      <div class="modal-body p-4">
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <div style="background:#f8fafc;border-radius:10px;padding:12px;">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:4px;">Date &amp; Time</div>
+              <div style="font-size:14px;font-weight:700;color:#1e293b;" id="mdDateTime">—</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div style="background:#f8fafc;border-radius:10px;padding:12px;">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:4px;">Duration</div>
+              <div style="font-size:14px;font-weight:700;color:#1e293b;" id="mdDuration">—</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div style="background:#f8fafc;border-radius:10px;padding:12px;">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:4px;">Status</div>
+              <div id="mdStatus">—</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div style="background:#f8fafc;border-radius:10px;padding:12px;">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:4px;">Scheduled by</div>
+              <div style="font-size:13px;font-weight:600;color:#1e293b;" id="mdCreatedBy">—</div>
+            </div>
+          </div>
+        </div>
+        <div id="mdLinkRow" class="mb-3" style="display:none;">
+          <a id="mdLink" href="#" target="_blank" class="btn btn-success w-100" style="border-radius:8px;font-weight:600;">
+            <i class="fas fa-video me-2"></i>Join Online Meeting
+          </a>
+        </div>
+        <div id="mdLocationRow" class="mb-3 p-3" style="display:none;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:4px;"><i class="fas fa-map-marker-alt me-1"></i>Location</div>
+          <div id="mdLocation" style="font-size:13px;color:#374151;">—</div>
+        </div>
+        <div id="mdAgendaRow" class="mb-3" style="display:none;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:6px;"><i class="fas fa-list-ul me-1"></i>Agenda</div>
+          <div id="mdAgenda" style="font-size:13px;color:#374151;line-height:1.6;white-space:pre-wrap;background:#f8fafc;border-radius:8px;padding:10px;">—</div>
+        </div>
+        <div id="mdNotesRow" class="mb-3" style="display:none;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:6px;"><i class="fas fa-sticky-note me-1"></i>Notes</div>
+          <div id="mdNotes" style="font-size:13px;color:#374151;line-height:1.6;white-space:pre-wrap;background:#fffbeb;border-radius:8px;padding:10px;">—</div>
+        </div>
+      </div>
+      <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-light btn-sm px-3" data-bs-dismiss="modal" style="border-radius:8px;">Close</button>
+        <button type="button" class="btn btn-success btn-sm px-3" id="mdCompleteBtn" style="border-radius:8px;font-weight:600;"
+                onclick="updateStatus(null,'Completed')">
+          <i class="fas fa-check me-1"></i>Mark Complete
+        </button>
+        <button type="button" class="btn btn-warning btn-sm px-3" id="mdNoShowBtn" style="border-radius:8px;font-weight:600;"
+                onclick="updateStatus(null,'No Show')">
+          <i class="fas fa-user-slash me-1"></i>No Show
+        </button>
+        <button type="button" class="btn btn-danger btn-sm px-3" id="mdCancelBtn" style="border-radius:8px;font-weight:600;"
+                onclick="updateStatus(null,'Cancelled')">
+          <i class="fas fa-times me-1"></i>Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Data & state ─────────────────────────────────
+const MEETINGS = {{ meetings_data | tojson }};
+let curDate   = new Date();
+let curView   = 'month';
+let selDate   = null;
+let activeMtgId = null;
+
+// ── Boot ─────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    renderCal();
+    renderUpcoming();
+    updateStatChips();
+
+    // Participant mutual exclusion
+    document.getElementById('lead_id').addEventListener('change', e => {
+        if (e.target.value && e.target.value !== '0') document.getElementById('student_id').value = '0';
+    });
+    document.getElementById('student_id').addEventListener('change', e => {
+        if (e.target.value && e.target.value !== '0') document.getElementById('lead_id').value = '0';
+    });
+
+    // Form validation
+    function clearMtgValidation() {
+        document.querySelectorAll('#meetingForm .mtg-err-msg').forEach(el => el.remove());
+        ['lead_id','student_id','title','meeting_date','meeting_time'].forEach(id => {
+            const el = document.getElementById(id) || document.querySelector('[name="' + id + '"]');
+            if (el) el.classList.remove('mtg-field-err');
+        });
+        const tb = document.getElementById('typeButtons');
+        if (tb) tb.classList.remove('mtg-type-err');
+    }
+
+    document.getElementById('meetingModal').addEventListener('show.bs.modal', function() {
+        clearMtgValidation();
+        const tb = document.getElementById('typeButtons');
+        if (tb) delete tb.dataset.selected;
+        // Reset button styles
+        ['Online','Offline','Phone'].forEach(t => {
+            const btn = document.getElementById('tb-' + t.toLowerCase());
+            if (btn) { btn.style.background = 'transparent'; btn.style.color = ''; btn.style.borderColor = ''; }
+        });
+        document.getElementById('onlineFields').style.display  = 'none';
+        document.getElementById('offlineFields').style.display = 'none';
+    });
+
+    document.getElementById('meetingForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        clearMtgValidation();
+
+        const invalid = [];
+
+        function addErr(el, msg) {
+            el.classList.add('mtg-field-err');
+            const span = document.createElement('span');
+            span.className = 'mtg-err-msg';
+            span.textContent = msg;
+            el.parentNode.appendChild(span);
+            invalid.push(el);
+        }
+
+        // Lead or Student
+        const leadEl    = document.getElementById('lead_id');
+        const studentEl = document.getElementById('student_id');
+        if ((!leadEl.value || leadEl.value === '0') && (!studentEl.value || studentEl.value === '0')) {
+            addErr(leadEl, 'Select a lead or a student');
+        }
+
+        // Title
+        const titleEl = document.querySelector('#meetingForm [name="title"]');
+        if (!titleEl.value.trim()) addErr(titleEl, 'Meeting title is required');
+
+        // Meeting type — check data-selected set by selectMtgType(), not the hidden select value
+        const typeButtons = document.getElementById('typeButtons');
+        const mtgTypeVal  = typeButtons.dataset.selected || '';
+        if (!mtgTypeVal) {
+            typeButtons.classList.add('mtg-type-err');
+            const span = document.createElement('span');
+            span.className = 'mtg-err-msg';
+            span.textContent = 'Please select a meeting type (Online / In-Person / Phone)';
+            typeButtons.parentNode.appendChild(span);
+            invalid.push(typeButtons);
+        }
+
+        // Date
+        const dateEl = document.querySelector('#meetingForm [name="meeting_date"]');
+        if (!dateEl.value) addErr(dateEl, 'Meeting date is required');
+
+        // Time
+        const timeEl = document.querySelector('#meetingForm [name="meeting_time"]');
+        if (!timeEl.value) addErr(timeEl, 'Meeting time is required');
+
+        if (invalid.length > 0) {
+            // Scroll modal-body to first invalid field
+            const modalBody = document.querySelector('#meetingModal .modal-body');
+            const firstEl   = invalid[0];
+            const elTop     = firstEl.getBoundingClientRect().top;
+            const bodyTop   = modalBody.getBoundingClientRect().top;
+            modalBody.scrollTop += (elTop - bodyTop) - 24;
+            return;
+        }
+
+        // All valid — submit
+        this.submit();
+    });
+
+    // Pre-fill date when clicking a calendar cell
+    const mdField = document.querySelector('[name="meeting_date"]');
+    if (mdField) {
+        const td = new Date();
+        mdField.min = td.toISOString().split('T')[0];
+    }
+});
+
+// ── Stat chips ───────────────────────────────────
+function updateStatChips() {
+    const now  = new Date();
+    const todayStr = now.toDateString();
+    const wkStart = getMonday(now);
+    const wkEnd   = new Date(wkStart); wkEnd.setDate(wkEnd.getDate() + 6);
+
+    let td = 0, wk = 0;
+    MEETINGS.forEach(m => {
+        const d = new Date(m.meeting_date);
+        if (d.toDateString() === todayStr) td++;
+        if (d >= wkStart && d <= wkEnd) wk++;
+    });
+    document.getElementById('statToday').textContent = td;
+    document.getElementById('statWeek').textContent  = wk;
+}
+
+// ── Calendar render dispatcher ───────────────────
+function renderCal() {
+    const body = document.getElementById('calBody');
+    if      (curView === 'month') renderMonth(body);
+    else if (curView === 'week')  renderWeek(body);
+    else                          renderDay(body);
+}
+
+// ── Month view ───────────────────────────────────
+function renderMonth(body) {
+    const yr = curDate.getFullYear(), mo = curDate.getMonth();
+    document.getElementById('calTitle').textContent =
+        curDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    const firstDow = new Date(yr, mo, 1).getDay();
+    const daysInMo = new Date(yr, mo + 1, 0).getDate();
+    const today    = new Date();
+    const days     = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    let h = '<div class="cal-dows">';
+    days.forEach(d => h += `<div class="cal-dow">${d}</div>`);
+    h += '</div><div class="cal-weeks">';
+
+    // Prev month filler
+    const prevDays = new Date(yr, mo, 0).getDate();
+    for (let i = firstDow - 1; i >= 0; i--) {
+        const d = prevDays - i;
+        h += `<div class="cal-cell other-month"><span class="cal-day-num">${d}</span></div>`;
+    }
+
+    for (let d = 1; d <= daysInMo; d++) {
+        const cellDate = new Date(yr, mo, d);
+        const isToday  = cellDate.toDateString() === today.toDateString();
+        const isSel    = selDate && cellDate.toDateString() === selDate.toDateString();
+        const ms       = getMtgsForDate(cellDate);
+        const dateStr  = fmt(cellDate);
+
+        h += `<div class="cal-cell${isToday?' is-today':''}${isSel?' selected':''}"
+                   onclick="selectDate('${dateStr}')">
+               <span class="cal-day-num">${d}</span>
+               <div>`;
+        ms.slice(0, 3).forEach(m => {
+            const cls = dotClass(m);
+            h += `<span class="cal-dot ${cls}" onclick="openDetail(${m.id}); event.stopPropagation();">
+                    ${fmtTime(m.meeting_date)} ${escHtml(m.title)}
+                  </span>`;
+        });
+        if (ms.length > 3) h += `<span class="cal-more">+${ms.length - 3} more</span>`;
+        h += '</div></div>';
+    }
+
+    // Next month filler
+    const cells = firstDow + daysInMo;
+    const rem   = cells % 7 === 0 ? 0 : 7 - (cells % 7);
+    for (let i = 1; i <= rem; i++) {
+        h += `<div class="cal-cell other-month"><span class="cal-day-num">${i}</span></div>`;
+    }
+
+    h += '</div>';
+    body.innerHTML = h;
+}
+
+// ── Week view ────────────────────────────────────
+function renderWeek(body) {
+    const mon = getMonday(curDate);
+    const sun = new Date(mon); sun.setDate(sun.getDate() + 6);
+    document.getElementById('calTitle').textContent =
+        `${mon.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${sun.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+
+    const today = new Date();
+    const dows  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const hours = Array.from({length:12}, (_,i) => i+8); // 08:00–19:00
+
+    let h = '<div class="week-grid"><div class="week-head"><div class="week-head-cell"></div>';
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(mon); d.setDate(d.getDate() + i);
+        const isT = d.toDateString() === today.toDateString();
+        h += `<div class="week-head-cell${isT?' is-today':''}">
+                <div style="font-size:10px;font-weight:700;color:#64748b;">${dows[i]}</div>
+                <div class="wh-num" style="font-size:18px;font-weight:800;color:${isT?'#2563eb':'#1e293b'};">${d.getDate()}</div>
+              </div>`;
+    }
+    h += '</div><div class="week-rows">';
+
+    hours.forEach(hr => {
+        h += `<div class="week-row">
+                <div class="week-time">${String(hr).padStart(2,'0')}:00</div>`;
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(mon); d.setDate(d.getDate() + i);
+            const ms = getMtgsForHour(d, hr);
+            h += '<div class="week-cell">';
+            ms.forEach(m => {
+                h += `<div class="week-block ${dotClass(m)}" onclick="openDetail(${m.id})">
+                        ${escHtml(m.title)}<br>
+                        <span style="opacity:.8;">${m.lead_name || m.student_name || ''}</span>
+                      </div>`;
+            });
+            h += '</div>';
+        }
+        h += '</div>';
+    });
+    h += '</div></div>';
+    body.innerHTML = h;
+}
+
+// ── Day view ─────────────────────────────────────
+function renderDay(body) {
+    document.getElementById('calTitle').textContent =
+        curDate.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+
+    const hours = Array.from({length:13}, (_,i) => i+8); // 08–20
+    let h = '<div class="day-slots">';
+    hours.forEach(hr => {
+        const ms = getMtgsForHour(curDate, hr);
+        h += `<div class="day-slot">
+                <div class="day-time">${String(hr).padStart(2,'0')}:00</div>
+                <div class="day-content">`;
+        ms.forEach(m => {
+            const bg = {
+                online:'#2563eb', offline:'#7c3aed', phone:'#0891b2',
+                completed:'#10b981', cancelled:'#ef4444', 'no show':'#94a3b8'
+            }[m.status.toLowerCase()] || '#f59e0b';
+            h += `<div class="day-block" style="background:${bg};" onclick="openDetail(${m.id})">
+                    <div class="db-title"><i class="fas ${mtgIcon(m)} me-1"></i>${escHtml(m.title)}</div>
+                    <div class="db-meta">${m.lead_name || m.student_name || '—'} &nbsp;·&nbsp; ${m.duration} min &nbsp;·&nbsp; ${fmtTime(m.meeting_date)}</div>
+                  </div>`;
+        });
+        if (ms.length === 0) h += `<div style="height:100%;border-radius:6px;" onclick="prefillDate(${hr})"></div>`;
+        h += '</div></div>';
+    });
+    h += '</div>';
+    body.innerHTML = h;
+}
+
+// ── Upcoming sidebar ─────────────────────────────
+function renderUpcoming() {
+    const now = new Date();
+    const upcoming = MEETINGS
+        .filter(m => new Date(m.meeting_date) >= now && m.status === 'Scheduled')
+        .slice(0, 8);
+
+    const panel = document.getElementById('upcomingPanel');
+    if (!upcoming.length) {
+        panel.innerHTML = '<div class="text-center py-3" style="color:#94a3b8;"><small>No upcoming meetings</small></div>';
+        return;
+    }
+    panel.innerHTML = upcoming.map(m => {
+        const d = new Date(m.meeting_date);
+        const color = {online:'#2563eb',offline:'#7c3aed',phone:'#0891b2'}[m.meeting_type.toLowerCase()] || '#2563eb';
+        return `<div class="upcoming-row" onclick="openDetail(${m.id})" style="cursor:pointer;">
+          <div class="upcoming-dot" style="background:${color};"></div>
+          <div class="upcoming-info">
+            <div class="upcoming-title">${escHtml(m.title)}</div>
+            <div class="upcoming-meta">${m.lead_name || m.student_name || '—'} &nbsp;·&nbsp; ${m.meeting_type}</div>
+          </div>
+          <div class="upcoming-time">${fmtRelDate(d)}<br>${fmtTime(m.meeting_date)}</div>
+        </div>`;
+    }).join('');
+}
+
+// ── Day panel (selected date) ────────────────────
+function selectDate(dateStr) {
+    selDate = new Date(dateStr + 'T00:00:00');
+    const ms = getMtgsForDate(selDate);
+    const title = selDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    document.getElementById('dayPanelTitle').textContent = title;
+    document.getElementById('dayPanelBadge').textContent = ms.length + (ms.length === 1 ? ' meeting' : ' meetings');
+
+    const panel = document.getElementById('dayPanel');
+    if (!ms.length) {
+        panel.innerHTML = `<div class="text-center py-3" style="color:#94a3b8;">
+          <i class="fas fa-calendar-times fa-2x mb-2 d-block"></i>
+          <small>No meetings on this day</small><br>
+          <button class="btn btn-outline-primary btn-sm mt-2" style="border-radius:8px;font-size:12px;"
+                  data-bs-toggle="modal" data-bs-target="#meetingModal"
+                  onclick="prefillDateStr('${dateStr}')">
+            <i class="fas fa-plus me-1"></i>Schedule one
+          </button>
+        </div>`;
+    } else {
+        panel.innerHTML = ms.map(m => {
+            const bg = {online:'#2563eb',offline:'#7c3aed',phone:'#0891b2',completed:'#10b981',cancelled:'#ef4444','no show':'#94a3b8'}[m.meeting_type.toLowerCase()] || '#2563eb';
+            return `<div class="day-detail-item" onclick="openDetail(${m.id})">
+              <div class="d-flex align-items-start gap-2">
+                <div style="width:4px;min-height:40px;border-radius:4px;background:${bg};flex-shrink:0;"></div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-weight:700;font-size:13px;color:#1e293b;">${escHtml(m.title)}</div>
+                  <div style="font-size:11px;color:#64748b;margin-top:2px;">
+                    ${m.lead_name || m.student_name || '—'} &nbsp;·&nbsp; ${fmtTime(m.meeting_date)} &nbsp;·&nbsp; ${m.duration}min
+                  </div>
+                  <span class="mtg-badge ${m.status.toLowerCase().replace(' ','-')}" style="margin-top:4px;display:inline-block;">${m.status}</span>
+                </div>
+                <i class="fas fa-chevron-right" style="color:#94a3b8;font-size:11px;margin-top:4px;"></i>
+              </div>
+            </div>`;
+        }).join('');
+    }
+    renderCal(); // re-render to highlight selected cell
+}
+
+// ── Meeting detail modal ─────────────────────────
+function openDetail(id) {
+    const m = MEETINGS.find(x => x.id === id);
+    if (!m) return;
+    activeMtgId = id;
+
+    const d = new Date(m.meeting_date);
+    const typeColors = {online:'#2563eb',offline:'#7c3aed',phone:'#0891b2'};
+    const hdrBg = typeColors[m.meeting_type.toLowerCase()] || '#2563eb';
+
+    document.getElementById('mtgDetailHeader').style.background =
+        `linear-gradient(135deg,#1e3a5f,${hdrBg})`;
+    document.getElementById('mdType').textContent =
+        `${m.meeting_type.toUpperCase()} MEETING`;
+    document.getElementById('mdTitle').textContent        = m.title;
+    document.getElementById('mdParticipant').textContent  = m.lead_name || m.student_name || 'No participant';
+    document.getElementById('mdDateTime').textContent     =
+        d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) + ' at ' + fmtTime(m.meeting_date);
+    document.getElementById('mdDuration').textContent     = m.duration + ' minutes';
+    document.getElementById('mdCreatedBy').textContent    = m.created_by;
+
+    const statusMap = {
+        'Scheduled':'<span class="mtg-badge scheduled">Scheduled</span>',
+        'Completed':'<span class="mtg-badge completed">Completed</span>',
+        'Cancelled':'<span class="mtg-badge cancelled">Cancelled</span>',
+        'No Show'  :'<span class="mtg-badge no-show">No Show</span>',
+    };
+    document.getElementById('mdStatus').innerHTML = statusMap[m.status] || m.status;
+
+    // Show/hide link / location
+    const linkRow = document.getElementById('mdLinkRow');
+    const locRow  = document.getElementById('mdLocationRow');
+    if (m.meeting_link && m.meeting_type.toLowerCase() === 'online') {
+        linkRow.style.display = 'block';
+        document.getElementById('mdLink').href = m.meeting_link;
+    } else { linkRow.style.display = 'none'; }
+    if (m.location) {
+        locRow.style.display  = 'block';
+        document.getElementById('mdLocation').textContent = m.location;
+    } else { locRow.style.display = 'none'; }
+
+    // Agenda / notes
+    const agRow = document.getElementById('mdAgendaRow');
+    const ntRow = document.getElementById('mdNotesRow');
+    if (m.agenda) { agRow.style.display='block'; document.getElementById('mdAgenda').textContent=m.agenda; }
+    else          { agRow.style.display='none'; }
+    if (m.notes)  { ntRow.style.display='block'; document.getElementById('mdNotes').textContent=m.notes; }
+    else          { ntRow.style.display='none'; }
+
+    // Action buttons visibility
+    const isDone = ['Completed','Cancelled','No Show'].includes(m.status);
+    document.getElementById('mdCompleteBtn').style.display = m.status === 'Completed' ? 'none' : '';
+    document.getElementById('mdNoShowBtn').style.display   = isDone ? 'none' : '';
+    document.getElementById('mdCancelBtn').style.display   = m.status === 'Cancelled' ? 'none' : '';
+
+    new bootstrap.Modal(document.getElementById('mtgDetailModal')).show();
+}
+
+// ── Status update via AJAX ───────────────────────
+function updateStatus(id, newStatus) {
+    const mid = id || activeMtgId;
+    if (!mid) return;
+    if (!confirm(`Mark this meeting as "${newStatus}"?`)) return;
+
+    const fd = new FormData();
+    fd.append('status', newStatus);
+
+    fetch(`/meetings/${mid}/status`, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // Update local data
+            const m = MEETINGS.find(x => x.id === mid);
+            if (m) m.status = data.status;
+            bootstrap.Modal.getInstance(document.getElementById('mtgDetailModal'))?.hide();
+            renderCal();
+            renderUpcoming();
+            updateStatChips();
+            // Re-render day panel if a date is selected
+            if (selDate) selectDate(fmt(selDate));
+        } else {
+            alert('Error: ' + (data.error || 'Could not update status'));
+        }
+    })
+    .catch(() => alert('Network error. Please try again.'));
+}
+
+// ── Calendar navigation ──────────────────────────
+function navCal(dir) {
+    if (curView === 'month') {
+        curDate.setMonth(curDate.getMonth() + dir);
+    } else if (curView === 'week') {
+        curDate.setDate(curDate.getDate() + dir * 7);
+    } else {
+        curDate.setDate(curDate.getDate() + dir);
+    }
+    renderCal();
+}
+
+function setView(v) {
+    curView = v;
+    ['month','week','day'].forEach(x => {
+        document.getElementById('vt-'+x).classList.toggle('active', x === v);
+    });
+    renderCal();
+}
+
+function goToday() {
+    curDate = new Date();
+    renderCal();
+}
+
+function filterView(which) {
+    curDate = new Date();
+    if (which === 'today') { setView('day'); }
+    else                   { setView('week'); }
+}
+
+// ── Meeting type selector (modal) ────────────────
+function selectMtgType(type) {
+    document.getElementById('meeting_type').value = type;
+    // Store on the button group so validation can read it regardless of select choices
+    document.getElementById('typeButtons').dataset.selected = type;
+    // Clear any type error styling
+    const tb = document.getElementById('typeButtons');
+    tb.classList.remove('mtg-type-err');
+    const prevErr = tb.parentNode.querySelector('.mtg-err-msg');
+    if (prevErr) prevErr.remove();
+    // Show/hide link/location fields
+    const online  = document.getElementById('onlineFields');
+    const offline = document.getElementById('offlineFields');
+    online.style.display  = type === 'Online'  ? 'block' : 'none';
+    offline.style.display = type === 'Offline' ? 'block' : 'none';
+    // Style buttons
+    ['Online','Offline','Phone'].forEach(t => {
+        const btn = document.getElementById('tb-' + t.toLowerCase());
+        if (!btn) return;
+        const active = t === type;
+        btn.style.background = active ? (t==='Online'?'#2563eb':t==='Offline'?'#7c3aed':'#64748b') : 'transparent';
+        btn.style.color = active ? '#fff' : '';
+        btn.style.borderColor = active ? 'transparent' : (t==='Offline'?'#7c3aed':'');
+    });
+}
+
+function prefillDate(hr) {
+    const d = new Date(curDate);
+    d.setHours(hr, 0, 0, 0);
+    prefillDateStr(fmt(d), hr);
+}
+function prefillDateStr(dateStr, hr) {
+    const df = document.querySelector('[name="meeting_date"]');
+    const tf = document.querySelector('[name="meeting_time"]');
+    if (df) df.value = dateStr;
+    if (tf && hr !== undefined) tf.value = String(hr).padStart(2,'0') + ':00';
+}
+
+// ── Helpers ──────────────────────────────────────
+function getMtgsForDate(d) {
+    const s = d.toDateString();
+    return MEETINGS.filter(m => new Date(m.meeting_date).toDateString() === s);
+}
+function getMtgsForHour(d, hr) {
+    const s = d.toDateString();
+    return MEETINGS.filter(m => {
+        const md = new Date(m.meeting_date);
+        return md.toDateString() === s && md.getHours() === hr;
+    });
+}
+function getMonday(d) {
+    const dt = new Date(d);
+    const day = dt.getDay();
+    const diff = (day === 0 ? -6 : 1 - day);
+    dt.setDate(dt.getDate() + diff);
+    dt.setHours(0,0,0,0);
+    return dt;
+}
+function fmt(d) {
+    return d.getFullYear() + '-' +
+           String(d.getMonth()+1).padStart(2,'0') + '-' +
+           String(d.getDate()).padStart(2,'0');
+}
+function fmtTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+}
+function fmtRelDate(d) {
+    const now   = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dd    = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diff  = Math.round((dd - today) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Tomorrow';
+    if (diff < 7)   return `In ${diff} days`;
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+function dotClass(m) {
+    if (m.status === 'Completed') return 'completed';
+    if (m.status === 'Cancelled') return 'cancelled';
+    if (m.status === 'No Show')   return 'no-show';
+    return m.meeting_type.toLowerCase();
+}
+function mtgIcon(m) {
+    return {online:'fa-video', offline:'fa-map-marker-alt', phone:'fa-phone'}
+            [m.meeting_type.toLowerCase()] || 'fa-calendar';
+}
+function escHtml(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+{% endblock %}

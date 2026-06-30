@@ -1,0 +1,224 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Certificates{% endblock %}
+{% block breadcrumb_label %}<span class="current">Certificates</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.cert-table th { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600; }
+.cert-table td { font-size:13px;vertical-align:middle; }
+.cert-table tbody tr:hover { background:#f8faff; }
+.filter-card { background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px; }
+.filter-card .form-control,.filter-card .form-select { font-size:13px;border-radius:8px;border-color:var(--border); }
+.filter-card .form-label { font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px; }
+.empty-state { text-align:center;padding:60px 20px;color:var(--text-muted); }
+.empty-state i { font-size:48px;margin-bottom:16px;opacity:.3; }
+.type-badge { font-size:10px;padding:3px 10px;border-radius:20px;font-weight:600;white-space:nowrap; }
+.type-khda { background:#fef9c3;color:#92400e; }
+.type-internal { background:#dbeafe;color:#1e40af; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <div class="page-title">Certificates</div>
+    <div class="page-subtitle">Issued course certificates</div>
+  </div>
+  {% if user.username == 'admin' or user.profile.role == 'admin' %}
+  <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#khdaCertificateModal">
+    <i class="fas fa-plus me-1"></i>Create KHDA Certificate
+  </button>
+  {% endif %}
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-green"><i class="fas fa-certificate"></i></div>
+      <div class="kpi-value">{{ certificates|length }}</div>
+      <div class="kpi-label">Total Issued</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-orange"><i class="fas fa-award"></i></div>
+      <div class="kpi-value" id="khdaCount">—</div>
+      <div class="kpi-label">KHDA Certificates</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-blue"><i class="fas fa-ribbon"></i></div>
+      <div class="kpi-value" id="internalCount">—</div>
+      <div class="kpi-label">Internal Certificates</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-card">
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label">Registration #</label>
+      <input type="text" id="fRegNum" class="form-control" placeholder="e.g. REG-001">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Student Name</label>
+      <input type="text" id="fName" class="form-control" placeholder="Student name">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Course</label>
+      <input type="text" id="fCourse" class="form-control" placeholder="Course name">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Certificate Type</label>
+      <select id="fType" class="form-select">
+        <option value="">All Types</option>
+        <option value="khda">KHDA</option>
+        <option value="internal">Internal</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table cert-table mb-0" id="certTable" data-sortable>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th data-sort="1">Registration #</th>
+          <th data-sort="2">Student Name</th>
+          <th data-sort="3">Course</th>
+          <th style="width:120px;" data-sort="4">Type</th>
+          <th style="width:110px;" data-sort="5">Grade</th>
+          <th style="width:120px;" data-sort="6">From</th>
+          <th style="width:120px;" data-sort="7">To</th>
+          <th style="width:100px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cert in certificates %}
+        <tr class="cert-row"
+            data-regnum="{{ cert.register_number|lower }}"
+            data-name="{{ cert.student_name|lower }}"
+            data-course="{{ cert.course_name|lower }}"
+            data-type="{{ cert.certificate_type|lower }}">
+          <td style="color:var(--text-muted);font-size:11px;">{{ forloop.counter }}</td>
+          <td style="font-weight:700;color:var(--primary);">{{ cert.register_number }}</td>
+          <td style="font-weight:600;">{{ cert.student_name }}</td>
+          <td>{{ cert.course_name }}</td>
+          <td>
+            {% if cert.certificate_type == 'KHDA' %}
+              <span class="type-badge type-khda"><i class="fas fa-award me-1"></i>KHDA</span>
+            {% else %}
+              <span class="type-badge type-internal"><i class="fas fa-ribbon me-1"></i>Internal</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if cert.grade %}
+              <span class="pill pill-green" style="font-size:12px;">{{ cert.grade }}</span>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ cert.from_date|date:"d M Y" }}</td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ cert.end_date|date:"d M Y" }}</td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{% url 'print_certificate' cert.id %}" target="_blank" class="btn btn-outline-primary btn-sm" title="Print/View"><i class="fas fa-print"></i></a>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9"><div class="empty-state"><i class="fas fa-certificate d-block"></i>No certificates issued yet.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- KHDA Modal (preserved) -->
+{% if user.username == 'admin' or user.profile.role == 'admin' %}
+<div class="modal fade" id="khdaCertificateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create KHDA Certificate</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form method="post" action="{% url 'create_khda_certificate' %}">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Registration Number</label>
+            <input type="text" name="register_number" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Student Name</label>
+            <input type="text" name="student_name" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Course Name</label>
+            <input type="text" name="course_name" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">From Date</label>
+            <input type="date" name="from_date" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">End Date</label>
+            <input type="date" name="end_date" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Grade</label>
+            <select name="grade" class="form-select" required>
+              <option value="A+">A+</option>
+              <option value="A">A</option>
+              <option value="B+">B+</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Create KHDA Certificate</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const fns = ['fRegNum','fName','fCourse','fType'];
+fns.forEach(id => document.getElementById(id).addEventListener('input', filterCerts));
+
+function filterCerts() {
+  const regnum = document.getElementById('fRegNum').value.toLowerCase();
+  const name   = document.getElementById('fName').value.toLowerCase();
+  const course = document.getElementById('fCourse').value.toLowerCase();
+  const type   = document.getElementById('fType').value.toLowerCase();
+  document.querySelectorAll('.cert-row').forEach(r => {
+    const ok = r.dataset.regnum.includes(regnum)
+            && r.dataset.name.includes(name)
+            && r.dataset.course.includes(course)
+            && r.dataset.type.includes(type);
+    r.style.display = ok ? '' : 'none';
+  });
+}
+
+// KPI counts
+document.addEventListener('DOMContentLoaded', () => {
+  let khda=0, internal=0;
+  document.querySelectorAll('.cert-row').forEach(r => {
+    if (r.dataset.type === 'khda') khda++;
+    else internal++;
+  });
+  document.getElementById('khdaCount').textContent = khda;
+  document.getElementById('internalCount').textContent = internal;
+});
+</script>
+{% endblock %}

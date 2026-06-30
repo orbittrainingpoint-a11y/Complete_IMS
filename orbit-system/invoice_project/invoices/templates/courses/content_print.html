@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ content.title }} - Course Content</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        h1 { color: #333; }
+        .content-info { margin-bottom: 20px; }
+        .content-info p { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>{{ content.title }}</h1>
+    <div class="content-info">
+        <p><strong>Course:</strong> {{ content.course.name }}</p>
+        <p><strong>Upload Date:</strong> {{ content.upload_date|date:"F d, Y" }}</p>
+    </div>
+    <div class="content-file">
+        <p><strong>File:</strong> {{ content.file.name }}</p>
+        <!-- You might want to include file content here if it's text-based -->
+    </div>
+</body>
+</html>

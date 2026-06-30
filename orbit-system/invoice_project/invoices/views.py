@@ -1,0 +1,3870 @@
+from decimal import Decimal
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import JsonResponse, HttpResponse, HttpResponseServerError
+from django.contrib.auth.decorators import login_required
+from django.forms import formset_factory
+from .models import Client, Invoice, InvoiceItem, InvoicePurchase, Course, Quotation, QuotationItem ,InvoicePurchaseItem, Course, Registration, RegistrationCourse, CorporateRegistration, CourseContent, Certificate, CertificateUpload, FormUpload, Proposal, TrainerProfile, CompanyProfile, Coupon, Notification, FeeReminderLog
+from .forms import InvoiceForm, InvoiceItemForm, ClientForm, SignUpForm, PurchaseInvoiceForm, QuotationForm, QuotationItemForm, RegistrationForm, RegistrationCourseForm, CorporateRegistrationForm, CorporateDetailsForm, RegistrationCourseFormSet, CourseForm, CourseContentForm, CertificateForm, KHDACertificateForm, ProposalForm, TrainerProfileForm, CompanyProfileForm, CouponForm
+from django.core.paginator import Paginator
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import user_passes_test
+from django.core import serializers
+import json
+from django.forms import inlineformset_factory
+from django.contrib import messages
+from django.db import transaction
+from django.db.models import Q , Sum
+from datetime import datetime
+from django.db.models import Sum, Count
+from django.utils import timezone
+from django.db.models import F, ExpressionWrapper, DecimalField, Window, Subquery, OuterRef
+from django.db.models.functions import Coalesce
+from django.views.decorators.http import require_POST
+from django.urls import reverse
+import logging
+from django.template.loader import render_to_string
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from io import BytesIO
+from xhtml2pdf import pisa
+import tempfile
+from django.http import HttpResponse
+from django.template.loader import get_template
+import pdfkit
+try:
+    from weasyprint import HTML as WeasyHTML
+except Exception:
+    WeasyHTML = None
+try:
+    from PyPDF2 import PdfMerger, PdfReader
+except Exception:
+    PdfMerger = PdfReader = None
+import io
+from django.conf import settings
+import os
+from PIL import Image
+from django.core.files.storage import default_storage
+from django.contrib.staticfiles.storage import staticfiles_storage
+from django.core.serializers.json import DjangoJSONEncoder
+import datetime
+
+logger = logging.getLogger(__name__)
+
+from .models import UserProfile, SalesTarget
+from django.contrib.auth.models import User
+import calendar
+
+def is_admin_user(user):
+    try:
+        return user.profile.role in ('admin',) or user.is_superuser
+    except Exception:
+        return user.is_superuser or hasattr(user, 'profile') and user.profile.role == 'admin'
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CRM BRIDGE — SSO tokens + user sync
+# ══════════════════════════════════════════════════════════════════
+import hmac as _hmac, hashlib as _hashlib, time as _time, base64 as _b64, json as _json
+
+_CRM_SECRET = getattr(settings, 'CRM_SSO_SECRET', 'orbit-erp-crm-sso-bridge-2024-x9q3mz')
+_CRM_URL    = getattr(settings, 'CRM_URL', 'http://localhost:5000')
+_ERP_URL    = getattr(settings, 'ERP_URL', 'http://localhost:8000')
+
+def _make_sso_token(username):
+    payload = _b64.urlsafe_b64encode(_json.dumps({'u': username, 't': int(_time.time())}).encode()).decode()
+    sig = _hmac.new(_CRM_SECRET.encode(), payload.encode(), _hashlib.sha256).hexdigest()[:32]
+    return f"{payload}.{sig}"
+
+def _verify_sso_token(token, max_age=90):
+    try:
+        payload_b64, sig = token.rsplit('.', 1)
+        expected = _hmac.new(_CRM_SECRET.encode(), payload_b64.encode(), _hashlib.sha256).hexdigest()[:32]
+        if not _hmac.compare_digest(sig, expected):
+            return None
+        data = _json.loads(_b64.urlsafe_b64decode(payload_b64 + '==').decode())
+        if int(_time.time()) - data['t'] > max_age:
+            return None
+        return data['u']
+    except Exception:
+        return None
+
+def _make_werkzeug_hash(password, iterations=260000):
+    """Generate a werkzeug pbkdf2:sha256 password hash (no werkzeug dep needed)."""
+    import hashlib, os, base64
+    salt = os.urandom(16).hex()
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), iterations)
+    return f"pbkdf2:sha256:{iterations}${salt}${base64.b64encode(dk).decode('ascii')}"
+
+def sync_user_to_crm(user, password=None, role=None):
+    """Insert or update user in Flask CRM (leads DB). Only for sales roles."""
+    role_map = {'sales_manager': 'admin', 'sales_executive': 'consultant'}
+    crm_role = role_map.get(role)
+    if not crm_role:
+        return
+    try:
+        import pymysql
+        cfg = getattr(settings, 'CRM_DB', {})
+        conn = pymysql.connect(**cfg)
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM user WHERE username=%s", (user.username,))
+            existing = cur.fetchone()
+            is_admin_crm = (crm_role == 'admin')
+            if existing:
+                cur.execute(
+                    "UPDATE user SET role=%s, active=1, can_view_all_leads=%s, can_manage_users=%s WHERE username=%s",
+                    (crm_role, int(is_admin_crm), int(is_admin_crm), user.username)
+                )
+            else:
+                pwd_hash = _make_werkzeug_hash(password) if password else _make_werkzeug_hash(user.username)
+                email = user.email or f"{user.username}@orbit.ae"
+                cur.execute(
+                    """INSERT INTO user
+                       (username, email, password_hash, role, active, created_at,
+                        can_view_all_leads, can_manage_users, can_view_reports, can_manage_courses, can_manage_settings)
+                       VALUES (%s,%s,%s,%s,1,NOW(),%s,%s,0,0,0)""",
+                    (user.username, email, pwd_hash, crm_role, int(is_admin_crm), int(is_admin_crm))
+                )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"CRM user sync skipped for {user.username}: {e}")
+
+
+@login_required
+def api_crm_lead_lookup(request, lead_id):
+    """Fetch CRM lead name/status for the registration form live lookup."""
+    import pymysql
+    try:
+        cfg = getattr(settings, 'CRM_DB', {})
+        conn = pymysql.connect(**cfg)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, name, phone, email, status FROM lead WHERE id=%s", (lead_id,)
+            )
+            row = cur.fetchone()
+        conn.close()
+        if row:
+            return JsonResponse({'id': row[0], 'name': row[1], 'phone': row[2] or '', 'email': row[3] or '', 'status': row[4]})
+        return JsonResponse({'error': 'Lead not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def crm_jump(request):
+    """Generate SSO token and redirect logged-in ERP user to CRM dashboard."""
+    token = _make_sso_token(request.user.username)
+    return redirect(f"{_CRM_URL}/auto-login?t={token}")
+
+
+def crm_auth(request):
+    """Receive SSO token from CRM and log the user into ERP."""
+    token = request.GET.get('t', '')
+    username = _verify_sso_token(token)
+    if not username:
+        messages.error(request, 'Invalid or expired CRM session link. Please log in.')
+        return redirect('login')
+    try:
+        erp_user = User.objects.get(username=username, is_active=True)
+        erp_user.backend = 'django.contrib.auth.backends.ModelBackend'
+        login(request, erp_user)
+        # If coming from a "Register in ERP" button on a CRM lead, go straight to the form
+        crm_id = request.GET.get('crm_id', '').strip()
+        if crm_id and crm_id.isdigit():
+            return redirect(f'/register/?crm_id={crm_id}')
+        next_url = request.GET.get('next', '')
+        if next_url and next_url.startswith('/'):
+            return redirect(next_url)
+        return redirect('orbit_dashboard')
+    except User.DoesNotExist:
+        messages.error(request, f'User "{username}" not found in ERP.')
+        return redirect('login')
+
+def get_user_role(user):
+    try:
+        return user.profile.role
+    except Exception:
+        return 'sales_executive'
+
+
+def _save_reg_crm_link(registration_id, crm_lead_id, linked_by=''):
+    """Save or update registration → CRM lead link, then auto-convert the CRM lead."""
+    import pymysql
+    try:
+        conn = pymysql.connect(
+            host='localhost', user='root', password='',
+            database='orbit_invoice', charset='utf8mb4'
+        )
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO invoices_registrationcrmlink
+                       (registration_id, crm_lead_id, linked_by, linked_at)
+                   VALUES (%s, %s, %s, NOW())
+                   ON DUPLICATE KEY UPDATE crm_lead_id=%s, linked_by=%s, linked_at=NOW()""",
+                (registration_id, crm_lead_id, linked_by, crm_lead_id, linked_by)
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"CRM link save failed for reg {registration_id}: {e}")
+
+    # Auto-convert the CRM lead to "Converted" status in the leads DB
+    try:
+        import pymysql as _pym
+        crm_conn = _pym.connect(
+            host='localhost', user='root', password='',
+            database='leads', charset='utf8mb4'
+        )
+        with crm_conn.cursor() as cur:
+            cur.execute(
+                """UPDATE lead
+                   SET status='Converted', last_contact_date=CURDATE()
+                   WHERE id=%s AND status NOT IN ('Converted', 'Lost')""",
+                (crm_lead_id,)
+            )
+        crm_conn.commit()
+        crm_conn.close()
+    except Exception as e:
+        logger.warning(f"CRM lead auto-convert failed for lead {crm_lead_id}: {e}")
+
+
+def sync_registration_to_crm(registration, consultant_username=None):
+    """Sync an IMS Registration to the CRM leads.ims_student table."""
+    import pymysql, json as _j
+    try:
+        courses = list(
+            registration.registration_courses
+            .select_related('course')
+            .values_list('course__name', 'price')
+        )
+        course_names = [c[0] for c in courses]
+        total_fee = sum(float(c[1]) for c in courses if c[1])
+
+        # Look up CRM lead link from orbit_invoice
+        crm_lead_id = None
+        try:
+            ims_conn = pymysql.connect(
+                host='localhost', user='root', password='',
+                database='orbit_invoice', charset='utf8mb4'
+            )
+            with ims_conn.cursor() as cur:
+                cur.execute(
+                    "SELECT crm_lead_id FROM invoices_registrationcrmlink WHERE registration_id=%s",
+                    (registration.pk,)
+                )
+                row = cur.fetchone()
+                if row:
+                    crm_lead_id = row[0]
+            ims_conn.close()
+        except Exception:
+            pass
+
+        cfg = getattr(settings, 'CRM_DB', {})
+        conn = pymysql.connect(**cfg)
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM ims_student WHERE ims_registration_id=%s", (registration.pk,))
+            existing = cur.fetchone()
+            data = (
+                registration.first_name,
+                registration.last_name or '',
+                registration.phone_no,
+                registration.email,
+                registration.country or '',
+                registration.student_status or 'active',
+                registration.date,
+                registration.registration_type or 'OT',
+                getattr(registration, 'class_type', ''),
+                _j.dumps(course_names),
+                round(total_fee, 2),
+                registration.consultant_name or '',
+                consultant_username or '',
+                registration.registration_number or '',
+                crm_lead_id,
+            )
+            if existing:
+                cur.execute("""
+                    UPDATE ims_student SET
+                        first_name=%s, last_name=%s, phone=%s, email=%s, country=%s,
+                        student_status=%s, registration_date=%s, registration_type=%s,
+                        class_type=%s, courses_json=%s, total_fee=%s,
+                        consultant_name=%s, consultant_username=%s,
+                        registration_number=%s, lead_crm_id=%s, updated_at=NOW()
+                    WHERE ims_registration_id=%s
+                """, data + (registration.pk,))
+            else:
+                cur.execute("""
+                    INSERT INTO ims_student
+                        (first_name, last_name, phone, email, country, student_status,
+                         registration_date, registration_type, class_type, courses_json,
+                         total_fee, consultant_name, consultant_username,
+                         registration_number, lead_crm_id, ims_registration_id, synced_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                """, data + (registration.pk,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"CRM student sync failed for reg {getattr(registration, 'pk', '?')}: {e}")
+
+def _get_greeting():
+    h = datetime.datetime.now().hour
+    if h < 12:
+        return 'morning'
+    elif h < 17:
+        return 'afternoon'
+    return 'evening'
+
+
+@login_required
+def logout_view(request):
+    logout(request)
+    return redirect('login')  # Redirect to the login page after logout
+
+
+@user_passes_test(is_admin_user)
+def signup(request):
+    if request.method == 'POST':
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)
+            raw_password = form.cleaned_data['password']
+            user.set_password(raw_password)
+            user.save()
+            # Assign role from form if provided, default to sales_executive
+            role = request.POST.get('role', 'sales_executive')
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            profile.role = role
+            profile.save()
+            # Sync to CRM for sales roles (with actual password so SSO works immediately)
+            if role in ('sales_manager', 'sales_executive'):
+                sync_user_to_crm(user, password=raw_password, role=role)
+            # If admin created this user, stay on manage_users; otherwise redirect to dashboard
+            if request.user.is_authenticated:
+                messages.success(request, f"User '{user.username}' created with role '{role}'.")
+                return redirect('manage_users')
+            else:
+                authenticated = authenticate(username=user.username, password=raw_password)
+                login(request, authenticated)
+                return redirect('dashboard')
+    else:
+        form = SignUpForm()
+    return render(request, 'registration/signup.html', {'form': form, 'roles': UserProfile.ROLE_CHOICES if hasattr(UserProfile, 'ROLE_CHOICES') else []})
+
+
+
+
+@login_required
+def dashboard(request):
+    inv_qs = Invoice.objects.select_related(
+        'client', 'registration', 'user'
+    ).prefetch_related('items__course').order_by('-id')
+
+    pur_qs = InvoicePurchase.objects.select_related(
+        'client', 'user'
+    ).prefetch_related('purchaseitems__course').order_by('-id')
+
+    invoice_number    = request.GET.get('invoice_number', '')
+    registration_number = request.GET.get('registration_number', '')
+    name              = request.GET.get('name', '')
+    due_date          = request.GET.get('due_date', '')
+    payment_status    = request.GET.get('payment_status', '')
+    inv_page          = request.GET.get('inv_page', 1)
+    pur_page          = request.GET.get('pur_page', 1)
+
+    if invoice_number:
+        inv_qs = inv_qs.filter(invoice_number__icontains=invoice_number)
+        pur_qs = pur_qs.filter(invoice_number__icontains=invoice_number)
+    if registration_number:
+        inv_qs = inv_qs.filter(registration__registration_number__icontains=registration_number)
+    if name:
+        inv_qs = inv_qs.filter(
+            Q(client__name__icontains=name) |
+            Q(registration__first_name__icontains=name) |
+            Q(registration__last_name__icontains=name)
+        )
+        pur_qs = pur_qs.filter(client__name__icontains=name)
+    if due_date:
+        inv_qs = inv_qs.filter(due_date=due_date)
+        pur_qs = pur_qs.filter(due_date=due_date)
+    if payment_status:
+        inv_qs = inv_qs.filter(status=payment_status)
+        pur_qs = pur_qs.filter(status=payment_status)
+
+    inv_paginator  = Paginator(inv_qs, 25)
+    pur_paginator  = Paginator(pur_qs, 25)
+    invoices       = inv_paginator.get_page(inv_page)
+    purchase_invoices = pur_paginator.get_page(pur_page)
+
+    for invoice in invoices:
+        invoice.items_json = json.dumps([
+            {
+                'course_name': item.course.name if item.course else '',
+                'unit_price': float(item.unit_price),
+                'quantity': item.quantity,
+                'vat_rate': float(item.vat_rate),
+            } for item in invoice.items.all()
+        ])
+    for pi in purchase_invoices:
+        pi.items_json = json.dumps([
+            {
+                'course_name': item.course.name if item.course else '',
+                'unit_price': float(item.unit_price),
+                'quantity': item.quantity,
+                'vat_rate': float(item.vat_rate),
+            } for item in pi.purchaseitems.all()
+        ])
+
+    return render(request, 'invoices/dashboard.html', {
+        'invoices': invoices,
+        'purchase_invoices': purchase_invoices,
+        'inv_paginator': inv_paginator,
+        'pur_paginator': pur_paginator,
+        'invoice_number': invoice_number,
+        'registration_number': registration_number,
+        'name': name,
+        'due_date': due_date,
+        'payment_status': payment_status,
+        'today': timezone.now().date(),
+    })
+    
+
+@login_required
+def create_invoice(request):
+    if request.method == 'POST':
+        form = InvoiceForm(request.POST, user=request.user)
+        if form.is_valid():
+            invoice = form.save(commit=False)
+            invoice.user = request.user
+            
+            # Get the registration number from the form
+            registration_number = form.cleaned_data.get('registration_number')
+            if registration_number:
+                try:
+                    registration = Registration.objects.get(registration_number=registration_number)
+                    invoice.registration = registration
+                    invoice.class_type = registration.class_type  # Set the class_type from registration
+                    if registration.registration_type == 'OC':
+                        # For corporate registrations, use the company name
+                        corporate_details = CorporateRegistration.objects.get(registration=registration)
+                        company_name = corporate_details.company_name
+                        invoice.client, _ = Client.objects.get_or_create(
+                            name=company_name,
+                            email=registration.email,
+                            phone=registration.phone_no,
+                            user=request.user
+                        )
+                    else:
+                        invoice.client, _ = Client.objects.get_or_create(
+                            name=f"{registration.first_name} {registration.last_name}",
+                            email=registration.email,
+                            phone=registration.phone_no,
+                            user=request.user
+                        )
+                except Registration.DoesNotExist:
+                    form.add_error('registration_number', 'Invalid registration number')
+                    return render(request, 'invoices/create_invoice.html', {'form': form})
+            
+            # Save the invoice first with an initial total of 0
+            invoice.save()
+            
+            # Handle course items
+            for key, value in request.POST.items():
+                if key.startswith('course_'):
+                    course_id = value
+                    quantity_key = f"quantity_{course_id}"
+                    quantity = int(request.POST.get(quantity_key, 1))
+                    
+                    course = Course.objects.get(id=course_id)
+                    
+                    # Set unit_price based on class_type
+                    if invoice.class_type == 'online':
+                        unit_price = course.online_rate
+                    elif invoice.class_type == 'offline':
+                        unit_price = course.rate  # Assuming 'rate' is used for offline
+                    elif invoice.class_type == 'batch':
+                        unit_price = course.batch_rate
+                    elif invoice.class_type == 'private':
+                        unit_price = course.private_rate
+                    else:
+                        unit_price = course.rate  # Default to regular rate if class_type is not recognized
+                    
+                    InvoiceItem.objects.create(
+                        invoice=invoice,
+                        course=course,
+                        quantity=quantity,
+                        unit_price=unit_price,
+                        vat_rate=Decimal('0.05')
+                    )
+            
+            # Recalculate total amount after adding items and save again
+            invoice.total_amount = invoice.calculate_total_amount()
+            invoice.save()
+
+            # Auto-notify admins about new invoice (N1)
+            try:
+                from .models import Notification
+                from django.contrib.auth.models import User as AuthUser
+                admin_users = AuthUser.objects.filter(
+                    profile__role__in=['admin', 'accounts']
+                ).exclude(id=request.user.id)
+                for admin in admin_users:
+                    Notification.objects.create(
+                        recipient=admin,
+                        notif_type='system',
+                        title=f"New Invoice: {invoice.invoice_number}",
+                        message=f"Invoice {invoice.invoice_number} created for {invoice.client.name} — AED {invoice.total_amount:.0f}",
+                        link="/dashboard/"
+                    )
+            except Exception:
+                pass
+
+            return redirect('dashboard')
+    else:
+        form = InvoiceForm(user=request.user)
+    # Pre-fill registration number if passed from student/corporate dashboard
+    prefill_reg = request.GET.get('reg', '')
+    return render(request, 'invoices/create_invoice.html', {'form': form, 'prefill_reg': prefill_reg})
+
+
+@login_required
+def create_purchase_invoice(request):
+    if request.method == 'POST':
+        form = PurchaseInvoiceForm(request.POST, user=request.user)
+        if form.is_valid():
+            invoice = form.save(commit=False)
+            invoice.user = request.user
+            invoice.status = 'Full Payment'
+
+            registration_number = form.cleaned_data.get('registration_number')
+            if registration_number:
+                try:
+                    registration = Registration.objects.get(registration_number=registration_number)
+                    invoice.registration = registration
+                    
+                    # Get client details
+                    client_name = form.cleaned_data.get('client_name')
+                    client_emirates = form.cleaned_data.get('client_emirates')
+                    client_country = form.cleaned_data.get('client_country')
+                    
+                    if registration.registration_type == 'OC':
+                        corporate_details = CorporateRegistration.objects.get(registration=registration)
+                        client_name = corporate_details.company_name
+                    else:
+                        client_name = f"{registration.first_name} {registration.last_name}"
+                    
+                    client_trn = form.cleaned_data.get('client_trn', '')
+                    invoice.client, created = Client.objects.get_or_create(
+                        name=client_name,
+                        email=registration.email,
+                        phone=registration.phone_no,
+                        user=request.user,
+                        defaults={
+                            'emirates': client_emirates or registration.emirates,
+                            'country': client_country or registration.country,
+                            'trn_number': client_trn,
+                        }
+                    )
+                    if not created and client_trn:
+                        invoice.client.trn_number = client_trn
+                        invoice.client.save()
+                except Registration.DoesNotExist:
+                    form.add_error('registration_number', 'Invalid registration number')
+                    return render(request, 'invoices/create_purchase_invoice.html', {'form': form})
+
+            invoice.save()
+            
+            # Handle course items
+            for key, value in request.POST.items():
+                if key.startswith('course_'):
+                    course_id = value
+                    quantity_key = f"quantity_{course_id}"
+                    quantity = int(request.POST.get(quantity_key, 1))
+                    
+                    course = Course.objects.get(id=course_id)
+                    InvoicePurchaseItem.objects.create(
+                        invoice=invoice,
+                        course=course,
+                        quantity=quantity,
+                        unit_price=course.rate
+                    )
+            
+            # Recalculate total amount after adding items and save again
+            invoice.total_amount = invoice.calculate_total_amount()
+            invoice.save()
+            
+            
+            return redirect('dashboard')
+        else:
+            print("Form is invalid")
+            print(form.errors)
+    else:
+        form = PurchaseInvoiceForm(user=request.user)
+        
+    return render(request, 'invoices/create_purchase_invoice.html', {'form': form})
+
+@login_required
+def add_invoice_items(request, invoice_id):
+    invoice = get_object_or_404(Invoice, id=invoice_id)
+    if request.method == 'POST':
+        form = InvoiceItemForm(request.POST)
+        if form.is_valid():
+            invoice_item = form.save(commit=False)
+            invoice_item.invoice = invoice
+            # Calculate the total amount
+            invoice_item.total = invoice_item.quantity * invoice_item.price
+            invoice_item.save()
+            return redirect('dashboard')  # Redirect after adding items, adjust as needed
+    else:
+        form = InvoiceItemForm()
+    return render(request, 'invoices/add_invoice_items.html', {'form': form, 'invoice': invoice})
+
+@login_required
+def edit_invoice(request, invoice_id):
+    invoice = get_object_or_404(Invoice, pk=invoice_id)
+
+    if request.method == 'POST':
+        form = InvoiceForm(request.POST, instance=invoice, user=request.user)
+        if form.is_valid():
+            # form.save(commit=False) sets amount_paid, status, payment, dates, etc.
+            # and creates/gets the client from client_name/emirates/country fields.
+            invoice = form.save(commit=False)
+
+            # Link registration if provided
+            registration_number = form.cleaned_data.get('registration_number', '').strip()
+            if registration_number:
+                try:
+                    registration = Registration.objects.get(registration_number=registration_number)
+                    invoice.registration = registration
+                    invoice.class_type = registration.class_type
+                except Registration.DoesNotExist:
+                    form.add_error('registration_number', 'Registration number not found.')
+                    return render(request, 'invoices/edit_invoice.html', {'form': form, 'invoice': invoice})
+
+            invoice.save()
+
+            # Rebuild invoice items from posted course_* fields
+            invoice.items.all().delete()
+            for key, value in request.POST.items():
+                if key.startswith('course_') and value:
+                    try:
+                        course = Course.objects.get(id=int(value))
+                        quantity = max(1, int(request.POST.get(f'quantity_{value}', 1)))
+                        ct = invoice.class_type
+                        unit_price = (
+                            course.online_rate  if ct == 'online'  else
+                            course.batch_rate   if ct == 'batch'   else
+                            course.private_rate if ct == 'private' else
+                            course.rate
+                        )
+                        InvoiceItem.objects.create(
+                            invoice=invoice, course=course,
+                            quantity=quantity, unit_price=unit_price,
+                            vat_rate=Decimal('0.05')
+                        )
+                    except (Course.DoesNotExist, ValueError):
+                        pass
+
+            invoice.total_amount = invoice.calculate_total_amount()
+            invoice.save()
+            return redirect('dashboard')
+        # form invalid — fall through to re-render with errors
+    else:
+        form = InvoiceForm(instance=invoice, user=request.user)
+
+    # Sum paid on OTHER invoices for the same registration (excluding this one)
+    other_invoices_paid = 0.0
+    if invoice.registration_id:
+        from django.db.models import Sum as _Sum
+        other_paid = Invoice.objects.filter(
+            registration_id=invoice.registration_id
+        ).exclude(pk=invoice.pk).aggregate(t=_Sum('amount_paid'))['t']
+        other_invoices_paid = float(other_paid or 0)
+
+    return render(request, 'invoices/edit_invoice.html', {
+        'form': form,
+        'invoice': invoice,
+        'other_invoices_paid': other_invoices_paid,
+    })
+
+
+@user_passes_test(is_admin_user)
+def delete_invoice(request, pk):
+    invoice = get_object_or_404(Invoice, pk=pk)
+    if request.method == 'POST':
+        invoice.delete()
+        return redirect('dashboard')
+    return render(request, 'invoices/delete_invoice.html', {'invoice': invoice})
+
+
+
+@login_required
+def edit_purchase_invoice(request, invoice_id):
+    invoice = get_object_or_404(InvoicePurchase, pk=invoice_id)
+
+    if request.method == 'POST':
+        form = PurchaseInvoiceForm(request.POST, instance=invoice, user=request.user)
+        if form.is_valid():
+            invoice = form.save(commit=False)
+            invoice.user = request.user
+
+            # Get registration details if provided
+            registration_number = form.cleaned_data.get('registration_number')
+            if registration_number:
+                try:
+                    registration = Registration.objects.get(registration_number=registration_number)
+                    invoice.registration = registration
+
+                    # Get client details
+                    client_name = form.cleaned_data.get('client_name')
+                    client_emirates = form.cleaned_data.get('client_emirates')
+                    client_country = form.cleaned_data.get('client_country')
+
+                    if registration.registration_type == 'OC':
+                        corporate_details = CorporateRegistration.objects.get(registration=registration)
+                        client_name = corporate_details.company_name
+                    else:
+                        client_name = f"{registration.first_name} {registration.last_name}"
+
+                    invoice.client, _ = Client.objects.get_or_create(
+                        name=client_name,
+                        email=registration.email,
+                        phone=registration.phone_no,
+                        user=request.user,
+                        emirates=client_emirates or registration.emirates,
+                        country=client_country or registration.country
+                    )
+                except Registration.DoesNotExist:
+                    messages.error(request, 'Invalid registration number.')
+                    return render(request, 'invoices/edit_purchase_invoice.html', {
+                        'form': form,
+                        'invoice': invoice,
+                        'courses': Course.objects.all()
+                    })
+
+            invoice.save()
+
+            # Clear existing invoice items
+            invoice.purchaseitems.all().delete()
+
+            # Handle all courses from the form
+            for key, value in request.POST.items():
+                if key.startswith('course_'):
+                    course_id = value
+                    quantity_key = f"quantity_{course_id}"
+                    quantity = request.POST.get(quantity_key, 1)
+
+                    try:
+                        course = Course.objects.get(id=course_id)
+                        InvoicePurchaseItem.objects.create(
+                            invoice=invoice,
+                            course=course,
+                            quantity=int(quantity),
+                            unit_price=course.rate
+                        )
+                    except Course.DoesNotExist:
+                        messages.error(request, f"Course with ID {course_id} not found.")
+                        continue
+
+            # Recalculate total amount after adding items
+            invoice.total_amount = invoice.calculate_total_amount()
+            invoice.save()
+
+            return redirect('dashboard')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+            print(form.errors)
+    else:
+        form = PurchaseInvoiceForm(instance=invoice, user=request.user)
+        courses = Course.objects.all()
+
+    return render(request, 'invoices/edit_purchase_invoice.html', {
+        'form': form,
+        'invoice': invoice,
+        'courses': courses
+    })
+
+
+@user_passes_test(is_admin_user)
+def delete_purchase_invoice(request, pk):
+    invoice = get_object_or_404(InvoicePurchase, pk=pk)
+    if request.method == 'POST':
+        invoice.delete()
+        return redirect('dashboard')
+    return render(request, 'invoices/delete_purchase_invoice.html', {'invoice': invoice})
+
+
+@login_required
+def create_quotation(request):
+    QuotationItemFormSet = formset_factory(QuotationItemForm, extra=1)
+    
+    if request.method == 'POST':
+        quotation_form = QuotationForm(request.POST)
+        item_formset = QuotationItemFormSet(request.POST)
+        
+        if quotation_form.is_valid() and item_formset.is_valid():
+            quotation = quotation_form.save(commit=False)
+            quotation.user = request.user
+            quotation.save()
+            
+            for form in item_formset:
+                if form.cleaned_data:
+                    item = form.save(commit=False)
+                    item.quotation = quotation
+                    item.save()
+            
+            return redirect('quotation_dashboard')
+    else:
+        quotation_form = QuotationForm()
+        item_formset = QuotationItemFormSet()
+    
+    return render(request, 'quotation/create_quotation.html', {
+        'quotation_form': quotation_form,
+        'item_formset': item_formset,
+    })
+
+
+@login_required
+def quotation_detail(request, pk):
+    from decimal import Decimal as _Dec
+    quotation = get_object_or_404(Quotation, pk=pk)
+    venue = quotation.training_venue
+
+    def _fmt(val):
+        return f"{float(val):,.2f}"
+
+    items_data = []
+    subtotal = _Dec('0')
+    pax_set = set()
+
+    for item in quotation.items.all():
+        course = item.course
+        if venue == 'online':
+            rate = course.online_rate
+        elif venue == 'Company Premises (External)':
+            rate = course.private_rate
+        else:
+            rate = course.rate
+
+        line_total = rate * item.number_of_persons
+        subtotal += line_total
+        pax_set.add(item.number_of_persons)
+
+        items_data.append({
+            'course_name': course.name,
+            'duration': item.duration,
+            'fee_per_pax_fmt': _fmt(rate),
+            'pax': item.number_of_persons,
+            'line_total_fmt': _fmt(line_total),
+        })
+
+    discount_pct = quotation.discount or _Dec('0')
+    discount_amount = subtotal * discount_pct / 100
+    final_total = subtotal - discount_amount
+
+    training_mode_labels = {
+        'Orbit Training (In-House)': 'In-House Training',
+        'Company Premises (External)': 'On-Site Training',
+        'online': 'Online Training',
+    }
+    training_mode_display = training_mode_labels.get(venue, venue)
+
+    if len(pax_set) == 1:
+        participants_display = f"{next(iter(pax_set))} Pax"
+    elif pax_set:
+        participants_display = "Varies per course"
+    else:
+        participants_display = "—"
+
+    return render(request, 'quotation/quotation_detail.html', {
+        'quotation': quotation,
+        'items_data': items_data,
+        'subtotal_fmt': _fmt(subtotal),
+        'discount_amount_fmt': _fmt(discount_amount),
+        'final_total_fmt': _fmt(final_total),
+        'participants_display': participants_display,
+        'training_mode_display': training_mode_display,
+        'venue_label': quotation.get_training_venue_display(),
+    })
+
+
+def quotation_dashboard(request):
+    qs = Quotation.objects.prefetch_related('items__course').order_by('-id')
+    q_number    = request.GET.get('q_number', '')
+    client_name = request.GET.get('client_name', '')
+    consultant  = request.GET.get('consultant', '')
+    if q_number:
+        qs = qs.filter(quotation_number__icontains=q_number)
+    if client_name:
+        qs = qs.filter(client_name__icontains=client_name)
+    if consultant:
+        qs = qs.filter(consultant_name__icontains=consultant)
+
+    paginator = Paginator(qs, 25)
+    quotations = paginator.get_page(request.GET.get('page', 1))
+
+    for quotation in quotations:
+        quotation.items_json = json.dumps([
+            {
+                'course_name': item.course.name,
+                'rate': float(item.course.rate),
+                'duration': float(item.duration),
+                'number_of_persons': float(item.number_of_persons),
+            } for item in quotation.items.all()
+        ])
+    return render(request, 'quotation/quotation_dashboard.html', {
+        'quotations': quotations,
+        'paginator': paginator,
+        'q_number': q_number,
+        'client_name': client_name,
+        'consultant': consultant,
+    })
+
+@login_required
+def edit_quotation(request, pk):
+    quotation = get_object_or_404(Quotation, pk=pk)
+    QuotationItemFormSet = formset_factory(QuotationItemForm, extra=0)
+    
+    if request.method == 'POST':
+        quotation_form = QuotationForm(request.POST, instance=quotation)
+        item_formset = QuotationItemFormSet(request.POST, prefix='items')
+        
+        if quotation_form.is_valid() and item_formset.is_valid():
+            quotation = quotation_form.save()
+            
+            # Delete existing items
+            quotation.items.all().delete()
+            
+            # Add new items
+            for form in item_formset:
+                if form.cleaned_data:
+                    item = form.save(commit=False)
+                    item.quotation = quotation
+                    item.save()
+            
+            return redirect('quotation_dashboard')
+    else:
+        quotation_form = QuotationForm(instance=quotation)
+        item_formset = QuotationItemFormSet(prefix='items', initial=[
+            {'course': item.course, 'duration': item.duration, 'number_of_persons': item.number_of_persons}
+            for item in quotation.items.all()
+        ])
+    
+    return render(request, 'quotation/edit_quotation.html', {
+        'quotation_form': quotation_form,
+        'item_formset': item_formset,
+    })
+
+
+@user_passes_test(is_admin_user)
+def delete_quotation(request, pk):
+    quotation = get_object_or_404(Quotation, pk=pk)
+    
+    if request.method == 'POST':
+        quotation.delete()
+        return redirect('quotation_dashboard')
+    
+    return render(request, 'quotation/delete_quotation.html', {'quotation': quotation})
+
+@login_required
+def registration_form(request):
+    RegistrationCourseFormSet = formset_factory(RegistrationCourseForm, extra=1)
+
+    if request.method == 'POST':
+        form = RegistrationForm(request.POST, user=request.user)
+        formset = RegistrationCourseFormSet(request.POST, prefix='form')
+
+        if form.is_valid() and formset.is_valid():
+            registration = form.save()
+            for course_form in formset:
+                if course_form.cleaned_data and not course_form.cleaned_data.get('DELETE', False):
+                    course = course_form.cleaned_data.get('course')
+                    discount = course_form.cleaned_data.get('discount', 0)
+                    price = course_form.cleaned_data.get('price', 0)
+                    if course:
+                        RegistrationCourse.objects.create(
+                            registration=registration,
+                            course=course,
+                            discount=discount,
+                            price=price  # Use the submitted price
+                        )
+            # Save CRM lead link if provided
+            crm_lead_id = request.POST.get('crm_lead_id', '').strip()
+            if crm_lead_id and crm_lead_id.isdigit():
+                _save_reg_crm_link(registration.pk, int(crm_lead_id), request.user.username)
+
+            # Sync to CRM student list
+            sync_registration_to_crm(registration, consultant_username=request.user.username)
+
+            # Auto-notify admins about new registration (N1)
+            try:
+                from .models import Notification
+                from django.contrib.auth.models import User as AuthUser
+                admin_users = AuthUser.objects.filter(
+                    profile__role__in=['admin', 'accounts', 'sales_manager']
+                ).exclude(id=request.user.id)
+                student_name = f"{registration.first_name} {registration.last_name}"
+                for admin in admin_users:
+                    Notification.objects.create(
+                        recipient=admin,
+                        notif_type='registration_new',
+                        title=f"New Registration: {student_name}",
+                        message=f"Student {student_name} ({registration.registration_number}) has been registered.",
+                        link="/student-dashboard/"
+                    )
+            except Exception:
+                pass
+            return redirect('student_dashboard')
+        else:
+            print("Form errors:", form.errors)
+            print("Formset errors:", formset.errors)
+    else:
+        # Pre-fill from CRM lead URL params (?fn=&ln=&ph=&em=&ci=&crm_id=)
+        crm_initial = {}
+        if request.GET.get('fn'):
+            crm_initial['first_name'] = request.GET.get('fn', '')
+        if request.GET.get('ln'):
+            crm_initial['last_name'] = request.GET.get('ln', '')
+        if request.GET.get('ph'):
+            crm_initial['phone_no'] = request.GET.get('ph', '')
+        if request.GET.get('em'):
+            crm_initial['email'] = request.GET.get('em', '')
+        form = RegistrationForm(user=request.user, initial=crm_initial)
+        formset = RegistrationCourseFormSet(prefix='form')
+
+    courses = Course.objects.all()
+    crm_course_id = request.GET.get('ci', '')
+    crm_id = request.GET.get('crm_id', '')
+    return render(request, 'studentregistration/registration_form.html', {
+        'form': form,
+        'formset': formset,
+        'courses': courses,
+        'crm_course_id': crm_course_id,
+        'crm_id': crm_id,
+    })
+
+@login_required
+def get_course_details(request):
+    course_id = request.GET.get('course_id')
+    try:
+        course = Course.objects.get(id=course_id)
+        return JsonResponse({
+            'price': str(course.rate),
+            'vat': str(course.rate * 0.05),
+        })
+    except Course.DoesNotExist:
+        return JsonResponse({'error': 'Course not found'}, status=404)
+    
+@login_required
+def student_dashboard(request):
+    qs = Registration.objects.filter(
+        registration_type='OT'
+    ).prefetch_related('registration_courses__course').order_by('-registration_number')
+
+    registration_number = request.GET.get('registration_number', '')
+    name       = request.GET.get('name', '')
+    consultant = request.GET.get('consultant', '')
+    class_type = request.GET.get('class_type', '')
+
+    if registration_number:
+        qs = qs.filter(registration_number__icontains=registration_number)
+    if name:
+        qs = qs.filter(Q(first_name__icontains=name) | Q(last_name__icontains=name))
+    if consultant:
+        qs = qs.filter(consultant_name__icontains=consultant)
+    if class_type:
+        qs = qs.filter(class_type=class_type)
+
+    paginator = Paginator(qs, 20)
+    page_obj  = paginator.get_page(request.GET.get('page', 1))
+
+    reg_numbers = [r.registration_number for r in page_obj]
+    finished_pairs = set(
+        Certificate.objects.filter(register_number__in=reg_numbers)
+        .values_list('register_number', 'course_name')
+    )
+
+    registration_data = []
+    for registration in page_obj:
+        courses_with_status = [
+            {
+                'name': rc.course.name,
+                'rate': rc.course.rate,
+                'online_rate': rc.course.online_rate,
+                'batch_rate': rc.course.batch_rate,
+                'private_rate': rc.course.private_rate,
+                'status': 'Finished' if (registration.registration_number, rc.course.name) in finished_pairs else 'In Progress',
+            }
+            for rc in registration.registration_courses.all()
+        ]
+        registration_data.append({'registration': registration, 'courses': courses_with_status})
+
+    context = {
+        'registration_data': registration_data,
+        'page_obj': page_obj,
+        'paginator': paginator,
+        'registration_number': registration_number,
+        'name': name,
+        'consultant': consultant,
+        'class_type': class_type,
+    }
+    return render(request, 'studentregistration/student_dashboard.html', context)
+
+@login_required
+def edit_registration(request, pk):
+    registration = get_object_or_404(Registration, pk=pk)
+    RegistrationCourseFormSet = formset_factory(RegistrationCourseForm, extra=0)
+
+    if request.method == 'POST':
+        form = RegistrationForm(request.POST, instance=registration)
+        formset = RegistrationCourseFormSet(request.POST, prefix='courses')
+        
+        if form.is_valid() and formset.is_valid():
+            registration = form.save()
+            
+            # Delete existing RegistrationCourse objects
+            RegistrationCourse.objects.filter(registration=registration).delete()
+
+            # Create new RegistrationCourse objects
+            for course_form in formset:
+                if course_form.cleaned_data:
+                    RegistrationCourse.objects.create(
+                        registration=registration,
+                        course=course_form.cleaned_data['course'],
+                        discount=course_form.cleaned_data['discount'],
+                        price = course_form.cleaned_data.get('price', 0)
+                    )
+
+            # Update CRM lead link if provided
+            crm_lead_id = request.POST.get('crm_lead_id', '').strip()
+            if crm_lead_id and crm_lead_id.isdigit():
+                _save_reg_crm_link(registration.pk, int(crm_lead_id), request.user.username)
+
+            # Sync updated registration to CRM
+            sync_registration_to_crm(registration, consultant_username=request.user.username)
+
+            return redirect('student_dashboard')
+    else:
+        form = RegistrationForm(instance=registration)
+        
+        # Initialize formset with existing courses
+        initial_courses = [
+            {'course': rc.course.id, 'discount': rc.discount}
+            for rc in registration.registration_courses.all()
+        ]
+        formset = RegistrationCourseFormSet(initial=initial_courses, prefix='courses')
+
+    courses = Course.objects.all()
+    return render(request, 'studentregistration/edit_registration.html', {
+        'form': form,
+        'formset': formset,
+        'registration': registration,
+        'courses': courses,
+    })
+
+@user_passes_test(is_admin_user)
+def delete_registration(request, pk):
+    registration = get_object_or_404(Registration, pk=pk)
+    if request.method == 'POST':
+        registration.delete()
+        if registration.registration_type == 'OC' :
+            return redirect('corporate_dashboard')
+        else:
+            return redirect('student_dashboard')
+    return render(request, 'studentregistration/delete_registration.html', {'registration': registration})
+
+@login_required
+def print_registration(request, pk):
+    registration = get_object_or_404(Registration, pk=pk)
+    registration_courses = registration.registration_courses.all()
+    discount_rate = sum(course.discount for course in registration_courses) / len(registration_courses) if registration_courses else 0
+    
+    context = {
+        'registration': registration,
+        'registration_courses': registration_courses,
+        'discount_rate': discount_rate,
+    }
+    
+    return render(request, 'studentregistration/registration_print.html', context)
+
+
+@login_required
+def registration_invoice_detail(request, registration_id):
+    registration = get_object_or_404(Registration, id=registration_id)
+    registration_courses = registration.registration_courses.all()
+    invoices = Invoice.objects.filter(registration_id=registration.id).order_by('date')
+    
+    total_amount = sum(invoice.total_amount for invoice in invoices)
+    total_amount_paid = sum(invoice.amount_paid for invoice in invoices)
+    total_due_amount = total_amount - total_amount_paid
+    
+    total_course_amount = sum(rc.course.rate * (1 - rc.discount / 100) for rc in registration_courses)
+    
+    unique_courses = set(rc.course for rc in registration_courses)
+    
+    certificate_uploaded = CertificateUpload.objects.filter(registration=registration).exists()
+    form_uploaded = FormUpload.objects.filter(registration=registration).exists()
+    
+    context = {
+        'registration': registration,
+        'unique_courses': unique_courses,
+        'invoices': invoices,
+        'total_amount': total_amount,
+        'registration_courses': registration_courses,
+        'total_amount_paid': total_amount_paid,
+        'total_due_amount': total_due_amount,
+        'total_course_amount': total_course_amount,
+        'certificate_uploaded': certificate_uploaded,
+        'form_uploaded': form_uploaded,
+    }
+    return render(request, 'studentregistration/registration_invoice_detail.html', context)
+
+@login_required
+def upload_form(request, registration_id):
+    if request.method == 'POST':
+        registration = get_object_or_404(Registration, id=registration_id)
+        form_file = request.FILES.get('form_file')
+        
+        if form_file:
+            FormUpload.objects.update_or_create(
+                registration=registration,
+                defaults={'form_file': form_file}
+            )
+            return JsonResponse({'success': True})
+        else:
+            return JsonResponse({'success': False, 'error': 'No file uploaded'})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+@login_required
+def upload_certificate(request, registration_id):
+    if request.method == 'POST':
+        registration = get_object_or_404(Registration, id=registration_id)
+        certificate_file = request.FILES.get('certificate_file')
+        
+        if certificate_file:
+            CertificateUpload.objects.create(
+                registration=registration,
+                certificate_file=certificate_file
+            )
+            return JsonResponse({'success': True})
+        else:
+            return JsonResponse({'success': False, 'error': 'No file uploaded'})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+def get_registration_details(request):
+    registration_number = request.GET.get('registration_number', '')
+    try:
+        registration = get_object_or_404(Registration, registration_number=registration_number)
+        registration_courses = RegistrationCourse.objects.filter(registration=registration)
+
+        courses = []
+        discount = 0  # Initialize discount
+        for rc in registration_courses:
+            courses.append({
+                'id': rc.course.id,
+                'name': rc.course.name,
+                'rate': float(rc.course.rate),
+                'discount': float(rc.discount)
+            })
+            if rc.discount > discount:
+                discount = rc.discount  # Set the highest discount
+
+        # Sum all previous payments for this registration so the new invoice
+        # can show the true remaining balance.
+        from django.db.models import Sum as _Sum
+        already_paid = float(
+            Invoice.objects.filter(registration=registration)
+            .aggregate(t=_Sum('amount_paid'))['t'] or 0
+        )
+
+        data = {
+            'client_name': f"{registration.first_name} {registration.last_name}",
+            'client_emirates': registration.country,
+            'client_country': registration.country,
+            'courses': courses,
+            'registration_type': registration.registration_type,
+            'discount': discount,
+            'class_type': registration.class_type,
+            'already_paid': already_paid,
+        }
+
+        if registration.registration_type == 'OC':
+            corporate_registration = CorporateRegistration.objects.get(registration=registration)
+            data['company_name'] = corporate_registration.company_name
+
+        return JsonResponse(data)
+    except Registration.DoesNotExist:
+        return JsonResponse({'error': 'Registration not found'}, status=404)
+    
+@login_required
+def get_invoice_details(request):
+    from .models import InvoicePayment
+    registration_number = request.GET.get('registration_number')
+    try:
+        registration = Registration.objects.get(registration_number=registration_number)
+        invoices = list(Invoice.objects.filter(registration=registration).order_by('date'))
+        if not invoices:
+            return JsonResponse({'error': 'No invoices found for this registration'}, status=404)
+
+        total_amount = invoices[-1].total_amount
+        total_amount_paid = sum(invoice.amount_paid for invoice in invoices)
+
+        # Apply 5% VAT to total_amount_paid (amount_paid is stored ex-VAT)
+        total_amount_paid = total_amount_paid + (total_amount_paid * Decimal('0.05'))
+
+        total_due_amount = total_amount - total_amount_paid
+
+        # --- last payment reference ---
+        all_invoice_ids = [inv.id for inv in invoices]
+        last_payment_info = None
+
+        lp = (InvoicePayment.objects
+              .filter(invoice_id__in=all_invoice_ids)
+              .order_by('-paid_at', '-id')
+              .select_related('invoice')
+              .first())
+
+        if lp:
+            last_payment_info = {
+                'invoice_number': lp.invoice.invoice_number,
+                'reference': lp.reference or '',
+                'amount': float(lp.amount),
+                'paid_at': lp.paid_at.strftime('%d %b %Y'),
+                'payment_method': lp.get_payment_method_display(),
+            }
+        else:
+            # Fall back: last invoice that has a non-zero amount_paid
+            paid_invs = [inv for inv in invoices if inv.amount_paid > 0]
+            if paid_invs:
+                last_paid = max(paid_invs, key=lambda x: x.date)
+                last_payment_info = {
+                    'invoice_number': last_paid.invoice_number,
+                    'reference': '',
+                    'amount': float(last_paid.amount_paid),
+                    'paid_at': last_paid.date.strftime('%d %b %Y'),
+                    'payment_method': last_paid.get_payment_display(),
+                }
+
+        data = {
+            'registration_number': registration_number,
+            'total_amount': float(total_amount),
+            'total_amount_paid': float(total_amount_paid),
+            'total_due_amount': float(total_due_amount),
+            'last_payment': last_payment_info,
+            'invoices': [
+                {
+                    'invoice_number': invoice.invoice_number,
+                    'date': invoice.date.strftime('%Y-%m-%d'),
+                    'total_amount': float(invoice.total_amount),
+                    'amount_paid': float(invoice.amount_paid),
+                    'due_amount': float(invoice.total_amount - invoice.amount_paid),
+                    'status': invoice.get_status_display(),
+                    'payment_method': invoice.get_payment_display(),
+                    'items': [
+                        {
+                            'course_name': item.course.name,
+                            'quantity': item.quantity,
+                            'unit_price': float(item.unit_price),
+                            'subtotal': float(item.get_subtotal())
+                        } for item in invoice.items.all()
+                    ]
+                } for invoice in invoices
+            ]
+        }
+        return JsonResponse(data)
+    except Registration.DoesNotExist:
+        return JsonResponse({'error': 'Registration not found'}, status=404)
+
+
+def corporate_registration(request):
+    RegistrationCourseFormSet = inlineformset_factory(
+        Registration, 
+        RegistrationCourse, 
+        form=RegistrationCourseForm,
+        extra=1, 
+        can_delete=True
+    )
+
+    if request.method == 'POST':
+        registration_form = CorporateRegistrationForm(request.POST, user=request.user)
+        corporate_form = CorporateDetailsForm(request.POST)
+        formset = RegistrationCourseFormSet(request.POST)
+        
+        if registration_form.is_valid() and corporate_form.is_valid() and formset.is_valid():
+            
+            registration = registration_form.save(commit=False)
+            registration.registration_type = 'OC'  # Set the registration type to 'OC' for corporate
+            registration.save()
+            
+            corporate = corporate_form.save(commit=False)
+            corporate.registration = registration
+            corporate.save()
+            
+            formset.instance = registration
+            formset.save()
+            
+            return redirect('corporate_dashboard')
+    else:
+        registration_form = CorporateRegistrationForm(initial={'registration_type': 'OC'}, user=request.user)
+        corporate_form = CorporateDetailsForm()
+        formset = RegistrationCourseFormSet()
+
+    return render(request, 'studentregistration/corporate_registration.html', {
+        'registration_form': registration_form,
+        'corporate_form': corporate_form,
+        'formset': formset,
+    })
+
+@login_required
+def corporate_dashboard(request):
+    qs = Registration.objects.filter(
+        registration_type='OC'
+    ).select_related('corporate_details').prefetch_related(
+        'registration_courses__course'
+    ).order_by('-registration_number')
+
+    registration_number = request.GET.get('registration_number', '')
+    company_name        = request.GET.get('company_name', '')
+    consultant          = request.GET.get('consultant', '')
+
+    if registration_number:
+        qs = qs.filter(registration_number__icontains=registration_number)
+    if company_name:
+        qs = qs.filter(corporate_details__company_name__icontains=company_name)
+    if consultant:
+        qs = qs.filter(consultant_name__icontains=consultant)
+
+    paginator     = Paginator(qs, 20)
+    registrations = paginator.get_page(request.GET.get('page', 1))
+
+    context = {
+        'registrations': registrations,
+        'paginator': paginator,
+        'registration_number': registration_number,
+        'company_name': company_name,
+        'consultant': consultant,
+    }
+    return render(request, 'studentregistration/corporate_dashboard.html', context)
+
+@login_required
+def corporate_invoice_detail(request, registration_id):
+    registration = get_object_or_404(Registration, id=registration_id, registration_type='OC')
+
+    invoices = Invoice.objects.filter(registration_id=registration.id).order_by('date')
+    total_amount = sum(invoice.total_amount for invoice in invoices)
+    total_amount_paid = sum(invoice.amount_paid for invoice in invoices)
+    total_amount_paid = total_amount_paid + (total_amount_paid * Decimal(0.05))
+    total_due_amount = total_amount - total_amount_paid
+
+    context = {
+        'registration': registration,
+        'invoices': invoices,
+        'total_amount': total_amount,
+        'total_amount_paid': total_amount_paid,
+        'total_due_amount': total_due_amount,
+    }
+    return render(request, 'studentregistration/corporate_invoice_details.html', context)
+
+@login_required
+def print_corporate_registration(request, pk):
+    registration = get_object_or_404(Registration, pk=pk, registration_type='OC')
+    registration_courses = registration.registration_courses.all()
+    corporate_details = registration.corporate_details
+
+    # Calculate totals and individual course details
+    total_course_fee = Decimal('0.00')
+    total_discount = Decimal('0.00')
+    total_vat = Decimal('0.00')
+    grand_total = Decimal('0.00')
+
+    course_details = []
+    for rc in registration_courses:
+        course_fee = rc.course.rate
+        discount_amount = course_fee * (rc.discount / 100)
+        discounted_price = course_fee - discount_amount
+        course_vat = discounted_price * Decimal('0.05')
+        course_total = discounted_price + course_vat
+
+        course_details.append({
+            'name': rc.course.name,
+            'rate': course_fee,
+            'discount': rc.discount,
+            'discount_amount': discount_amount,
+            'vat': course_vat,
+            'total': course_total
+        })
+
+        total_course_fee += course_fee
+        total_discount += discount_amount
+        total_vat += course_vat
+        grand_total += course_total
+
+    context = {
+        'registration': registration,
+        'corporate_details': corporate_details,
+        'course_details': course_details,
+        'total_course_fee': total_course_fee,
+        'total_discount': total_discount,
+        'total_vat': total_vat,
+        'grand_total': grand_total,
+    }
+
+    return render(request, 'studentregistration/corporate_registration_print.html', context)
+
+@login_required
+def edit_corporate_registration(request, pk):
+    registration = get_object_or_404(Registration, pk=pk, registration_type='OC')
+    
+    try:
+        corporate_details = registration.corporate_details
+    except CorporateRegistration.DoesNotExist:
+        corporate_details = CorporateRegistration(registration=registration)
+
+    RegistrationCourseFormSet = inlineformset_factory(
+        Registration, 
+        RegistrationCourse, 
+        form=RegistrationCourseForm,
+        extra=1, 
+        can_delete=True
+    )
+
+    if request.method == 'POST':
+        registration_form = CorporateRegistrationForm(request.POST, instance=registration)
+        corporate_form = CorporateDetailsForm(request.POST, instance=corporate_details)
+        formset = RegistrationCourseFormSet(request.POST, instance=registration)
+        
+        if registration_form.is_valid() and corporate_form.is_valid() and formset.is_valid():
+            try:
+                with transaction.atomic():
+                    registration = registration_form.save()
+                    registration.registration_type = 'OC'
+                    registration.save()
+                    
+                    corporate_details = corporate_form.save(commit=False)
+                    corporate_details.registration = registration
+                    corporate_details.save()
+                    
+                    # Handle the formset manually
+                    for form in formset:
+                        if form.cleaned_data.get('DELETE'):
+                            if form.instance.pk:
+                                form.instance.delete()
+                        else:
+                            course = form.cleaned_data.get('course')
+                            discount = form.cleaned_data.get('discount')
+                            if course:
+                                RegistrationCourse.objects.update_or_create(
+                                    registration=registration,
+                                    course=course,
+                                    defaults={'discount': discount}
+                                )
+                
+                messages.success(request, "Corporate registration updated successfully.")
+                return redirect('corporate_dashboard')
+            except Exception as e:
+                messages.error(request, f"An error occurred: {str(e)}")
+                print(f"Error: {str(e)}")
+        else:
+            messages.error(request, "Please correct the errors below.")
+            
+            print("Registration Form Errors:", registration_form.errors)
+            print("Corporate Form Errors:", corporate_form.errors)
+            print("Formset Errors:", formset.errors)
+    else:
+        registration_form = CorporateRegistrationForm(instance=registration)
+        corporate_form = CorporateDetailsForm(instance=corporate_details)
+        formset = RegistrationCourseFormSet(instance=registration)
+
+    context = {
+        'registration_form': registration_form,
+        'corporate_form': corporate_form,
+        'formset': formset,
+        'registration': registration,
+    }
+    return render(request, 'studentregistration/edit_corporate_registration.html', context)
+
+@login_required
+def course_list(request):
+    from django.db.models import Count as CourseCount
+    all_courses = Course.objects.annotate(
+        reg_count=CourseCount('registrationcourse')
+    ).order_by('name')
+    paginator = Paginator(all_courses, 25)
+    courses = paginator.get_page(request.GET.get('page', 1))
+    return render(request, 'courses/course_list.html', {'courses': courses})
+
+@login_required
+def course_detail(request, course_id):
+    course = get_object_or_404(Course, id=course_id)
+    contents = course.contents.all()
+    # Enrolled students: RegistrationCourse rows that reference this course
+    enrolled = RegistrationCourse.objects.filter(course=course)\
+                    .select_related('registration', 'registration__corporate_details')\
+                    .order_by('-registration__registration_number')
+    return render(request, 'courses/course_detail.html', {
+        'course': course,
+        'contents': contents,
+        'enrolled': enrolled,
+    })
+
+@login_required
+def course_create(request):
+    if request.method == 'POST':
+        form = CourseForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('course_list')
+    else:
+        form = CourseForm()
+    return render(request, 'courses/course_form.html', {'form': form})
+
+@login_required
+def course_update(request, course_id):
+    course = get_object_or_404(Course, id=course_id)
+    if request.method == 'POST':
+        form = CourseForm(request.POST, instance=course)
+        if form.is_valid():
+            form.save()
+            return redirect('course_list')
+    else:
+        form = CourseForm(instance=course)
+    return render(request, 'courses/course_form.html', {'form': form})
+
+@login_required
+def content_create(request, course_id):
+    course = get_object_or_404(Course, id=course_id)
+    if request.method == 'POST':
+        form = CourseContentForm(request.POST, request.FILES)
+        if form.is_valid():
+            content = form.save(commit=False)
+            content.course = course
+            content.save()
+            return redirect('course_detail', course_id=course.id)
+    else:
+        form = CourseContentForm()
+    return render(request, 'courses/content_form.html', {'form': form, 'course': course})
+
+@user_passes_test(is_admin_user)
+def content_delete(request, content_id):
+    content = get_object_or_404(CourseContent, id=content_id)
+    course_id = content.course.id
+    if request.method == 'POST':
+        content.delete()
+        return redirect('course_detail', course_id=course_id)
+    return render(request, 'courses/content_confirm_delete.html', {'content': content})
+
+@user_passes_test(is_admin_user)
+def course_delete(request, course_id):
+    course = get_object_or_404(Course, id=course_id)
+    if request.method == 'POST':
+        course.delete()
+        messages.success(request, f"Course '{course.name}' has been deleted.")
+        return redirect('course_list')
+    return render(request, 'courses/course_confirm_delete.html', {'course': course})
+
+@login_required
+def orbit_dashboard(request):
+    """Role-based dispatcher — sends each user to their own dashboard."""
+    role = get_user_role(request.user)
+    if role == 'admin' or request.user.is_superuser:
+        return _admin_dashboard(request)
+    elif role == 'sales_manager':
+        return _sales_manager_dashboard(request)
+    elif role == 'accounts':
+        return _accounts_dashboard(request)
+    else:
+        return _sales_executive_dashboard(request)
+
+
+# ─── helpers ────────────────────────────────────────────────────────────────
+
+def _month_range(today=None):
+    today = today or timezone.now().date()
+    first = today.replace(day=1)
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    last = today.replace(day=last_day)
+    return first, last
+
+def _last_month_range(today=None):
+    today = today or timezone.now().date()
+    first_this = today.replace(day=1)
+    last_last = first_this - datetime.timedelta(days=1)
+    first_last = last_last.replace(day=1)
+    return first_last, last_last
+
+def _pct_change(current, previous):
+    if not previous:
+        return 0, 'up' if current else 'neutral'
+    change = ((current - previous) / previous) * 100
+    return round(abs(change)), 'up' if change >= 0 else 'down'
+
+def _month_label(date):
+    return date.strftime('%B %Y')
+
+def _revenue_for_user(user, first, last):
+    """Only invoices tied to a CRM-linked registration count as the exec's personal sale.
+    Invoices without a CRM lead link (direct/institute sales) are excluded here."""
+    try:
+        import pymysql as _pm
+        _cn = _pm.connect(host='localhost', user='root', password='', database='orbit_invoice', charset='utf8mb4')
+        with _cn.cursor() as _cu:
+            _cu.execute(
+                """SELECT COALESCE(SUM(i.amount_paid), 0)
+                   FROM invoices_invoice i
+                   INNER JOIN invoices_registrationcrmlink l ON l.registration_id = i.registration_id
+                   WHERE i.user_id = %s AND i.date >= %s AND i.date <= %s""",
+                (user.id, first.strftime('%Y-%m-%d'), last.strftime('%Y-%m-%d'))
+            )
+            _row = _cu.fetchone()
+        _cn.close()
+        return Decimal(str(_row[0] or 0)) if _row else Decimal('0')
+    except Exception:
+        return Invoice.objects.filter(
+            user=user, date__gte=first, date__lte=last
+        ).aggregate(t=Sum('amount_paid'))['t'] or 0
+
+def _last_6_months():
+    today = timezone.now().date()
+    months = []
+    for i in range(5, -1, -1):
+        d = (today.replace(day=1) - datetime.timedelta(days=i*28)).replace(day=1)
+        months.append(d)
+    return months
+
+def _exec_target(user, month_first):
+    try:
+        t = SalesTarget.objects.get(user=user, month=month_first)
+        return t.target_amount, t.target_registrations
+    except SalesTarget.DoesNotExist:
+        return 0, 0
+
+
+# ─── ADMIN DASHBOARD ────────────────────────────────────────────────────────
+
+def _admin_dashboard(request):
+    today = timezone.now().date()
+    first, last = _month_range(today)
+    prev_first, prev_last = _last_month_range(today)
+
+    month_revenue = Invoice.objects.filter(date__gte=first, date__lte=last)\
+                        .aggregate(t=Sum('amount_paid'))['t'] or 0
+    prev_revenue  = Invoice.objects.filter(date__gte=prev_first, date__lte=prev_last)\
+                        .aggregate(t=Sum('amount_paid'))['t'] or 0
+    rev_pct, rev_dir = _pct_change(month_revenue, prev_revenue)
+
+    month_regs = Registration.objects.filter(date__gte=first, date__lte=last).count()
+    prev_regs  = Registration.objects.filter(date__gte=prev_first, date__lte=prev_last).count()
+    reg_pct, reg_dir = _pct_change(month_regs, prev_regs)
+
+    outstanding = Invoice.objects.filter(status__in=['Term Payment','Tabby','Tamara'])\
+                    .aggregate(t=Sum('total_amount'))['t'] or 0
+    paid_inv    = Invoice.objects.filter(date__gte=first, date__lte=last, status='Full Payment')
+    paid_count  = paid_inv.count()
+    overdue     = Invoice.objects.filter(due_date__lt=today).exclude(status='Full Payment')
+    overdue_count = overdue.count()
+
+    total_invoices  = Invoice.objects.filter(date__gte=first, date__lte=last).count()
+    total_courses   = Course.objects.count()
+    total_certs     = Certificate.objects.count()
+    total_students  = Registration.objects.count()
+
+    # 6-month revenue trend
+    months = _last_6_months()
+    rev_labels = [m.strftime('%b') for m in months]
+    rev_data   = []
+    for m in months:
+        mf = m
+        ml = m.replace(day=calendar.monthrange(m.year, m.month)[1])
+        v = Invoice.objects.filter(date__gte=mf, date__lte=ml)\
+              .aggregate(t=Sum('amount_paid'))['t'] or 0
+        rev_data.append(float(v))
+
+    # class type distribution
+    ct = Registration.objects.filter(date__gte=first, date__lte=last)\
+           .values('class_type').annotate(c=Count('id'))
+    ct_labels = [x['class_type'].title() for x in ct]
+    ct_data   = [x['c'] for x in ct]
+
+    # top courses
+    from django.db.models import Count as Cnt
+    top_courses = Course.objects.annotate(count=Cnt('registrationcourse'))\
+                    .order_by('-count')[:5]
+
+    # exec performance
+    from django.contrib.auth.models import User
+    executives = User.objects.filter(profile__role='sales_executive', is_active=True)
+    exec_perf  = []
+    for i, ex in enumerate(executives):
+        rev   = float(_revenue_for_user(ex, first, last))
+        regs  = Registration.objects.filter(date__gte=first, date__lte=last, consultant_name=ex.get_full_name() or ex.username).count()
+        tamt, treg = _exec_target(ex, first)
+        pct = min(round((rev / float(tamt) * 100) if tamt else 0), 100)
+        days_elapsed = (today - first).days + 1
+        days_total   = (last - first).days + 1
+        run_rate     = rev / days_elapsed if days_elapsed else 0
+        projected    = run_rate * days_total
+        exec_perf.append({
+            'username': ex.username, 'full_name': ex.get_full_name() or ex.username,
+            'month_revenue': rev, 'month_registrations': regs,
+            'target_pct': pct, 'target_amount': float(tamt),
+            'projected': projected,
+        })
+    exec_perf.sort(key=lambda x: x['month_revenue'], reverse=True)
+
+    recent_invoices = Invoice.objects.select_related('client').order_by('-id')[:8]
+
+    # Institute Direct Sales — invoices with no CRM lead link (paid amount)
+    unattributed_count = 0
+    unattributed_revenue = 0.0
+    try:
+        import pymysql
+        conn = pymysql.connect(host='localhost', user='root', password='', database='orbit_invoice', charset='utf8mb4')
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(DISTINCT i.id), COALESCE(SUM(i.amount_paid), 0)
+                FROM invoices_invoice i
+                LEFT JOIN invoices_registrationcrmlink l ON l.registration_id = i.registration_id
+                WHERE l.id IS NULL AND i.date >= %s AND i.date <= %s
+            """, (first.strftime('%Y-%m-%d'), last.strftime('%Y-%m-%d')))
+            row = cur.fetchone()
+            if row:
+                unattributed_count = int(row[0] or 0)
+                unattributed_revenue = float(row[1] or 0)
+        conn.close()
+    except Exception:
+        pass
+
+    # Add Institute Direct Sales as a special entry in exec performance
+    if unattributed_count > 0 or unattributed_revenue > 0:
+        exec_perf.append({
+            'username': '__institute__',
+            'full_name': 'Institute Direct Sales',
+            'month_revenue': unattributed_revenue,
+            'month_registrations': unattributed_count,
+            'target_pct': 0,
+            'target_amount': 0,
+            'projected': 0,
+            'is_institute': True,
+        })
+        exec_perf.sort(key=lambda x: x['month_revenue'], reverse=True)
+
+    ctx = {
+        'greeting': _get_greeting(),
+        'current_month_label': _month_label(today),
+        'month_revenue': float(month_revenue),
+        'revenue_trend_pct': rev_pct, 'revenue_trend_dir': rev_dir,
+        'month_registrations': month_regs,
+        'reg_trend_pct': reg_pct, 'reg_trend_dir': reg_dir,
+        'outstanding_amount': float(outstanding),
+        'overdue_count': overdue_count,
+        'total_invoices': total_invoices, 'paid_invoices': paid_count,
+        'total_courses': total_courses, 'total_certificates': total_certs,
+        'total_students': total_students,
+        'revenue_labels': json.dumps(rev_labels),
+        'revenue_data': json.dumps(rev_data),
+        'class_type_labels': json.dumps(ct_labels),
+        'class_type_data': json.dumps(ct_data),
+        'top_courses': top_courses,
+        'exec_performance': exec_perf,
+        'recent_invoices': recent_invoices,
+        'unattributed_count': unattributed_count,
+        'unattributed_revenue': unattributed_revenue,
+    }
+    return render(request, 'dashboard/admin_dashboard.html', ctx)
+
+
+# ─── SALES EXECUTIVE DASHBOARD ──────────────────────────────────────────────
+
+def _sales_executive_dashboard(request):
+    user  = request.user
+    today = timezone.now().date()
+    first, last = _month_range(today)
+
+    my_revenue = float(_revenue_for_user(user, first, last))
+    my_target_amt, my_target_reg = _exec_target(user, first)
+    my_target_f = float(my_target_amt)
+
+    target_pct  = min(round((my_revenue / my_target_f * 100) if my_target_f else 0), 100)
+    # SVG dash for 110px radius circle: circumference = 2*pi*55 ≈ 345.4
+    target_dash = round(345.4 * target_pct / 100, 1)
+
+    days_elapsed  = max((today - first).days + 1, 1)
+    days_total    = (last - first).days + 1
+    days_remaining = days_total - days_elapsed
+    run_rate      = my_revenue / days_elapsed
+    projected_rev = run_rate * days_total
+    remaining     = max(my_target_f - my_revenue, 0)
+    needed_daily  = remaining / days_remaining if days_remaining > 0 else 0
+    run_rate_pct  = min(round((run_rate / needed_daily * 100) if needed_daily else 100), 100)
+    gap           = max(my_target_f - projected_rev, 0)
+
+    full_name = user.get_full_name() or user.username
+    my_regs_qs = Registration.objects.filter(
+        date__gte=first, date__lte=last,
+        consultant_name__iexact=full_name
+    ).prefetch_related('registration_courses__course', 'invoice_set')
+    my_regs_count = my_regs_qs.count()
+
+    my_quotations  = Quotation.objects.filter(user=user).count()
+
+    all_invs = Invoice.objects.filter(user=user, date__gte=first, date__lte=last)
+    avg_deal = float(all_invs.aggregate(t=Sum('total_amount'))['t'] or 0) / max(all_invs.count(), 1)
+
+    # weekly revenue (last 7 weeks)
+    weekly_labels = []
+    weekly_data   = []
+    for i in range(6, -1, -1):
+        wstart = today - datetime.timedelta(days=today.weekday() + 7*i)
+        wend   = wstart + datetime.timedelta(days=6)
+        v = Invoice.objects.filter(user=user, date__gte=wstart, date__lte=wend)\
+              .aggregate(t=Sum('amount_paid'))['t'] or 0
+        weekly_labels.append(wstart.strftime('%b %d'))
+        weekly_data.append(float(v))
+
+    ctx = {
+        'current_month_label': _month_label(today),
+        'my_revenue': my_revenue, 'my_target': my_target_f,
+        'target_pct': target_pct, 'target_dash': target_dash,
+        'remaining': remaining,
+        'my_registrations': my_regs_count, 'target_reg': my_target_reg,
+        'run_rate': run_rate, 'days_remaining': days_remaining,
+        'projected_revenue': projected_rev,
+        'needed_daily': needed_daily, 'run_rate_pct': run_rate_pct,
+        'gap_to_target': gap,
+        'my_quotations': my_quotations, 'avg_deal': avg_deal,
+        'my_registrations_list': my_regs_qs[:10],
+        'weekly_labels': json.dumps(weekly_labels),
+        'weekly_data': json.dumps(weekly_data),
+    }
+    return render(request, 'dashboard/sales_executive_dashboard.html', ctx)
+
+
+# ─── SALES MANAGER DASHBOARD ────────────────────────────────────────────────
+
+def _sales_manager_dashboard(request):
+    today = timezone.now().date()
+    first, last = _month_range(today)
+    prev_first, prev_last = _last_month_range(today)
+
+    from django.contrib.auth.models import User
+    from django.db.models import Count
+
+    executives = User.objects.filter(profile__role='sales_executive', is_active=True)
+
+    team_revenue  = Invoice.objects.filter(user__in=executives, date__gte=first, date__lte=last)\
+                      .aggregate(t=Sum('amount_paid'))['t'] or 0
+    prev_team_rev = Invoice.objects.filter(user__in=executives, date__gte=prev_first, date__lte=prev_last)\
+                      .aggregate(t=Sum('amount_paid'))['t'] or 0
+    rev_pct, rev_dir = _pct_change(team_revenue, prev_team_rev)
+
+    team_regs     = Registration.objects.filter(date__gte=first, date__lte=last).count()
+    prev_team_reg = Registration.objects.filter(date__gte=prev_first, date__lte=prev_last).count()
+    reg_pct, _    = _pct_change(team_regs, prev_team_reg)
+
+    colors = [('#2563eb','#7c3aed'),('#10b981','#059669'),('#f59e0b','#d97706'),
+              ('#8b5cf6','#7c3aed'),('#ef4444','#dc2626'),('#06b6d4','#0891b2')]
+
+    days_elapsed  = max((today - first).days + 1, 1)
+    days_total    = (last - first).days + 1
+
+    exec_perf = []
+    for i, ex in enumerate(executives):
+        rev   = float(_revenue_for_user(ex, first, last))
+        tamt, treg = _exec_target(ex, first)
+        pct   = min(round((rev / float(tamt) * 100) if tamt else 0), 100)
+        run_r = rev / days_elapsed
+        proj  = run_r * days_total
+        exec_perf.append({
+            'id': ex.id, 'username': ex.username,
+            'full_name': ex.get_full_name() or ex.username,
+            'month_revenue': rev, 'month_registrations': Registration.objects.filter(
+                date__gte=first, date__lte=last,
+                consultant_name__iexact=ex.get_full_name() or ex.username).count(),
+            'target_pct': pct, 'target_amount': float(tamt),
+            'projected': proj,
+            'color1': colors[i % len(colors)][0], 'color2': colors[i % len(colors)][1],
+            'rank': i + 1,
+        })
+    exec_perf.sort(key=lambda x: x['month_revenue'], reverse=True)
+    for idx, ep in enumerate(exec_perf):
+        ep['rank'] = idx + 1
+
+    exec_labels  = json.dumps([e['full_name'] for e in exec_perf])
+    exec_rev_data= json.dumps([e['month_revenue'] for e in exec_perf])
+    exec_tgt_data= json.dumps([e['target_amount'] for e in exec_perf])
+
+    # 6-month team trend
+    months = _last_6_months()
+    trend_labels = json.dumps([m.strftime('%b') for m in months])
+    trend_data   = []
+    for m in months:
+        mf = m; ml = m.replace(day=calendar.monthrange(m.year, m.month)[1])
+        v = Invoice.objects.filter(user__in=executives, date__gte=mf, date__lte=ml)\
+              .aggregate(t=Sum('amount_paid'))['t'] or 0
+        trend_data.append(float(v))
+    trend_data = json.dumps(trend_data)
+
+    ctx = {
+        'current_month_label': _month_label(today),
+        'team_revenue': float(team_revenue), 'team_rev_dir': rev_dir, 'team_rev_pct': rev_pct,
+        'team_registrations': team_regs, 'reg_trend_pct': reg_pct,
+        'exec_performance': exec_perf,
+        'exec_labels': exec_labels, 'exec_revenue_data': exec_rev_data,
+        'exec_target_data': exec_tgt_data,
+        'trend_labels': trend_labels, 'trend_data': trend_data,
+    }
+    return render(request, 'dashboard/sales_manager_dashboard.html', ctx)
+
+
+# ─── ACCOUNTS DASHBOARD ─────────────────────────────────────────────────────
+
+def _accounts_dashboard(request):
+    today = timezone.now().date()
+    first, last = _month_range(today)
+    prev_first, prev_last = _last_month_range(today)
+
+    month_rev = Invoice.objects.filter(date__gte=first, date__lte=last)\
+                  .aggregate(t=Sum('amount_paid'))['t'] or 0
+    prev_rev  = Invoice.objects.filter(date__gte=prev_first, date__lte=prev_last)\
+                  .aggregate(t=Sum('amount_paid'))['t'] or 0
+    rev_pct, rev_dir = _pct_change(month_rev, prev_rev)
+
+    outstanding = Invoice.objects.exclude(status='Full Payment')\
+                    .aggregate(t=Sum('total_amount'))['t'] or 0
+    paid_inv    = Invoice.objects.filter(date__gte=first, date__lte=last, status='Full Payment')
+    paid_count  = paid_inv.count()
+    paid_amt    = paid_inv.aggregate(t=Sum('amount_paid'))['t'] or 0
+
+    overdue_qs  = Invoice.objects.filter(due_date__lt=today).exclude(status='Full Payment')
+    overdue_count = overdue_qs.count()
+
+    total_inv_m = Invoice.objects.filter(date__gte=first, date__lte=last).count()
+    pending_inv = Invoice.objects.filter(date__gte=first, date__lte=last)\
+                    .exclude(status='Full Payment').count()
+
+    # annotate overdue with days overdue
+    overdue_list = []
+    for inv in overdue_qs.select_related('client')[:10]:
+        inv.days_overdue = (today - inv.due_date).days
+        overdue_list.append(inv)
+
+    # term payment
+    term_qs = Invoice.objects.filter(status='Term Payment').select_related('client')[:10]
+    term_inv = []
+    for inv in term_qs:
+        inv.balance = inv.total_amount - inv.amount_paid
+        term_inv.append(inv)
+
+    # 6-month collected vs outstanding
+    months = _last_6_months()
+    monthly_labels = json.dumps([m.strftime('%b') for m in months])
+    collected_data = []
+    outstanding_data = []
+    for m in months:
+        mf = m; ml = m.replace(day=calendar.monthrange(m.year, m.month)[1])
+        coll = Invoice.objects.filter(date__gte=mf, date__lte=ml)\
+                 .aggregate(t=Sum('amount_paid'))['t'] or 0
+        tot  = Invoice.objects.filter(date__gte=mf, date__lte=ml)\
+                 .aggregate(t=Sum('total_amount'))['t'] or 0
+        collected_data.append(float(coll))
+        outstanding_data.append(float(tot) - float(coll))
+
+    # payment methods
+    from django.db.models import Count
+    pm = Invoice.objects.filter(date__gte=first, date__lte=last)\
+           .values('payment').annotate(c=Count('id'))
+    pm_labels = [x['payment'] for x in pm] or ['—']
+    pm_values = [x['c'] for x in pm] or [0]
+
+    # purchase invoices
+    from .models import InvoicePurchase
+    purchase_qs = InvoicePurchase.objects.filter(date__gte=first, date__lte=last)
+    purchase_count = purchase_qs.count()
+    purchase_total = float(purchase_qs.aggregate(t=Sum('total_amount'))['t'] or 0)
+    net_revenue    = float(month_rev) - purchase_total
+
+    ctx = {
+        'current_month_label': _month_label(today),
+        'month_revenue': float(month_rev), 'rev_trend_dir': rev_dir, 'rev_trend_pct': rev_pct,
+        'outstanding_amount': float(outstanding), 'overdue_count': overdue_count,
+        'paid_invoices': paid_count, 'paid_amount': float(paid_amt),
+        'total_invoices': total_inv_m, 'pending_invoices': pending_inv,
+        'overdue_invoices': overdue_list, 'term_invoices': term_inv,
+        'monthly_labels': monthly_labels,
+        'collected_data': json.dumps(collected_data),
+        'outstanding_data': json.dumps(outstanding_data),
+        'payment_method_data': json.dumps({'labels': pm_labels, 'values': pm_values}),
+        'purchase_count': purchase_count, 'purchase_total': purchase_total,
+        'net_revenue': net_revenue,
+    }
+    return render(request, 'dashboard/accounts_dashboard.html', ctx)
+
+
+# ─── MANAGE USERS ───────────────────────────────────────────────────────────
+
+@login_required
+def manage_users(request):
+    if not is_admin_user(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
+    from django.contrib.auth.models import User
+    users = User.objects.select_related('profile').order_by('username')
+    for u in users:
+        if not hasattr(u, 'profile') or u.profile is None:
+            UserProfile.objects.get_or_create(user=u, defaults={'role': 'sales_executive'})
+    users = User.objects.select_related('profile').order_by('username')
+    return render(request, 'dashboard/manage_users.html', {'users': users})
+
+
+@login_required
+def update_user_role(request, user_id):
+    if not is_admin_user(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
+    if request.method == 'POST':
+        from django.contrib.auth.models import User
+        u = get_object_or_404(User, pk=user_id)
+        role = request.POST.get('role', 'sales_executive')
+        profile, _ = UserProfile.objects.get_or_create(user=u)
+        profile.role = role
+        profile.save()
+        # Sync to CRM for sales roles
+        if role in ('sales_manager', 'sales_executive'):
+            sync_user_to_crm(u, role=role)
+            messages.success(request, f"Role updated for {u.username} and synced to Sales CRM.")
+        else:
+            messages.success(request, f"Role updated for {u.username}.")
+    return redirect('manage_users')
+
+
+# ─── SET TARGETS ────────────────────────────────────────────────────────────
+
+@login_required
+def set_targets(request):
+    if not is_admin_user(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
+    from django.contrib.auth.models import User
+
+    today = timezone.now().date()
+    selected_month_str = request.GET.get('month') or request.POST.get('month') or today.strftime('%Y-%m')
+
+    try:
+        sel_year, sel_mon = map(int, selected_month_str.split('-'))
+        month_first = datetime.date(sel_year, sel_mon, 1)
+    except Exception:
+        month_first = today.replace(day=1)
+        selected_month_str = month_first.strftime('%Y-%m')
+
+    first, last = _month_range(today)
+
+    executives = User.objects.filter(profile__role='sales_executive', is_active=True)
+
+    if request.method == 'POST':
+        for ex in executives:
+            tamt = request.POST.get(f'target_amount_{ex.id}', '').strip()
+            treg = request.POST.get(f'target_reg_{ex.id}', '').strip()
+            if tamt:
+                SalesTarget.objects.update_or_create(
+                    user=ex, month=month_first,
+                    defaults={
+                        'target_amount': Decimal(tamt),
+                        'target_registrations': int(treg) if treg else 0,
+                        'created_by': request.user,
+                    }
+                )
+        messages.success(request, f"Targets saved for {month_first.strftime('%B %Y')}.")
+        return redirect('set_targets')
+
+    exec_data = []
+    for ex in executives:
+        tamt, treg = _exec_target(ex, month_first)
+        rev  = float(_revenue_for_user(ex, first, last))
+        regs = Registration.objects.filter(
+            date__gte=first, date__lte=last,
+            consultant_name__iexact=ex.get_full_name() or ex.username).count()
+        pct  = min(round((rev / float(tamt) * 100) if tamt else 0), 100)
+        exec_data.append({
+            **ex.__dict__,
+            'id': ex.id, 'username': ex.username,
+            'get_full_name': ex.get_full_name,
+            'target_amount': tamt, 'target_registrations': treg,
+            'month_revenue': rev, 'month_registrations': regs, 'month_pct': pct,
+        })
+
+    ctx = {
+        'executives': exec_data,
+        'selected_month': selected_month_str,
+        'current_month_label': _month_label(month_first),
+    }
+    return render(request, 'dashboard/set_targets.html', ctx)
+
+
+# ─── KEEP OLD ORB DASHBOARD LINE (legacy) ───────────────────────────────────
+
+@login_required
+def orbit_dashboard_legacy(request):
+    # Get the current date and the first day of the current month
+    today = timezone.now().date()
+    #today = date(2026, 1, 31) - testing the date when ever needed
+    first_day_of_month = today.replace(day=1)
+
+    # Total Registrations
+    total_registrations = Registration.objects.count()
+
+    # Total Registrations this month
+    total_registrations_this_month = Registration.objects.filter(date__gte=first_day_of_month).count()
+
+    # Total sale this month (from Invoices)
+    total_sale_this_month = Invoice.objects.filter(date__gte=first_day_of_month).aggregate(
+        total_sale=Sum('amount_paid'))['total_sale'] or 0
+
+    # Total corporate sale this month
+    total_corporate_sale_this_month = Invoice.objects.filter(
+        date__gte=first_day_of_month,
+        registration__registration_type='OC'
+    ).aggregate(total_sale=Sum('amount_paid'))['total_sale'] or 0
+
+    # VAT rate
+    VAT_RATE = Decimal('0.05')
+    
+    # Get today's date
+    today = timezone.now().date()
+    
+    # Subquery to get the total amount paid for each registration, including VAT
+    total_paid_subquery = Invoice.objects.filter(
+        registration_id=OuterRef('registration_id')
+    ).values('registration_id').annotate(
+        total_paid=ExpressionWrapper(
+            Sum('amount_paid') * (1 + VAT_RATE),  # Adding 5% VAT
+            output_field=DecimalField()
+        )
+    ).values('total_paid')
+    
+    # Get invoices due today with correct due amount calculation
+    due_invoices = Invoice.objects.filter(due_date=today).annotate(
+        total_paid=Coalesce(Subquery(total_paid_subquery), 0, output_field=DecimalField()),
+        due_amount=F('total_amount') - F('total_paid')
+    ).select_related('registration', 'registration__corporate_details').prefetch_related('items__course').order_by('registration_id', 'invoice_number')
+    
+    # Group invoices by registration to avoid duplicates
+    grouped_invoices = {}
+    for invoice in due_invoices:
+        reg_id = invoice.registration_id
+        if reg_id not in grouped_invoices or invoice.due_amount > grouped_invoices[reg_id].due_amount:
+            # Get the course names for this invoice
+            course_names = ", ".join([item.course.name for item in invoice.items.all() if item.course])
+            invoice.course_names = course_names
+            grouped_invoices[reg_id] = invoice
+
+    # Consultant sales for current month (admin only)
+    consultant_sales = []
+    if is_admin_user(request.user):
+        consultant_sales_data = Invoice.objects.filter(
+            date__gte=first_day_of_month,
+            registration__consultant_name__isnull=False
+        ).exclude(registration__consultant_name='').values(
+            'registration__consultant_name'
+        ).annotate(
+            total_sales=Sum('amount_paid')
+        ).order_by('-total_sales')
+        
+        for item in consultant_sales_data:
+            consultant_sales.append({
+                'consultant_name': item['registration__consultant_name'],
+                'total_sales': item['total_sales'] * (1 + VAT_RATE)
+            })
+
+    context = {
+        'total_registrations': total_registrations,
+        'total_registrations_this_month': total_registrations_this_month,
+        'total_sale_this_month': total_sale_this_month * (1 + VAT_RATE),  # Adding 5% VAT
+        'total_corporate_sale_this_month': total_corporate_sale_this_month * (1 + VAT_RATE),  # Adding 5% VAT
+        'due_invoices': grouped_invoices.values(),
+        'consultant_sales': consultant_sales,
+    }
+
+    return render(request, 'dashboard/orbit_dashboard.html', context)
+
+
+def certificate_dashboard(request):
+    all_certs = Certificate.objects.all().order_by('-created_at')
+    paginator = Paginator(all_certs, 30)
+    certificates = paginator.get_page(request.GET.get('page', 1))
+    return render(request, 'certificates/dashboard.html', {'certificates': certificates})
+
+@require_POST
+def create_certificate(request):
+    try:
+        certificate = Certificate.objects.create(
+            register_number=request.POST['register_number'],
+            student_name=request.POST['student_name'],
+            course_name=request.POST['course_name'],
+            from_date=request.POST['from_date'],
+            end_date=request.POST['end_date'],
+            grade=request.POST['grade']
+        )
+        # Return the URL to redirect to
+        # Return a JSON response with success status and redirect URL
+        return JsonResponse({
+            'success': True,
+            'redirect_url': reverse('certificate_dashboard')
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+def print_certificate(request, pk):
+    certificate = get_object_or_404(Certificate, pk=pk)
+    if certificate.certificate_type == 'khda' and certificate.uploaded_certificate:
+        # Redirect to the uploaded certificate file
+        return redirect(certificate.uploaded_certificate.url)
+    else:
+        # Render the regular certificate template
+        return render(request, 'certificates/print_certificate.html', {'certificate': certificate})
+
+
+def khda_certificate_form(request):
+    form = KHDACertificateForm()
+    return render(request, 'certificates/khda_certificate_form.html', {'form': form})
+
+
+@require_POST
+def create_khda_certificate(request):
+    try:
+        form = KHDACertificateForm(request.POST, request.FILES)
+        if form.is_valid():
+            certificate = form.save(commit=False)
+            certificate.certificate_type = 'khda'
+            certificate.save()
+            return JsonResponse({
+                'success': True,
+                'message': 'KHDA Certificate created successfully.',
+                'redirect_url': reverse('certificate_dashboard')
+            })
+        else:
+            logger.error(f"Form validation errors: {form.errors}")
+            return JsonResponse({
+                'success': False,
+                'errors': form.errors
+            })
+    except Exception as e:
+        logger.exception("Unexpected error in create_khda_certificate")
+        return JsonResponse({
+            'success': False,
+            'errors': str(e)
+        }, status=500)
+
+@login_required
+def proposal_dashboard(request):
+    qs = Proposal.objects.select_related('course', 'trainer').order_by('-created_at')
+    search = request.GET.get('q', '')
+    if search:
+        qs = qs.filter(Q(client_name__icontains=search) | Q(proposal_number__icontains=search))
+    paginator = Paginator(qs, 20)
+    proposals = paginator.get_page(request.GET.get('page', 1))
+    return render(request, 'proposal/proposal_dashboard.html', {
+        'proposals': proposals,
+        'paginator': paginator,
+        'search': search,
+    })
+
+@login_required
+def create_proposal(request):
+    if request.method == 'POST':
+        form = ProposalForm(request.POST, request.FILES)
+        if form.is_valid():
+            proposal = form.save()
+            return redirect('proposal_dashboard')
+    else:
+        form = ProposalForm()
+    return render(request, 'proposal/create_proposal.html', {'form': form})
+
+@login_required
+
+def edit_proposal(request, pk):
+    proposal = get_object_or_404(Proposal, pk=pk)
+    if request.method == 'POST':
+        form = ProposalForm(request.POST, request.FILES, instance=proposal)
+        if form.is_valid():
+            form.save()
+            return redirect('proposal_dashboard')
+    else:
+        form = ProposalForm(instance=proposal)
+    return render(request, 'proposal/edit_proposal.html', {'form': form})
+
+@login_required
+@user_passes_test(is_admin_user)
+def delete_proposal(request, pk):
+    proposal = get_object_or_404(Proposal, pk=pk)
+    if request.method == 'POST':
+        proposal.delete()
+        return redirect('proposal_dashboard')
+    return render(request, 'proposal/delete_proposal.html', {'proposal': proposal})
+
+@login_required
+def print_proposal(request, pk):
+    try:
+        proposal = get_object_or_404(Proposal, pk=pk)
+        
+        # Render your HTML to a string
+        html_string = render_to_string('proposal/proposal_template.html', {'proposal': proposal})
+        
+        # Convert HTML to PDF
+        html_pdf = WeasyHTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
+        
+        # Create a PDF merger object
+        merger = PdfMerger()
+        
+        # Add the HTML-generated PDF
+        merger.append(io.BytesIO(html_pdf))
+
+                # Use the first directory in STATICFILES_DIRS
+        static_dir = settings.STATICFILES_DIRS[0] if settings.STATICFILES_DIRS else ''
+        static_file_path = staticfiles_storage.path('aboutus.pdf')
+        try:
+            with staticfiles_storage.open('aboutus.pdf', 'rb') as f:
+                merger.append(f)
+        except FileNotFoundError:
+            print(f"Static PDF not found: aboutus.pdf")
+        except Exception as e:
+            print(f"Error appending static PDF: {str(e)}")
+        
+        # Get all course contents for the proposal's course
+        course_contents = CourseContent.objects.filter(course=proposal.course)
+        
+        # Append each course content PDF
+        for content in course_contents:
+            if content.file and content.file.name.lower().endswith('.pdf'):
+                try:
+                    with default_storage.open(content.file.name, 'rb') as file:
+                        merger.append(PdfReader(file))
+                except Exception as e:
+                    print(f"Error appending course content PDF: {str(e)}")
+        
+        # Append the trainer's profile PDF if available
+        if proposal.trainer and proposal.trainer.profile_pdf:
+            try:
+                with default_storage.open(proposal.trainer.profile_pdf.name, 'rb') as file:
+                    merger.append(PdfReader(file))
+            except Exception as e:
+                print(f"Error appending trainer profile PDF: {str(e)}")
+        
+                        # Use the first directory in STATICFILES_DIRS
+        static_dir = settings.STATICFILES_DIRS[0] if settings.STATICFILES_DIRS else ''
+        static_file_path = staticfiles_storage.path('corporatedetail.pdf')
+        try:
+            with staticfiles_storage.open('corporatedetail.pdf', 'rb') as f:
+                merger.append(f)
+        except FileNotFoundError:
+            print(f"Static PDF not found: corporatedetail.pdf")
+        except Exception as e:
+            print(f"Error appending static PDF: {str(e)}")
+
+                        # Use the first directory in STATICFILES_DIRS
+        static_dir = settings.STATICFILES_DIRS[0] if settings.STATICFILES_DIRS else ''
+        static_file_path = staticfiles_storage.path('contactinfo.pdf')
+        try:
+            with staticfiles_storage.open('contactinfo.pdf', 'rb') as f:
+                merger.append(f)
+        except FileNotFoundError:
+            print(f"Static PDF not found: contactinfo.pdf")
+        except Exception as e:
+            print(f"Error appending static PDF: {str(e)}")
+
+         # **Append all company profile PDFs**
+        company_profiles = CompanyProfile.objects.exclude(company_pdf='')  # Exclude profiles without a PDF
+        for profile in company_profiles:
+            if profile.company_pdf and profile.company_pdf.name.lower().endswith('.pdf'):
+                try:
+                    with default_storage.open(profile.company_pdf.name, 'rb') as file:
+                        merger.append(PdfReader(file))
+                except Exception as e:
+                    print(f"Error appending company profile PDF for {profile.name}: {str(e)}")
+        
+        
+        # Write the merged PDF to a buffer
+        buffer = io.BytesIO()
+        merger.write(buffer)
+        buffer.seek(0)
+        
+        # Return the PDF as a response
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{proposal.proposal_number}.pdf"'
+        return response
+    
+    except Exception as e:
+        print(f"Error generating PDF: {str(e)}")
+        return HttpResponseServerError("Failed to generate PDF")
+    
+def change_logo_to_white(input_path, output_path):
+    # Open the image
+    with Image.open(input_path) as img:
+        # Convert image to RGBA if it isn't already
+        img = img.convert("RGBA")
+        
+        # Get the alpha channel
+        alpha = img.split()[3]
+        
+        # Create a white image of the same size
+        white = Image.new('RGBA', img.size, (255, 255, 255, 0))
+        
+        # Copy the alpha channel to the white image
+        white.putalpha(alpha)
+        
+        # Save the result
+        white.save(output_path)
+    
+def process_directory(input_dir, output_dir):
+    # Create output directory if it doesn't exist
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Process each file in the input directory
+    for filename in os.listdir(input_dir):
+        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+            input_path = os.path.join(input_dir, filename)
+            output_path = os.path.join(output_dir, f"white_{filename}")
+            change_logo_to_white(input_path, output_path)
+            print(f"Processed: {filename}")
+
+
+@login_required
+def create_trainer_profile(request):
+    if request.method == 'POST':
+        form = TrainerProfileForm(request.POST, request.FILES)
+        if form.is_valid():
+            profile = form.save(commit=False)
+            profile.user = request.user
+            profile.save()
+            return redirect('trainer_profile_list')  # Redirect to a list of trainer profiles
+    else:
+        form = TrainerProfileForm()
+    return render(request, 'trainerprofile/create_trainer_profile.html', {'form': form})
+
+@login_required
+def edit_trainer_profile(request, pk):
+    profile = get_object_or_404(TrainerProfile, pk=pk)
+    if request.method == 'POST':
+        form = TrainerProfileForm(request.POST, request.FILES, instance=profile)
+        if form.is_valid():
+            form.save()
+            return redirect('trainer_profile_list')
+    else:
+        form = TrainerProfileForm(instance=profile)
+    return render(request, 'trainerprofile/edit_trainer_profile.html', {'form': form})
+
+@login_required
+def trainer_profile_list(request):
+    search = request.GET.get('q', '')
+    qs = TrainerProfile.objects.all().order_by('name')
+    if search:
+        qs = qs.filter(name__icontains=search)
+    paginator = Paginator(qs, 20)
+    profiles = paginator.get_page(request.GET.get('page', 1))
+    return render(request, 'trainerprofile/trainer_profile_list.html', {'profiles': profiles, 'search': search})
+
+@login_required
+@user_passes_test(is_admin_user)
+def delete_trainer_profile(request, pk):
+    profile = get_object_or_404(TrainerProfile, pk=pk)
+    if request.method == 'POST':
+        profile.delete()
+        messages.success(request, f'Trainer profile "{profile.name}" has been deleted.')
+        return redirect('trainer_profile_list')
+    return render(request, 'trainerprofile/confirm_delete_trainer_profile.html', {'profile': profile})
+
+
+def subscription(request):
+    profiles = TrainerProfile.objects.all()
+    return render(request, 'subscription/plan.html')
+
+@login_required
+def create_company_profile(request):
+    if request.method == 'POST':
+        form = CompanyProfileForm(request.POST, request.FILES)
+        if form.is_valid():
+            profile = form.save(commit=False)
+            profile.user = request.user
+            profile.save()
+            return redirect('company_profile_list')  # Redirect to a list of trainer profiles
+    else:
+        form = CompanyProfileForm()
+    return render(request, 'companyprofile/create_company_profile.html', {'form': form})
+
+@login_required
+def edit_company_profile(request, pk):
+    profile = get_object_or_404(CompanyProfile, pk=pk)
+    if request.method == 'POST':
+        form = CompanyProfileForm(request.POST, request.FILES, instance=profile)
+        if form.is_valid():
+            form.save()
+            return redirect('company_profile_list')
+    else:
+        form = CompanyProfileForm(instance=profile)
+    return render(request, 'companyprofile/edit_company_profile.html', {'form': form})
+
+@login_required
+def company_profile_list(request):
+    search = request.GET.get('q', '')
+    qs = CompanyProfile.objects.all().order_by('name')
+    if search:
+        qs = qs.filter(name__icontains=search)
+    paginator = Paginator(qs, 20)
+    profiles = paginator.get_page(request.GET.get('page', 1))
+    return render(request, 'companyprofile/company_profile_list.html', {'profiles': profiles, 'search': search})
+
+@login_required
+@user_passes_test(is_admin_user)
+def delete_company_profile(request, pk):
+    profile = get_object_or_404(CompanyProfile, pk=pk)
+    if request.method == 'POST':
+        profile.delete()
+        messages.success(request, f'Company profile "{profile.name}" has been deleted.')
+        return redirect('company_profile_list')
+    return render(request, 'companyprofile/confirm_delete_company_profile.html', {'profile': profile})
+
+@require_POST
+def remove_logo(request, proposal_id):
+    proposal = get_object_or_404(Proposal, id=proposal_id)
+    
+    if proposal.logo:
+        if os.path.isfile(proposal.logo.path):
+            os.remove(proposal.logo.path)
+        proposal.logo = None
+    
+    if proposal.logo_white_url:
+        white_logo_path = os.path.join(settings.MEDIA_ROOT, proposal.logo_white_url)
+        if os.path.isfile(white_logo_path):
+            os.remove(white_logo_path)
+        proposal.logo_white_url = ''
+    
+    proposal.save()
+    
+    return JsonResponse({'status': 'success'})
+
+@login_required
+def payment_link(request):
+    return render(request, 'payment/payment_link.html')
+
+@user_passes_test(is_admin_user)
+def coupon_list(request):
+    qs = Coupon.objects.all().order_by('-created_at')
+    search = request.GET.get('q', '')
+    if search:
+        qs = qs.filter(Q(code__icontains=search) | Q(description__icontains=search))
+    paginator = Paginator(qs, 20)
+    coupons   = paginator.get_page(request.GET.get('page', 1))
+    return render(request, 'coupons/coupon_list.html', {
+        'coupons': coupons,
+        'paginator': paginator,
+        'search': search,
+    })
+
+@user_passes_test(is_admin_user)
+def create_coupon(request):
+    if request.method == 'POST':
+        form = CouponForm(request.POST)
+        if form.is_valid():
+            coupon = form.save(commit=False)
+            coupon.created_by = request.user
+            coupon.save()
+            messages.success(request, 'Coupon created successfully!')
+            return redirect('coupon_list')
+    else:
+        form = CouponForm()
+    return render(request, 'coupons/create_coupon.html', {'form': form})
+
+@user_passes_test(is_admin_user)
+def edit_coupon(request, pk):
+    coupon = get_object_or_404(Coupon, pk=pk)
+    if request.method == 'POST':
+        form = CouponForm(request.POST, instance=coupon)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Coupon updated successfully!')
+            return redirect('coupon_list')
+    else:
+        form = CouponForm(instance=coupon)
+    return render(request, 'coupons/edit_coupon.html', {'form': form, 'coupon': coupon})
+
+@user_passes_test(is_admin_user)
+def delete_coupon(request, pk):
+    coupon = get_object_or_404(Coupon, pk=pk)
+    if request.method == 'POST':
+        coupon.delete()
+        messages.success(request, 'Coupon deleted successfully!')
+        return redirect('coupon_list')
+    return render(request, 'coupons/delete_coupon.html', {'coupon': coupon})
+
+@login_required
+def validate_coupon(request):
+    code = request.GET.get('code', '').strip()
+    if code:
+        try:
+            coupon = Coupon.objects.get(code=code, is_active=True)
+            return JsonResponse({
+                'valid': True,
+                'discount': float(coupon.discount_percentage)
+            })
+        except Coupon.DoesNotExist:
+            return JsonResponse({'valid': False})
+    return JsonResponse({'valid': False})
+
+
+# ── Revenue Report (F18) ────────────────────────────────────────────────────
+
+@login_required
+@user_passes_test(is_admin_user)
+def revenue_report(request):
+    import csv
+    from decimal import Decimal
+
+    date_from  = request.GET.get('date_from', '')
+    date_to    = request.GET.get('date_to', '')
+    consultant = request.GET.get('consultant', '')
+    status_f   = request.GET.get('status', '')
+
+    invoices_qs = Invoice.objects.select_related('registration').order_by('-date')
+
+    if date_from:
+        try:
+            invoices_qs = invoices_qs.filter(date__gte=datetime.date.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            invoices_qs = invoices_qs.filter(date__lte=datetime.date.fromisoformat(date_to))
+        except ValueError:
+            pass
+    if consultant:
+        invoices_qs = invoices_qs.filter(registration__consultant_name__iexact=consultant)
+    if status_f:
+        invoices_qs = invoices_qs.filter(status=status_f)
+
+    # Annotate due_amount for display
+    invoice_list = []
+    total_revenue = Decimal('0')
+    total_collected = Decimal('0')
+    for inv in invoices_qs:
+        paid_with_vat = inv.amount_paid * Decimal('1.05')
+        due = max(Decimal('0'), inv.total_amount - paid_with_vat)
+        inv.due_amount = due
+        invoice_list.append(inv)
+        total_revenue   += inv.total_amount
+        total_collected += paid_with_vat
+
+    total_outstanding = max(Decimal('0'), total_revenue - total_collected)
+
+    # Monthly trend
+    from collections import defaultdict
+    monthly = defaultdict(Decimal)
+    for inv in invoice_list:
+        key = inv.date.strftime('%b %Y')
+        monthly[key] += inv.total_amount
+    monthly_data = [{'month': k, 'revenue': float(v)} for k, v in sorted(monthly.items(), key=lambda x: x[0])]
+
+    # Status breakdown
+    status_map = defaultdict(Decimal)
+    for inv in invoice_list:
+        status_map[inv.get_status_display()] += inv.total_amount
+    status_data = [{'status': k, 'amount': float(v)} for k, v in status_map.items()]
+
+    # Consultant summary
+    consult_map = defaultdict(lambda: {'count': 0, 'revenue': Decimal('0')})
+    for inv in invoice_list:
+        c = getattr(inv.registration, 'consultant_name', 'Unknown') or 'Unknown'
+        consult_map[c]['count'] += 1
+        consult_map[c]['revenue'] += inv.total_amount
+    consultant_summary = [{'consultant': k, **v} for k, v in sorted(consult_map.items())]
+
+    # All consultant names for filter dropdown
+    consultants = list(
+        Registration.objects.values_list('consultant_name', flat=True)
+        .exclude(consultant_name='').exclude(consultant_name__isnull=True).distinct().order_by('consultant_name')
+    )
+
+    paginator = Paginator(invoice_list, 50)
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+
+    import json as _json
+    return render(request, 'reports/revenue_report.html', {
+        'invoices': page_obj,
+        'total_invoices': len(invoice_list),
+        'total_revenue': total_revenue,
+        'total_collected': total_collected,
+        'total_outstanding': total_outstanding,
+        'monthly_data': _json.dumps(monthly_data),
+        'status_data': _json.dumps(status_data),
+        'consultant_summary': consultant_summary,
+        'consultants': consultants,
+        'date_from': date_from,
+        'date_to': date_to,
+        'consultant': consultant,
+        'status': status_f,
+    })
+
+
+@login_required
+@user_passes_test(is_admin_user)
+def export_revenue_csv(request):
+    import csv
+    from decimal import Decimal
+
+    date_from  = request.GET.get('date_from', '')
+    date_to    = request.GET.get('date_to', '')
+    consultant = request.GET.get('consultant', '')
+    status_f   = request.GET.get('status', '')
+
+    invoices_qs = Invoice.objects.select_related('registration').order_by('-date')
+    if date_from:
+        try:
+            invoices_qs = invoices_qs.filter(date__gte=datetime.date.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            invoices_qs = invoices_qs.filter(date__lte=datetime.date.fromisoformat(date_to))
+        except ValueError:
+            pass
+    if consultant:
+        invoices_qs = invoices_qs.filter(registration__consultant_name__iexact=consultant)
+    if status_f:
+        invoices_qs = invoices_qs.filter(status=status_f)
+
+    response = HttpResponse(content_type='text/csv')
+    fname = f"revenue_report_{datetime.date.today()}.csv"
+    response['Content-Disposition'] = f'attachment; filename="{fname}"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Invoice #', 'Date', 'Due Date', 'Student Name', 'Email', 'Consultant',
+                     'Total (AED)', 'Paid (AED)', 'Paid+VAT (AED)', 'Due (AED)', 'Status', 'Payment Method'])
+    for inv in invoices_qs:
+        paid_vat = inv.amount_paid * Decimal('1.05')
+        due = max(Decimal('0'), inv.total_amount - paid_vat)
+        reg = inv.registration
+        writer.writerow([
+            inv.invoice_number,
+            inv.date,
+            inv.due_date,
+            f"{reg.first_name} {reg.last_name}",
+            reg.email,
+            reg.consultant_name or '',
+            float(inv.total_amount),
+            float(inv.amount_paid),
+            float(paid_vat),
+            float(due),
+            inv.get_status_display(),
+            inv.get_payment_display(),
+        ])
+    return response
+
+
+# ── Receivables Aging Report ─────────────────────────────────────────────────
+
+@login_required
+@user_passes_test(is_admin_user)
+def receivables_aging(request):
+    import datetime, csv as _csv
+    today = datetime.date.today()
+    unpaid = Invoice.objects.exclude(status='Full Payment').select_related('client', 'user').order_by('due_date')
+
+    buckets = {'current': [], '1_30': [], '31_60': [], '61_90': [], 'over_90': []}
+    totals = {'current': 0, '1_30': 0, '31_60': 0, '61_90': 0, 'over_90': 0}
+
+    for inv in unpaid:
+        outstanding = float(inv.total_amount) - float(inv.amount_paid)
+        if outstanding <= 0:
+            continue
+        days_over = (today - inv.due_date).days if inv.due_date else 0
+        inv.outstanding = outstanding
+        inv.days_overdue = max(days_over, 0)
+        if days_over <= 0:
+            buckets['current'].append(inv); totals['current'] += outstanding
+        elif days_over <= 30:
+            buckets['1_30'].append(inv); totals['1_30'] += outstanding
+        elif days_over <= 60:
+            buckets['31_60'].append(inv); totals['31_60'] += outstanding
+        elif days_over <= 90:
+            buckets['61_90'].append(inv); totals['61_90'] += outstanding
+        else:
+            buckets['over_90'].append(inv); totals['over_90'] += outstanding
+
+    grand_total = sum(totals.values())
+
+    if request.GET.get('export') == 'csv':
+        from django.http import HttpResponse as _HR
+        resp = _HR(content_type='text/csv')
+        resp['Content-Disposition'] = f'attachment; filename="aging_report_{today}.csv"'
+        w = _csv.writer(resp)
+        w.writerow(['Invoice #', 'Client', 'Due Date', 'Days Overdue', 'Outstanding (AED)', 'Bucket'])
+        bucket_labels = {'current': 'Current', '1_30': '1-30 Days', '31_60': '31-60 Days', '61_90': '61-90 Days', 'over_90': '90+ Days'}
+        for key, label in bucket_labels.items():
+            for inv in buckets[key]:
+                w.writerow([inv.invoice_number, inv.client.name if inv.client else '', inv.due_date, inv.days_overdue, f'{inv.outstanding:.2f}', label])
+        return resp
+
+    return render(request, 'reports/aging_report.html', {
+        'buckets': buckets, 'totals': totals, 'grand_total': grand_total, 'today': today,
+    })
+
+
+# ── VAT Report ───────────────────────────────────────────────────────────────
+
+@login_required
+@user_passes_test(is_admin_user)
+def vat_report(request):
+    import datetime
+    from django.db.models import Sum
+    today = datetime.date.today()
+    date_from = request.GET.get('date_from', today.replace(day=1).isoformat())
+    date_to = request.GET.get('date_to', today.isoformat())
+
+    try:
+        df = datetime.date.fromisoformat(date_from)
+        dt = datetime.date.fromisoformat(date_to)
+    except ValueError:
+        df, dt = today.replace(day=1), today
+
+    invoices = Invoice.objects.filter(date__gte=df, date__lte=dt)
+    total_net = float(invoices.aggregate(t=Sum('total_amount'))['t'] or 0)
+    total_vat = round(total_net * 0.05, 2)
+    total_gross = round(total_net * 1.05, 2)
+    total_collected_net = float(invoices.aggregate(t=Sum('amount_paid'))['t'] or 0)
+    total_collected_vat = round(total_collected_net * 0.05, 2)
+
+    monthly = {}
+    for inv in invoices:
+        key = inv.date.strftime('%B %Y')
+        if key not in monthly:
+            monthly[key] = {'net': 0, 'vat': 0, 'count': 0}
+        monthly[key]['net'] += float(inv.total_amount)
+        monthly[key]['vat'] += float(inv.total_amount) * 0.05
+        monthly[key]['count'] += 1
+
+    if request.GET.get('export') == 'csv':
+        import csv as _csv
+        from django.http import HttpResponse as _HR
+        resp = _HR(content_type='text/csv')
+        resp['Content-Disposition'] = f'attachment; filename="vat_report_{date_from}_to_{date_to}.csv"'
+        w = _csv.writer(resp)
+        w.writerow(['Month', 'Invoices', 'Net Amount (AED)', 'VAT 5% (AED)', 'Gross (AED)'])
+        for month, vals in monthly.items():
+            w.writerow([month, vals['count'], f"{vals['net']:.2f}", f"{vals['vat']:.2f}", f"{vals['net']+vals['vat']:.2f}"])
+        w.writerow(['TOTAL', invoices.count(), f'{total_net:.2f}', f'{total_vat:.2f}', f'{total_gross:.2f}'])
+        return resp
+
+    return render(request, 'reports/vat_report.html', {
+        'date_from': date_from, 'date_to': date_to,
+        'total_net': total_net, 'total_vat': total_vat, 'total_gross': total_gross,
+        'total_collected_net': total_collected_net, 'total_collected_vat': total_collected_vat,
+        'monthly': monthly, 'invoice_count': invoices.count(),
+    })
+
+
+# ── Student Enrollment Report ─────────────────────────────────────────────────
+
+@login_required
+@user_passes_test(is_admin_user)
+def enrollment_report(request):
+    import datetime
+    from django.db.models import Q
+    today = datetime.date.today()
+    date_from = request.GET.get('date_from', today.replace(day=1).isoformat())
+    date_to = request.GET.get('date_to', today.isoformat())
+    consultant = request.GET.get('consultant', '')
+    class_type = request.GET.get('class_type', '')
+
+    try:
+        df = datetime.date.fromisoformat(date_from)
+        dt = datetime.date.fromisoformat(date_to)
+    except ValueError:
+        df, dt = today.replace(day=1), today
+
+    qs = Registration.objects.filter(date__gte=df, date__lte=dt).prefetch_related('registration_courses__course', 'invoice_set')
+    if consultant:
+        qs = qs.filter(consultant_name__icontains=consultant)
+    if class_type:
+        qs = qs.filter(class_type=class_type)
+
+    if request.GET.get('export') == 'csv':
+        import csv as _csv
+        from django.http import HttpResponse as _HR
+        resp = _HR(content_type='text/csv')
+        resp['Content-Disposition'] = f'attachment; filename="enrollment_report_{date_from}_to_{date_to}.csv"'
+        w = _csv.writer(resp)
+        w.writerow(['Reg #', 'Name', 'Email', 'Phone', 'Consultant', 'Class Type', 'Date', 'Courses', 'Status'])
+        for r in qs.order_by('-date'):
+            courses = ', '.join(rc.course.name for rc in r.registration_courses.all())
+            w.writerow([r.registration_number, f'{r.first_name} {r.last_name}', r.email, r.phone_no, r.consultant_name, r.class_type, r.date, courses, r.student_status])
+        return resp
+
+    paginator = Paginator(qs.order_by('-date'), 50)
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+
+    return render(request, 'reports/enrollment_report.html', {
+        'registrations': page_obj, 'date_from': date_from, 'date_to': date_to,
+        'consultant': consultant, 'class_type': class_type,
+        'total_count': qs.count(),
+        'class_type_choices': Registration.CLASS_TYPE_CHOICES,
+    })
+
+
+# ── Certificate Report ────────────────────────────────────────────────────────
+
+@login_required
+@user_passes_test(is_admin_user)
+def certificate_report(request):
+    import datetime
+    today = datetime.date.today()
+    date_from = request.GET.get('date_from', today.replace(day=1).isoformat())
+    date_to = request.GET.get('date_to', today.isoformat())
+    cert_type = request.GET.get('cert_type', '')
+
+    try:
+        df = datetime.date.fromisoformat(date_from)
+        dt = datetime.date.fromisoformat(date_to)
+    except ValueError:
+        df, dt = today.replace(day=1), today
+
+    qs = Certificate.objects.filter(created_at__date__gte=df, created_at__date__lte=dt)
+    if cert_type:
+        qs = qs.filter(certificate_type=cert_type)
+
+    if request.GET.get('export') == 'csv':
+        import csv
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="certificates_{df}_{dt}.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['Certificate #', 'Registration #', 'Student', 'Course', 'Type', 'Grade', 'From', 'To', 'Issued'])
+        for c in qs:
+            writer.writerow([c.certificate_number, c.register_number, c.student_name, c.course_name, c.certificate_type, c.grade, c.from_date, c.end_date, c.created_at.date()])
+        return response
+
+    return render(request, 'reports/certificate_report.html', {
+        'certificates': qs.order_by('-created_at'), 'date_from': date_from, 'date_to': date_to,
+        'cert_type': cert_type, 'total_count': qs.count(),
+        'khda_count': qs.filter(certificate_type='KHDA').count(),
+        'internal_count': qs.filter(certificate_type='regular').count(),
+    })
+
+
+# ── Global Quick Search ───────────────────────────────────────────────────────
+
+@login_required
+def global_search(request):
+    from django.db.models import Q
+    q = request.GET.get('q', '').strip()
+    if len(q) < 2:
+        return JsonResponse({'results': []})
+
+    results = []
+
+    regs = Registration.objects.filter(
+        Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(registration_number__icontains=q) | Q(email__icontains=q)
+    )[:5]
+    for r in regs:
+        results.append({'type': 'Registration', 'icon': 'fa-user-graduate', 'title': f"{r.first_name} {r.last_name}", 'sub': r.registration_number, 'url': f'/student-dashboard/'})
+
+    invs = Invoice.objects.filter(
+        Q(invoice_number__icontains=q) | Q(client__name__icontains=q)
+    ).select_related('client')[:5]
+    for inv in invs:
+        results.append({'type': 'Invoice', 'icon': 'fa-file-invoice', 'title': inv.invoice_number, 'sub': inv.client.name, 'url': f'/dashboard/'})
+
+    courses = Course.objects.filter(Q(name__icontains=q) | Q(code__icontains=q))[:4]
+    for c in courses:
+        results.append({'type': 'Course', 'icon': 'fa-book-open', 'title': c.name, 'sub': c.code, 'url': f'/courses/'})
+
+    certs = Certificate.objects.filter(Q(student_name__icontains=q) | Q(register_number__icontains=q) | Q(certificate_number__icontains=q))[:4]
+    for cert in certs:
+        results.append({'type': 'Certificate', 'icon': 'fa-certificate', 'title': cert.student_name, 'sub': cert.certificate_number, 'url': f'/certificates/'})
+
+    return JsonResponse({'results': results})
+
+
+# ── Notifications API ─────────────────────────────────────────────────────────
+
+@login_required
+def get_notifications(request):
+    from .models import Notification
+    notifs = Notification.objects.filter(recipient=request.user, is_read=False).order_by('-created_at')[:10]
+    data = [{'id': n.id, 'title': n.title, 'message': n.message, 'link': n.link, 'type': n.notif_type, 'created_at': n.created_at.strftime('%d %b %H:%M')} for n in notifs]
+    return JsonResponse({'notifications': data, 'count': notifs.count()})
+
+@login_required
+def mark_notification_read(request, notif_id):
+    from .models import Notification
+    Notification.objects.filter(id=notif_id, recipient=request.user).update(is_read=True)
+    return JsonResponse({'status': 'ok'})
+
+@login_required
+def mark_all_notifications_read(request):
+    from .models import Notification
+    Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+    return JsonResponse({'status': 'ok'})
+
+
+# ── Mark Invoice as Paid (QW9) ────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def mark_invoice_paid(request, pk):
+    invoice = get_object_or_404(Invoice, pk=pk)
+    if not (is_admin_user(request.user) or hasattr(request.user, 'profile') and request.user.profile.role == 'accounts'):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    invoice.status = 'Full Payment'
+    invoice.amount_paid = invoice.total_amount
+    invoice.save()
+    return JsonResponse({'status': 'ok', 'invoice_number': invoice.invoice_number})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# REGISTRATION SEARCH (smart autocomplete for invoice creation)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+def search_registrations(request):
+    """Return matching registrations for autocomplete — searches by reg number, name, phone."""
+    q = request.GET.get('q', '').strip()
+    if len(q) < 2:
+        return JsonResponse({'results': []})
+    from django.db.models import Q as _Q
+    results = Registration.objects.filter(
+        _Q(registration_number__icontains=q) |
+        _Q(first_name__icontains=q) |
+        _Q(last_name__icontains=q) |
+        _Q(phone_no__icontains=q) |
+        _Q(email__icontains=q)
+    ).select_related()[:12]
+    data = []
+    for r in results:
+        courses = list(r.registration_courses.select_related('course').values_list('course__name', flat=True))
+        data.append({
+            'registration_number': r.registration_number,
+            'name': f"{r.first_name} {r.last_name}",
+            'type': r.get_registration_type_display(),
+            'class_type': r.class_type,
+            'courses': courses[:3],
+        })
+    return JsonResponse({'results': data})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# COMPANY PORTAL (public-facing)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def company_portal(request, token):
+    """Public page for company to fill in their details."""
+    from .models import CompanyPortalRequest
+    portal = get_object_or_404(CompanyPortalRequest, token=token)
+    if portal.submitted_at:
+        return render(request, 'portal/company_portal_already_submitted.html', {'portal': portal})
+
+    error = None
+    if request.method == 'POST':
+        company_name = request.POST.get('company_name', '').strip()
+        if not company_name:
+            error = 'Company name is required.'
+        else:
+            import datetime as _dt
+            portal.company_name = company_name
+            portal.trade_license_number = request.POST.get('trade_license_number', '')
+            portal.vat_number = request.POST.get('vat_number', '')
+            portal.contact_person = request.POST.get('contact_person', '')
+            portal.designation = request.POST.get('designation', '')
+            portal.email = request.POST.get('email', '')
+            portal.phone = request.POST.get('phone', '')
+            portal.address = request.POST.get('address', '')
+            portal.emirate = request.POST.get('emirate', '')
+            if 'trade_license_doc' in request.FILES:
+                portal.trade_license_doc = request.FILES['trade_license_doc']
+            if 'vat_certificate' in request.FILES:
+                portal.vat_certificate = request.FILES['vat_certificate']
+            portal.submitted_at = _dt.datetime.now()
+            portal.save()
+            # Notify admins
+            try:
+                from .models import Notification
+                admin_users = User.objects.filter(profile__role='admin')
+                for admin in admin_users:
+                    Notification.objects.create(
+                        recipient=admin,
+                        notif_type='system',
+                        title=f"Company Portal: {portal.company_name}",
+                        message=f"{portal.company_name} has submitted their company registration via the portal.",
+                        link="/admin-portal/"
+                    )
+            except Exception:
+                pass
+            return redirect('company_portal_success', token=token)
+
+    return render(request, 'portal/company_portal_form.html', {'portal': portal, 'error': error})
+
+
+def company_portal_success(request, token):
+    from .models import CompanyPortalRequest
+    portal = get_object_or_404(CompanyPortalRequest, token=token)
+    return render(request, 'portal/company_portal_success.html', {'portal': portal})
+
+
+def company_portal_add_attendees(request, token):
+    """Public page for company to add training attendees."""
+    from .models import CompanyPortalRequest, CompanyPortalAttendee
+    portal = get_object_or_404(CompanyPortalRequest, token=token)
+    if not portal.submitted_at:
+        return redirect('company_portal', token=token)
+
+    if request.method == 'POST':
+        full_name = request.POST.get('full_name', '').strip()
+        if full_name:
+            CompanyPortalAttendee.objects.create(
+                portal_request=portal,
+                full_name=full_name,
+                email=request.POST.get('email', ''),
+                phone=request.POST.get('phone', ''),
+                designation=request.POST.get('designation', ''),
+                emirates_id=request.POST.get('emirates_id', ''),
+                nationality=request.POST.get('nationality', ''),
+                course_name=request.POST.get('course_name', ''),
+            )
+        return redirect('company_portal_add_attendees', token=token)
+
+    attendees = portal.attendees.all().order_by('added_at')
+    return render(request, 'portal/company_portal_attendees.html', {'portal': portal, 'attendees': attendees})
+
+
+@login_required
+def admin_company_portal(request):
+    """Admin view of all company portal requests."""
+    from .models import CompanyPortalRequest
+    requests_list = CompanyPortalRequest.objects.all().order_by('-created_at')
+    return render(request, 'portal/admin_company_portal.html', {'requests': requests_list})
+
+
+@login_required
+def generate_company_portal_link(request):
+    """Admin/sales generates a company portal link."""
+    from .models import CompanyPortalRequest
+    if request.method == 'POST':
+        company_name = request.POST.get('company_name', 'New Company')
+        portal = CompanyPortalRequest.objects.create(
+            generated_by=request.user,
+            company_name=company_name,
+        )
+        return JsonResponse({'token': portal.token, 'url': request.build_absolute_uri(f'/portal/company/{portal.token}/')})
+    return JsonResponse({'error': 'POST required'}, status=400)
+
+
+@login_required
+def approve_company_portal(request, pk):
+    """Admin approves a company portal request and converts to CorporateRegistration."""
+    from .models import CompanyPortalRequest
+    if not (request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.role == 'admin')):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    portal = get_object_or_404(CompanyPortalRequest, pk=pk)
+    portal.status = 'approved'
+    portal.save()
+    return JsonResponse({'status': 'approved'})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STUDENT SELF-REGISTRATION FORM LINK
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+def student_form_links(request):
+    """List and manage student form links for the logged-in consultant."""
+    from .models import StudentFormLink
+    links = StudentFormLink.objects.filter(consultant=request.user).order_by('-created_at')
+    courses = Course.objects.all().order_by('name')
+    return render(request, 'portal/student_form_links.html', {'links': links, 'courses': courses})
+
+
+@login_required
+@require_POST
+def generate_student_form_link(request):
+    """Generate a new student self-registration link."""
+    from .models import StudentFormLink
+    import datetime as _dt
+    import json as _json
+
+    consultant_name = request.user.get_full_name() or request.user.username
+    link = StudentFormLink.objects.create(
+        consultant=request.user,
+        consultant_name_locked=consultant_name,
+        notes=request.POST.get('notes', ''),
+    )
+    course_ids = request.POST.getlist('courses')
+    if course_ids:
+        link.pre_selected_courses.set(Course.objects.filter(id__in=course_ids))
+    full_url = request.build_absolute_uri(f'/portal/student/{link.token}/')
+    return JsonResponse({'token': link.token, 'url': full_url})
+
+
+def student_self_register(request, token):
+    """Public student registration form — no pricing shown."""
+    from .models import StudentFormLink
+    link = get_object_or_404(StudentFormLink, token=token)
+    if not link.is_valid():
+        return render(request, 'portal/student_form_expired.html')
+
+    # CRM lead ID embedded in the link by the consultant — never shown to the student
+    crm_lead_id = request.GET.get('cli', '').strip()
+    if not (crm_lead_id and crm_lead_id.isdigit()):
+        crm_lead_id = ''
+
+    courses = link.pre_selected_courses.all() if link.pre_selected_courses.exists() else Course.objects.all().order_by('name')
+    error = None
+    success = False
+
+    if request.method == 'POST':
+        first_name = request.POST.get('first_name', '').strip()
+        last_name  = request.POST.get('last_name', '').strip()
+        phone_no   = request.POST.get('phone_no', '').strip()
+        email      = request.POST.get('email', '').strip()
+        post_crm_lead_id = request.POST.get('crm_lead_id', '').strip()
+        if not (first_name and last_name and phone_no):
+            error = 'First name, last name and phone number are required.'
+        else:
+            reg = Registration(
+                first_name=first_name,
+                last_name=last_name,
+                phone_no=phone_no,
+                email=email,
+                nationality=request.POST.get('nationality', ''),
+                emirates_id_no=request.POST.get('emirates_id', ''),
+                country=request.POST.get('country', 'UAE'),
+                consultant_name=link.consultant_name_locked,
+                class_type=request.POST.get('class_type', 'offline'),
+                registration_type='OT',
+            )
+            try:
+                reg.save()
+            except Exception as e:
+                error = f'Submission failed: {e}'
+            else:
+                # Save courses
+                selected_course_ids = request.POST.getlist('course_ids')
+                for cid in selected_course_ids:
+                    try:
+                        c = Course.objects.get(id=cid)
+                        RegistrationCourse.objects.create(registration=reg, course=c, discount=0, price=0)
+                    except Exception:
+                        pass
+                # Save CRM lead link (hidden from student, set by consultant via link URL)
+                if post_crm_lead_id and post_crm_lead_id.isdigit():
+                    _save_reg_crm_link(reg.pk, int(post_crm_lead_id),
+                                       linked_by=link.consultant.username)
+                link.use_count += 1
+                link.save()
+                # Sync to CRM student list
+                sync_registration_to_crm(reg, consultant_username=link.consultant.username)
+                # Notify consultant
+                try:
+                    from .models import Notification
+                    Notification.objects.create(
+                        recipient=link.consultant,
+                        notif_type='registration_new',
+                        title=f"New Self-Registration: {first_name} {last_name}",
+                        message=f"Student {first_name} {last_name} registered via your form link.",
+                        link="/student-dashboard/"
+                    )
+                except Exception:
+                    pass
+                success = True
+
+    return render(request, 'portal/student_self_register.html', {
+        'link': link,
+        'courses': courses,
+        'error': error,
+        'success': success,
+        'crm_lead_id': crm_lead_id,
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STUDENT STATUS UPDATE (inline AJAX)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+@require_POST
+def update_student_status(request, pk):
+    from .models import AuditLog
+    reg = get_object_or_404(Registration, pk=pk)
+    new_status = request.POST.get('status', '')
+    valid = [s[0] for s in Registration.STUDENT_STATUS_CHOICES]
+    if new_status not in valid:
+        return JsonResponse({'error': 'Invalid status'}, status=400)
+    old_status = reg.student_status
+    reg.student_status = new_status
+    reg.save()
+    ip = request.META.get('REMOTE_ADDR')
+    AuditLog.objects.create(
+        user=request.user, action='status_change', model_name='Registration',
+        object_id=str(reg.pk), object_repr=str(reg),
+        changes=f'{old_status} → {new_status}', ip_address=ip
+    )
+    # Propagate status change to CRM
+    sync_registration_to_crm(reg, consultant_username=request.user.username)
+    return JsonResponse({'status': new_status, 'label': reg.get_student_status_display()})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BULK INVOICE ACTIONS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+@require_POST
+def bulk_invoice_action(request):
+    import csv as _csv
+    from .models import AuditLog
+    action = request.POST.get('action', '')
+    ids = request.POST.getlist('invoice_ids')
+    if not ids:
+        return JsonResponse({'error': 'No invoices selected'}, status=400)
+
+    invoices = Invoice.objects.filter(pk__in=ids)
+
+    if action == 'mark_paid':
+        if not (is_admin_user(request.user) or (hasattr(request.user, 'profile') and request.user.profile.role in ['admin', 'accounts'])):
+            return JsonResponse({'error': 'Permission denied'}, status=403)
+        count = 0
+        for inv in invoices:
+            if inv.status != 'Full Payment':
+                inv.status = 'Full Payment'
+                inv.amount_paid = inv.total_amount
+                inv.save()
+                AuditLog.objects.create(user=request.user, action='status_change', model_name='Invoice', object_id=str(inv.pk), object_repr=inv.invoice_number, changes='Bulk marked as Paid', ip_address=request.META.get('REMOTE_ADDR'))
+                count += 1
+        return JsonResponse({'status': 'ok', 'count': count})
+
+    if action == 'export_csv':
+        from django.http import HttpResponse as _HR
+        resp = _HR(content_type='text/csv')
+        resp['Content-Disposition'] = 'attachment; filename="invoices_export.csv"'
+        w = _csv.writer(resp)
+        w.writerow(['Invoice #', 'Client', 'Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Status', 'Reg #'])
+        for inv in invoices.select_related('client', 'registration'):
+            balance = float(inv.total_amount) - float(inv.amount_paid)
+            w.writerow([
+                inv.invoice_number,
+                inv.client.name if inv.client else '',
+                inv.date, inv.due_date,
+                inv.total_amount, inv.amount_paid,
+                f'{balance:.2f}', inv.status,
+                inv.registration.registration_number if inv.registration else ''
+            ])
+        AuditLog.objects.create(user=request.user, action='export', model_name='Invoice', object_repr=f'{len(ids)} invoices', ip_address=request.META.get('REMOTE_ADDR'))
+        return resp
+
+    return JsonResponse({'error': 'Unknown action'}, status=400)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INVOICE PAYMENT INSTALLMENTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+def invoice_payments(request, pk):
+    from .models import InvoicePayment
+    invoice = get_object_or_404(Invoice, pk=pk)
+    payments = invoice.payments.all()
+    total_paid = sum(p.amount for p in payments)
+    return JsonResponse({
+        'invoice_number': invoice.invoice_number,
+        'total_amount': float(invoice.total_amount),
+        'payments': [
+            {'id': p.id, 'amount': float(p.amount), 'method': p.get_payment_method_display(),
+             'reference': p.reference, 'paid_at': str(p.paid_at), 'notes': p.notes}
+            for p in payments
+        ],
+        'total_recorded': float(total_paid),
+        'balance': float(invoice.total_amount) - float(total_paid),
+    })
+
+
+@login_required
+@require_POST
+def add_invoice_payment(request, pk):
+    from .models import InvoicePayment, AuditLog
+    from decimal import Decimal as _Dec
+    invoice = get_object_or_404(Invoice, pk=pk)
+    try:
+        amount = _Dec(request.POST.get('amount', '0'))
+        if amount <= 0:
+            raise ValueError()
+    except (ValueError, Exception):
+        return JsonResponse({'error': 'Invalid amount'}, status=400)
+
+    method = request.POST.get('payment_method', 'cash')
+    paid_at = request.POST.get('paid_at', '') or str(invoice.date)
+    reference = request.POST.get('reference', '')
+    notes = request.POST.get('notes', '')
+
+    payment = InvoicePayment.objects.create(
+        invoice=invoice, amount=amount, payment_method=method,
+        reference=reference, paid_at=paid_at,
+        recorded_by=request.user, notes=notes
+    )
+    # Update invoice.amount_paid
+    total_paid = sum(p.amount for p in invoice.payments.all())
+    invoice.amount_paid = total_paid
+    if total_paid >= invoice.total_amount:
+        invoice.status = 'Full Payment'
+    invoice.save()
+
+    AuditLog.objects.create(
+        user=request.user, action='payment', model_name='Invoice',
+        object_id=str(invoice.pk), object_repr=invoice.invoice_number,
+        changes=f'AED {amount} via {method}', ip_address=request.META.get('REMOTE_ADDR')
+    )
+    return JsonResponse({
+        'status': 'ok', 'payment_id': payment.id,
+        'total_paid': float(invoice.amount_paid),
+        'invoice_status': invoice.status
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TRAINING SCHEDULE
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+def training_schedule_list(request):
+    from .models import TrainingSchedule
+    import datetime
+    schedules = TrainingSchedule.objects.select_related('course', 'created_by').all()
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        schedules = schedules.filter(status=status_filter)
+    today = datetime.date.today()
+    # Auto-update status
+    for s in schedules:
+        if s.status == 'upcoming' and s.start_date <= today:
+            s.status = 'ongoing' if s.end_date >= today else 'completed'
+            s.save()
+    return render(request, 'schedule/schedule_list.html', {
+        'schedules': schedules,
+        'status_filter': status_filter,
+        'today': today,
+        'courses': Course.objects.all().order_by('name'),
+    })
+
+
+@login_required
+def training_schedule_create(request):
+    from .models import TrainingSchedule
+    error = None
+    if request.method == 'POST':
+        try:
+            s = TrainingSchedule(
+                course=Course.objects.get(pk=request.POST['course']),
+                title=request.POST['title'],
+                class_type=request.POST.get('class_type', 'offline'),
+                start_date=request.POST['start_date'],
+                end_date=request.POST['end_date'],
+                start_time=request.POST.get('start_time') or None,
+                end_time=request.POST.get('end_time') or None,
+                venue=request.POST.get('venue', ''),
+                max_capacity=int(request.POST.get('max_capacity') or 0),
+                instructor=request.POST.get('instructor', ''),
+                notes=request.POST.get('notes', ''),
+                status=request.POST.get('status', 'upcoming'),
+                created_by=request.user,
+            )
+            s.save()
+            from .models import AuditLog
+            AuditLog.objects.create(user=request.user, action='create', model_name='TrainingSchedule', object_id=str(s.pk), object_repr=str(s))
+            return redirect('training_schedule_list')
+        except Exception as e:
+            error = str(e)
+    courses = Course.objects.all().order_by('name')
+    return render(request, 'schedule/schedule_form.html', {'courses': courses, 'error': error, 'mode': 'create'})
+
+
+@login_required
+def training_schedule_edit(request, pk):
+    from .models import TrainingSchedule
+    schedule = get_object_or_404(TrainingSchedule, pk=pk)
+    error = None
+    if request.method == 'POST':
+        try:
+            schedule.course = Course.objects.get(pk=request.POST['course'])
+            schedule.title = request.POST['title']
+            schedule.class_type = request.POST.get('class_type', 'offline')
+            schedule.start_date = request.POST['start_date']
+            schedule.end_date = request.POST['end_date']
+            schedule.start_time = request.POST.get('start_time') or None
+            schedule.end_time = request.POST.get('end_time') or None
+            schedule.venue = request.POST.get('venue', '')
+            schedule.max_capacity = int(request.POST.get('max_capacity') or 0)
+            schedule.instructor = request.POST.get('instructor', '')
+            schedule.notes = request.POST.get('notes', '')
+            schedule.status = request.POST.get('status', schedule.status)
+            schedule.save()
+            return redirect('training_schedule_list')
+        except Exception as e:
+            error = str(e)
+    courses = Course.objects.all().order_by('name')
+    return render(request, 'schedule/schedule_form.html', {'courses': courses, 'schedule': schedule, 'error': error, 'mode': 'edit'})
+
+
+@login_required
+@require_POST
+def training_schedule_delete(request, pk):
+    from .models import TrainingSchedule
+    schedule = get_object_or_404(TrainingSchedule, pk=pk)
+    schedule.delete()
+    return redirect('training_schedule_list')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXPENSE TRACKING
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+def expense_list(request):
+    from .models import Expense
+    from django.db.models import Sum
+    import datetime
+    today = datetime.date.today()
+    month_start = today.replace(day=1)
+
+    expenses = Expense.objects.select_related('course', 'recorded_by')
+    cat_filter = request.GET.get('category', '')
+    month_filter = request.GET.get('month', '')
+    if cat_filter:
+        expenses = expenses.filter(category=cat_filter)
+    if month_filter:
+        try:
+            y, m = month_filter.split('-')
+            expenses = expenses.filter(expense_date__year=y, expense_date__month=m)
+        except Exception:
+            pass
+
+    total = expenses.aggregate(t=Sum('amount'))['t'] or 0
+    total_vat = expenses.aggregate(t=Sum('vat_amount'))['t'] or 0
+    month_total = Expense.objects.filter(expense_date__gte=month_start).aggregate(t=Sum('amount'))['t'] or 0
+
+    return render(request, 'expenses/expense_list.html', {
+        'expenses': expenses.order_by('-expense_date'),
+        'total': total, 'total_vat': total_vat, 'month_total': month_total,
+        'cat_filter': cat_filter, 'month_filter': month_filter,
+        'categories': Expense.CATEGORY_CHOICES,
+        'courses': Course.objects.all().order_by('name'),
+    })
+
+
+@login_required
+def expense_create(request):
+    from .models import Expense, AuditLog
+    error = None
+    if request.method == 'POST':
+        try:
+            from decimal import Decimal as _D
+            e = Expense(
+                category=request.POST['category'],
+                description=request.POST['description'],
+                amount=_D(request.POST['amount']),
+                vat_amount=_D(request.POST.get('vat_amount') or '0'),
+                vendor=request.POST.get('vendor', ''),
+                expense_date=request.POST['expense_date'],
+                payment_method=request.POST.get('payment_method', ''),
+                receipt_ref=request.POST.get('receipt_ref', ''),
+                notes='',
+                recorded_by=request.user,
+            )
+            course_id = request.POST.get('course')
+            if course_id:
+                e.course = Course.objects.get(pk=course_id)
+            e.save()
+            AuditLog.objects.create(user=request.user, action='create', model_name='Expense', object_id=str(e.pk), object_repr=str(e))
+            return redirect('expense_list')
+        except Exception as ex:
+            error = str(ex)
+    return render(request, 'expenses/expense_form.html', {
+        'courses': Course.objects.all().order_by('name'),
+        'categories': Expense.CATEGORY_CHOICES,
+        'error': error, 'mode': 'create'
+    })
+
+
+@login_required
+def expense_edit(request, pk):
+    from .models import Expense, AuditLog
+    expense = get_object_or_404(Expense, pk=pk)
+    error = None
+    if request.method == 'POST':
+        try:
+            from decimal import Decimal as _D
+            expense.category = request.POST['category']
+            expense.description = request.POST['description']
+            expense.amount = _D(request.POST['amount'])
+            expense.vat_amount = _D(request.POST.get('vat_amount') or '0')
+            expense.vendor = request.POST.get('vendor', '')
+            expense.expense_date = request.POST['expense_date']
+            expense.payment_method = request.POST.get('payment_method', '')
+            expense.receipt_ref = request.POST.get('receipt_ref', '')
+            course_id = request.POST.get('course')
+            expense.course = Course.objects.get(pk=course_id) if course_id else None
+            expense.save()
+            return redirect('expense_list')
+        except Exception as ex:
+            error = str(ex)
+    return render(request, 'expenses/expense_form.html', {
+        'courses': Course.objects.all().order_by('name'),
+        'categories': Expense.CATEGORY_CHOICES,
+        'expense': expense, 'error': error, 'mode': 'edit'
+    })
+
+
+@login_required
+@require_POST
+def expense_delete(request, pk):
+    from .models import Expense
+    expense = get_object_or_404(Expense, pk=pk)
+    expense.delete()
+    return redirect('expense_list')
+
+
+@login_required
+def expense_report(request):
+    from .models import Expense
+    from django.db.models import Sum
+    import datetime, json as _json
+    today = datetime.date.today()
+    year = int(request.GET.get('year', today.year))
+
+    expenses_qs = Expense.objects.filter(expense_date__year=year)
+    # Revenue for comparison (same year)
+    revenue_qs = Invoice.objects.filter(date__year=year)
+    total_revenue = float(revenue_qs.aggregate(t=Sum('total_amount'))['t'] or 0)
+    total_expense = float(expenses_qs.aggregate(t=Sum('amount'))['t'] or 0)
+    net_profit = total_revenue - total_expense
+
+    # By category
+    by_cat = {}
+    for e in expenses_qs:
+        by_cat[e.category] = by_cat.get(e.category, 0) + float(e.amount)
+
+    # Monthly expenses
+    monthly = [0] * 12
+    for e in expenses_qs:
+        monthly[e.expense_date.month - 1] += float(e.amount)
+
+    # Monthly revenue
+    monthly_rev = [0] * 12
+    for inv in revenue_qs:
+        monthly_rev[inv.date.month - 1] += float(inv.total_amount)
+
+    return render(request, 'expenses/expense_report.html', {
+        'year': year, 'total_revenue': total_revenue,
+        'total_expense': total_expense, 'net_profit': net_profit,
+        'by_cat': by_cat, 'monthly': _json.dumps(monthly),
+        'monthly_rev': _json.dumps(monthly_rev),
+        'expense_categories': Expense.CATEGORY_CHOICES,
+        'expenses': expenses_qs.order_by('-expense_date')[:50],
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AUDIT LOG
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+def audit_log_view(request):
+    from .models import AuditLog
+    if not (is_admin_user(request.user)):
+        from django.contrib import messages as _msg
+        _msg.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
+    logs = AuditLog.objects.select_related('user').all()
+    action_filter = request.GET.get('action', '')
+    model_filter = request.GET.get('model', '')
+    user_filter = request.GET.get('user', '')
+    if action_filter:
+        logs = logs.filter(action=action_filter)
+    if model_filter:
+        logs = logs.filter(model_name__icontains=model_filter)
+    if user_filter:
+        logs = logs.filter(user__username__icontains=user_filter)
+    paginator = Paginator(logs, 50)
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+    from .models import AuditLog as _AL
+    return render(request, 'audit/audit_log.html', {
+        'logs': page_obj, 'action_filter': action_filter,
+        'model_filter': model_filter, 'user_filter': user_filter,
+        'action_choices': _AL.ACTION_CHOICES,
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FEE REMINDER DASHBOARD
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+def fee_reminder_dashboard(request):
+    from .models import FeeReminderLog
+    from decimal import Decimal
+
+    today = timezone.now().date()
+
+    # Invoices where amount_paid < total_amount (outstanding balance)
+    all_invoices = Invoice.objects.select_related('client', 'registration', 'user') \
+                        .filter(amount_paid__lt=F('total_amount')) \
+                        .order_by('due_date')
+
+    overdue   = [i for i in all_invoices if i.due_date < today]
+    due_today = [i for i in all_invoices if i.due_date == today]
+    upcoming  = [i for i in all_invoices if today < i.due_date <= today + datetime.timedelta(days=7)]
+
+    overdue_amount  = sum(i.total_amount - i.amount_paid for i in overdue)
+    upcoming_amount = sum(i.total_amount - i.amount_paid for i in upcoming)
+
+    # Handle "Send Reminder" POST
+    if request.method == 'POST':
+        invoice_id = request.POST.get('invoice_id')
+        channel    = request.POST.get('channel', 'system')
+        note       = request.POST.get('note', '').strip()
+        inv = get_object_or_404(Invoice, pk=invoice_id)
+        days = (today - inv.due_date).days
+        FeeReminderLog.objects.create(
+            invoice=inv,
+            client_name=inv.client.name if inv.client else '—',
+            invoice_number=inv.invoice_number,
+            amount_due=inv.total_amount - inv.amount_paid,
+            due_date=inv.due_date,
+            days_overdue=days,
+            channel=channel,
+            sent_by=request.user,
+            note=note,
+        )
+        # Also create in-app notification for the invoice owner
+        Notification.objects.create(
+            recipient=inv.user,
+            notif_type='overdue_invoice' if days > 0 else 'invoice_due',
+            title=f"Fee Reminder: {inv.invoice_number}",
+            message=f"Reminder sent for {'overdue ' if days>0 else 'upcoming '}{inv.invoice_number} "
+                    f"(AED {inv.total_amount - inv.amount_paid:,.2f} due {inv.due_date.strftime('%d %b %Y')})",
+            link=f'/invoice/{inv.pk}/',
+        )
+        messages.success(request, f"Reminder logged for invoice {inv.invoice_number}.")
+        return redirect('fee_reminder_dashboard')
+
+    # Reminder history (paginated)
+    reminder_qs = FeeReminderLog.objects.select_related('sent_by').all()
+    r_paginator = Paginator(reminder_qs, 25)
+    reminder_page = r_paginator.get_page(request.GET.get('rpage', 1))
+
+    return render(request, 'invoices/fee_reminder_dashboard.html', {
+        'overdue': overdue,
+        'due_today': due_today,
+        'upcoming': upcoming,
+        'overdue_amount': overdue_amount,
+        'upcoming_amount': upcoming_amount,
+        'today': today,
+        'reminders': reminder_page,
+        'r_paginator': r_paginator,
+    })

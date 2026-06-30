@@ -1,0 +1,208 @@
+{% extends "base_generic.html" %}
+{% load static %}
+
+{% block title %}Sales Manager Dashboard{% endblock %}
+{% block breadcrumb_label %}<span class="current">Sales Manager</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.exec-card { border-radius: 14px; background: #fff; border: 1px solid var(--border); padding: 18px; box-shadow: var(--shadow); transition: transform .2s; }
+.exec-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.exec-hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.exec-avatar-lg { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: #fff; flex-shrink: 0; }
+.mini-stat { text-align: center; padding: 8px; }
+.mini-stat-val { font-size: 18px; font-weight: 800; color: var(--text); }
+.mini-stat-lbl { font-size: 11px; color: var(--text-muted); }
+.rank-badge { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="page-title">Sales Manager Dashboard</div>
+        <div class="page-subtitle">{{ current_month_label }} — Team performance overview</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'create_quotation' %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-file-alt me-1"></i>New Quotation</a>
+    </div>
+</div>
+
+<!-- ── TEAM KPIs ─────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-blue"><i class="fas fa-chart-bar"></i></div>
+            <div class="kpi-value" data-count="{{ team_revenue }}" data-prefix="AED ">AED 0</div>
+            <div class="kpi-label">Team Revenue (Month)</div>
+            <div class="kpi-trend {{ team_rev_dir }}"><i class="fas fa-arrow-{{ team_rev_dir }}"></i> {{ team_rev_pct }}% vs last month</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-green"><i class="fas fa-users"></i></div>
+            <div class="kpi-value" data-count="{{ team_registrations }}">0</div>
+            <div class="kpi-label">Team Registrations</div>
+            <div class="kpi-trend up"><i class="fas fa-arrow-up"></i> {{ reg_trend_pct }}% vs last month</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-purple"><i class="fas fa-user-tie"></i></div>
+            <div class="kpi-value" data-count="{{ exec_performance|length }}">0</div>
+            <div class="kpi-label">Active Executives</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-orange"><i class="fas fa-chart-line"></i></div>
+            <div class="kpi-value" data-count="{{ reg_trend_pct }}" data-suffix="%">0%</div>
+            <div class="kpi-label">Registration Growth</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── EXECUTIVE CARDS ────────────────────────────────────────── -->
+<div class="mb-3 fw-600" style="font-size:15px;"><i class="fas fa-users me-2 text-primary"></i>Executive Performance</div>
+<div class="row g-3 mb-4">
+    {% for exec in exec_performance %}
+    <div class="col-xl-4 col-md-6">
+        <div class="exec-card">
+            <div class="exec-hdr">
+                <div class="exec-avatar-lg" style="background:linear-gradient(135deg, {{ exec.color1 }}, {{ exec.color2 }});">
+                    {{ exec.username|slice:":2"|upper }}
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:14px;font-weight:700;">{{ exec.full_name|default:exec.username }}</div>
+                    <div style="font-size:11px;color:var(--text-muted);">Sales Executive</div>
+                </div>
+                {% if exec.rank == 1 %}
+                <div class="rank-badge" style="background:rgba(245,158,11,.15);color:#d97706;">🥇</div>
+                {% elif exec.rank == 2 %}
+                <div class="rank-badge" style="background:rgba(100,116,139,.15);color:#64748b;">🥈</div>
+                {% elif exec.rank == 3 %}
+                <div class="rank-badge" style="background:rgba(180,83,9,.15);color:#b45309;">🥉</div>
+                {% endif %}
+            </div>
+
+            <!-- target progress -->
+            <div class="mb-2 d-flex justify-content-between" style="font-size:12px;">
+                <span style="color:var(--text-muted);">Target Progress</span>
+                <strong>{{ exec.target_pct }}%</strong>
+            </div>
+            <div class="progress mb-3" style="height:8px;">
+                <div class="progress-bar" style="width:{{ exec.target_pct }}%;background:{% if exec.target_pct >= 100 %}var(--success){% elif exec.target_pct >= 60 %}var(--primary){% else %}var(--warning){% endif %};"></div>
+            </div>
+
+            <!-- mini stats -->
+            <div class="row g-0 text-center" style="border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+                <div class="col-6 mini-stat" style="border-right:1px solid var(--border);">
+                    <div class="mini-stat-val" style="font-size:15px;">{{ exec.month_registrations }}</div>
+                    <div class="mini-stat-lbl">Regs</div>
+                </div>
+                <div class="col-6 mini-stat">
+                    <div class="mini-stat-val" style="font-size:15px;">{{ exec.target_pct }}%</div>
+                    <div class="mini-stat-lbl">Target</div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between mt-3" style="font-size:13px;">
+                <span style="color:var(--text-muted);">Revenue</span>
+                <strong>AED {{ exec.month_revenue|floatformat:0 }}</strong>
+            </div>
+            <div class="d-flex justify-content-between" style="font-size:12px;">
+                <span style="color:var(--text-muted);">Target</span>
+                <span>AED {{ exec.target_amount|floatformat:0 }}</span>
+            </div>
+            <div class="d-flex justify-content-between" style="font-size:12px;">
+                <span style="color:var(--text-muted);">Projected</span>
+                <span style="color:{% if exec.projected >= exec.target_amount %}var(--success){% else %}var(--danger){% endif %};">
+                    AED {{ exec.projected|floatformat:0 }}
+                </span>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="card text-center py-5 text-muted">
+            <i class="fas fa-users fa-3x mb-3 text-muted opacity-50 d-block"></i>
+            No sales executives found. <a href="{% url 'manage_users' %}">Add team members</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ── CHARTS ────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-6">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-chart-bar me-2 text-primary"></i>Revenue by Executive (Month)</div>
+            <div class="card-body">
+                <canvas id="execRevenueChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-chart-line me-2 text-success"></i>Team Revenue Trend</div>
+            <div class="card-body">
+                <canvas id="teamTrendChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const execColors = ['#2563eb','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4'];
+
+// Revenue by executive
+const erCtx = document.getElementById('execRevenueChart').getContext('2d');
+new Chart(erCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ exec_labels|safe }},
+        datasets: [
+            { label: 'Revenue', data: {{ exec_revenue_data|safe }},
+              backgroundColor: execColors, borderRadius: 6, borderSkipped: false },
+            { label: 'Target', data: {{ exec_target_data|safe }},
+              backgroundColor: 'transparent', borderColor: '#94a3b8',
+              borderWidth: 2, type: 'line', pointRadius: 0 }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+        scales: {
+            y: { grid: { color: '#f1f5f9' }, ticks: { callback: v => 'AED '+v.toLocaleString() } },
+            x: { grid: { display: false } }
+        }
+    }
+});
+
+// Team trend
+const ttCtx = document.getElementById('teamTrendChart').getContext('2d');
+new Chart(ttCtx, {
+    type: 'line',
+    data: {
+        labels: {{ trend_labels|safe }},
+        datasets: [{
+            label: 'Team Revenue',
+            data: {{ trend_data|safe }},
+            borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.08)',
+            borderWidth: 2.5, fill: true, tension: 0.4, pointRadius: 4,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { grid: { color: '#f1f5f9' }, ticks: { callback: v => 'AED '+v.toLocaleString() } },
+            x: { grid: { display: false } }
+        }
+    }
+});
+</script>
+{% endblock %}

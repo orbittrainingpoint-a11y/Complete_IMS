@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Settings{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Payment Settings</h1>
+            <p class="text-muted">Configure your company information and payment preferences</p>
+        </div>
+        <a href="{{ url_for('main.payments') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Payments
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <form method="POST" action="{{ url_for('main.save_payment_settings') }}">
+                {{ form.hidden_tag() }}
+                
+                <!-- Company Information -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="m-0 font-weight-bold text-primary">Company Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.company_name.label(class="form-label") }}
+                                    {{ form.company_name(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.company_email.label(class="form-label") }}
+                                    {{ form.company_email(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.company_phone.label(class="form-label") }}
+                                    {{ form.company_phone(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.tax_registration_number.label(class="form-label") }}
+                                    {{ form.tax_registration_number(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            {{ form.company_address.label(class="form-label") }}
+                            {{ form.company_address(class="form-control", rows="3") }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Configuration -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="m-0 font-weight-bold text-primary">Payment Configuration</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.default_currency.label(class="form-label") }}
+                                    {{ form.default_currency(class="form-select") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.payment_reminder_days.label(class="form-label") }}
+                                    {{ form.payment_reminder_days(class="form-control") }}
+                                    <div class="form-text">Number of days before sending payment reminders</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        {{ form.auto_send_receipts(class="form-check-input") }}
+                                        {{ form.auto_send_receipts.label(class="form-check-label") }}
+                                    </div>
+                                    <div class="form-text">Automatically send receipts after successful payments</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        {{ form.payment_reminder_enabled(class="form-check-input") }}
+                                        {{ form.payment_reminder_enabled.label(class="form-check-label") }}
+                                    </div>
+                                    <div class="form-text">Send automatic payment reminders to customers</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoice & Receipt Settings -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="m-0 font-weight-bold text-primary">Invoice & Receipt Settings</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ form.payment_terms.label(class="form-label") }}
+                            {{ form.payment_terms(class="form-control", rows="3") }}
+                            <div class="form-text">Default payment terms to include in invoices</div>
+                        </div>
+                        <div class="mb-3">
+                            {{ form.invoice_notes.label(class="form-label") }}
+                            {{ form.invoice_notes(class="form-control", rows="3") }}
+                            <div class="form-text">Additional notes to include in invoices and receipts</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fas fa-save me-2"></i>Save Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Settings Preview -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="m-0 font-weight-bold text-primary">Settings Preview</h6>
+                </div>
+                <div class="card-body">
+                    {% if settings %}
+                        <h6>{{ settings.company_name or 'Company Name' }}</h6>
+                        <p class="text-muted small">
+                            {{ settings.company_email or 'company@example.com' }}<br>
+                            {{ settings.company_phone or '+971-XX-XXXXXXX' }}<br>
+                            {% if settings.company_address %}
+                                {{ settings.company_address }}<br>
+                            {% endif %}
+                            {% if settings.tax_registration_number %}
+                                Tax ID: {{ settings.tax_registration_number }}
+                            {% endif %}
+                        </p>
+                        
+                        <hr>
+                        
+                        <div class="small">
+                            <div class="d-flex justify-content-between">
+                                <span>Default Currency:</span>
+                                <strong>{{ settings.default_currency or 'AED' }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Auto Receipts:</span>
+                                <strong>{{ 'Yes' if settings.auto_send_receipts else 'No' }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Payment Reminders:</span>
+                                <strong>{{ 'Yes' if settings.payment_reminder_enabled else 'No' }}</strong>
+                            </div>
+                            {% if settings.payment_reminder_enabled %}
+                            <div class="d-flex justify-content-between">
+                                <span>Reminder Days:</span>
+                                <strong>{{ settings.payment_reminder_days }} days</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No settings configured yet. Fill out the form to see a preview here.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('main.payment_providers') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-cog me-1"></i>Configure Payment Providers
+                        </a>
+                        <a href="{{ url_for('main.payments') }}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-link me-1"></i>Create Payment Link
+                        </a>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="testEmailSettings()">
+                            <i class="fas fa-envelope me-1"></i>Test Email Configuration
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Help & Documentation -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="m-0 font-weight-bold text-primary">Help & Documentation</h6>
+                </div>
+                <div class="card-body">
+                    <div class="small">
+                        <h6>Payment Variables</h6>
+                        <p>You can use these variables in your payment terms and invoice notes:</p>
+                        <ul class="list-unstyled">
+                            <li><code>{company_name}</code> - Your company name</li>
+                            <li><code>{customer_name}</code> - Customer's name</li>
+                            <li><code>{amount}</code> - Payment amount</li>
+                            <li><code>{currency}</code> - Currency code</li>
+                            <li><code>{date}</code> - Current date</li>
+                            <li><code>{reference}</code> - Payment reference</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function testEmailSettings() {
+    // This would send a test email to verify configuration
+    alert('Test email functionality would be implemented here');
+}
+
+// Auto-save functionality (optional)
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const inputs = form.querySelectorAll('input, textarea, select');
+    
+    inputs.forEach(input => {
+        input.addEventListener('change', function() {
+            // Auto-save indication (you could implement actual auto-save here)
+            console.log('Settings changed, consider auto-save');
+        });
+    });
+});
+</script>
+{% endblock %}

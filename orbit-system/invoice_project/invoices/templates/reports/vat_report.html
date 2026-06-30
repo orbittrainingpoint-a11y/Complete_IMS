@@ -1,0 +1,144 @@
+{% extends 'base_generic.html' %}
+{% block title %}VAT Report{% endblock %}
+{% block breadcrumb_label %}<span class="current">VAT Report</span>{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="page-title"><i class="fas fa-percent me-2 text-info"></i>VAT Report</div>
+        <div class="page-subtitle">UAE FTA format — VAT collected on invoices</div>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <a href="{% url 'orbit_dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Dashboard</a>
+        <a href="?export=csv{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="btn btn-outline-success btn-sm"><i class="fas fa-file-csv me-1"></i>Export CSV</a>
+        <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
+    </div>
+</div>
+
+<!-- Date Filter -->
+<div class="card mb-4 no-print">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Date From</label>
+                <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Date To</label>
+                <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i>Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary KPIs -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-blue"><i class="fas fa-file-invoice"></i></div>
+            <div class="kpi-value" data-count="{{ invoice_count }}">0</div>
+            <div class="kpi-label">Total Invoices</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-green"><i class="fas fa-dollar-sign"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ total_net|floatformat:2 }}</div>
+            <div class="kpi-label">Net Revenue (excl. VAT)</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-cyan"><i class="fas fa-percent"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ total_vat|floatformat:2 }}</div>
+            <div class="kpi-label">Total VAT Collected (5%)</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="kpi-card" style="border-color:var(--primary);background:rgba(37,99,235,.03);">
+            <div class="kpi-icon icon-blue"><i class="fas fa-sigma"></i></div>
+            <div class="kpi-value" style="font-size:20px;color:var(--primary);">AED {{ total_gross|floatformat:2 }}</div>
+            <div class="kpi-label">Total Gross (incl. VAT)</div>
+        </div>
+    </div>
+</div>
+
+<!-- UAE FTA Summary Box -->
+<div class="card mb-4" style="border-color:var(--primary);">
+    <div class="card-header" style="background:rgba(37,99,235,.05);font-weight:700;">
+        <i class="fas fa-flag me-2 text-primary"></i>UAE FTA VAT Return Summary
+    </div>
+    <div class="card-body">
+        <div class="row g-4">
+            <div class="col-md-6">
+                <table class="table table-bordered mb-0" style="font-size:14px;">
+                    <tbody>
+                        <tr><th colspan="2" class="text-center" style="background:var(--bg);">Box 1 — Sales</th></tr>
+                        <tr><td>Standard Rated Supplies (5%)</td><td class="text-end fw-bold">AED {{ total_net|floatformat:2 }}</td></tr>
+                        <tr><td>VAT on Sales</td><td class="text-end fw-bold text-info">AED {{ total_vat|floatformat:2 }}</td></tr>
+                        <tr style="background:rgba(37,99,235,.05);"><td><strong>Total Taxable Amount</strong></td><td class="text-end fw-bold text-primary">AED {{ total_gross|floatformat:2 }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-bordered mb-0" style="font-size:14px;">
+                    <tbody>
+                        <tr><th colspan="2" class="text-center" style="background:var(--bg);">Collections</th></tr>
+                        <tr><td>Amount Collected (Net)</td><td class="text-end fw-bold">AED {{ total_collected_net|floatformat:2 }}</td></tr>
+                        <tr><td>VAT in Collections</td><td class="text-end fw-bold text-success">AED {{ total_collected_vat|floatformat:2 }}</td></tr>
+                        <tr style="background:rgba(16,185,129,.05);"><td><strong>Outstanding VAT</strong></td><td class="text-end fw-bold text-danger">AED {{ total_vat|add:"-"|add:total_collected_vat|floatformat:2 }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Monthly Breakdown -->
+{% if monthly %}
+<div class="card">
+    <div class="card-header"><i class="fas fa-calendar me-2 text-primary"></i>Monthly Breakdown</div>
+    <div class="table-responsive">
+        <table class="table mb-0" data-sortable>
+            <thead>
+                <tr>
+                    <th data-sort="0">Period</th>
+                    <th data-sort="1">Invoices</th>
+                    <th data-sort="2">Net Revenue</th>
+                    <th data-sort="3">VAT (5%)</th>
+                    <th data-sort="4">Gross Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for period, data in monthly.items %}
+                <tr>
+                    <td><strong>{{ period }}</strong></td>
+                    <td>{{ data.count }}</td>
+                    <td>AED {{ data.net|floatformat:2 }}</td>
+                    <td class="text-info"><strong>AED {{ data.vat|floatformat:2 }}</strong></td>
+                    <td class="text-primary"><strong>AED {{ data.net|add:data.vat|floatformat:2 }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot style="background:rgba(37,99,235,.05);">
+                <tr>
+                    <td><strong>TOTAL</strong></td>
+                    <td><strong>{{ invoice_count }}</strong></td>
+                    <td><strong>AED {{ total_net|floatformat:2 }}</strong></td>
+                    <td class="text-info"><strong>AED {{ total_vat|floatformat:2 }}</strong></td>
+                    <td class="text-primary"><strong>AED {{ total_gross|floatformat:2 }}</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card text-center py-5">
+    <i class="fas fa-search fa-3x text-muted d-block mb-3"></i>
+    <div class="text-muted">No invoices found for the selected period.</div>
+</div>
+{% endif %}
+{% endblock %}

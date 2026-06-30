@@ -1,0 +1,211 @@
+{% extends 'base_generic.html' %}
+{% block title %}Create Quotation{% endblock %}
+{% block breadcrumb_label %}<span class="current">New Quotation</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.floating-group { position: relative; margin-bottom: 18px; }
+.floating-group input,.floating-group select,.floating-group textarea {
+    width:100%; padding:20px 14px 6px; border:1.5px solid var(--border); border-radius:10px;
+    background:var(--card-bg); color:var(--text); font-size:14px; outline:none;
+    -webkit-appearance:none; appearance:none; transition:border-color .2s;
+}
+.floating-group input:focus,.floating-group select:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.1); }
+.floating-group label { position:absolute; left:14px; top:14px; font-size:14px; color:var(--text-muted); pointer-events:none; font-weight:500; transition:all .15s; }
+.floating-group.active label,.floating-group input:focus~label,.floating-group select:focus~label { top:4px; font-size:11px; color:var(--primary); font-weight:600; }
+.floating-group.has-icon input { padding-left:38px; }
+.floating-group.has-icon label { left:38px; }
+.ficon { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:13px; pointer-events:none; }
+
+.item-entry { background:var(--bg); border:1.5px solid var(--border); border-radius:12px; padding:18px 18px 14px 28px; margin-bottom:12px; position:relative; transition:border-color .2s; }
+.item-entry:hover { border-color:var(--primary); }
+.item-num { position:absolute; left:-12px; top:18px; width:24px; height:24px; border-radius:50%; background:var(--primary); color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+.btn-del-item { position:absolute; top:10px; right:10px; width:28px; height:28px; border-radius:8px; border:none; background:rgba(239,68,68,.1); color:var(--danger); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.btn-del-item:hover { background:var(--danger); color:#fff; }
+.btn-add-item { border:1.5px dashed var(--primary); background:rgba(37,99,235,.05); color:var(--primary); border-radius:10px; padding:12px; font-size:14px; font-weight:600; width:100%; cursor:pointer; transition:all .2s; }
+.btn-add-item:hover { background:var(--primary); color:#fff; }
+
+.quot-summary { background:linear-gradient(135deg,#0f1b2d,#1a2d47); border-radius:16px; padding:22px; color:#fff; position:sticky; top:80px; }
+.qs-row { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(255,255,255,.09); font-size:14px; }
+.qs-row:last-child { border-bottom:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <div class="page-title"><i class="fas fa-file-alt me-2 text-primary"></i>Create Quotation</div>
+        <div class="page-subtitle">Prepare a course quotation for a client</div>
+    </div>
+    <a href="{% url 'quotation_dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+</div>
+
+<form method="post" id="quotForm" novalidate>
+{% csrf_token %}
+{{ item_formset.management_form }}
+<div class="row g-4">
+    <div class="col-xl-8">
+
+        <!-- Client & Meta -->
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-user-tie"></i></div>
+                <div>
+                    <div class="form-section-title">Quotation Details</div>
+                    <div style="font-size:12px;opacity:.7">Client and date information</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <div class="row g-3">
+                    {% for field in quotation_form %}
+                    <div class="col-md-{% if forloop.counter == 1 %}12{% else %}6{% endif %}">
+                        <div class="floating-group{% if 'date' in field.name or 'type' in field.name or 'status' in field.name %} active{% endif %}">
+                            {% if 'email' in field.name %}<i class="ficon fas fa-envelope"></i>
+                            {% elif 'phone' in field.name %}<i class="ficon fas fa-phone"></i>
+                            {% elif 'date' in field.name %}<i class="ficon fas fa-calendar"></i>
+                            {% elif 'name' in field.name %}<i class="ficon fas fa-user"></i>{% endif %}
+                            {{ field }}
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {% if field.errors %}<div class="text-danger" style="font-size:12px;margin-top:4px;">{{ field.errors.0 }}</div>{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Course Items -->
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-list"></i></div>
+                <div>
+                    <div class="form-section-title">Course Items</div>
+                    <div style="font-size:12px;opacity:.7">Select courses and quantities for this quotation</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <div id="itemFormset" style="padding-left:14px;">
+                    {% for iform in item_formset %}
+                    <div class="item-entry">
+                        <div class="item-num">{{ forloop.counter }}</div>
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-5">
+                                <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">Course</label>
+                                {{ iform.course }}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">Duration</label>
+                                {{ iform.duration }}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">Persons</label>
+                                {{ iform.number_of_persons }}
+                            </div>
+                            <div class="col-md-1 d-flex align-items-end pb-1">
+                                {% if forloop.counter > 1 %}
+                                <button type="button" class="btn-del-item" style="position:static;" title="Remove"><i class="fas fa-times"></i></button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" id="addItem" class="btn-add-item mt-2">
+                    <i class="fas fa-plus-circle me-2"></i>Add Another Course
+                </button>
+            </div>
+        </div>
+
+    </div><!-- /col-xl-8 -->
+
+    <!-- RIGHT: Submit Panel -->
+    <div class="col-xl-4">
+        <div class="quot-summary">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:16px;">Summary</div>
+            <div class="qs-row"><span style="color:rgba(255,255,255,.7);">Items</span><span id="itemCount" style="font-weight:700;">0</span></div>
+            <div class="qs-row"><span style="color:rgba(255,255,255,.7);">Total Persons</span><span id="totalPersons" style="font-weight:700;">0</span></div>
+            <button type="submit" class="btn btn-primary w-100 mt-4" style="padding:14px;font-size:15px;font-weight:700;border-radius:12px;">
+                <i class="fas fa-file-alt me-2"></i>Create Quotation
+            </button>
+            <a href="{% url 'quotation_dashboard' %}" class="btn w-100 mt-2" style="border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:12px;">Cancel</a>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-body" style="font-size:13px;color:var(--text-muted);line-height:1.8;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Notes</div>
+                <div><i class="fas fa-info-circle text-info me-2"></i>Quotations can be converted to invoices</div>
+                <div class="mt-2"><i class="fas fa-print text-primary me-2"></i>Auto-generates a professional PDF</div>
+                <div class="mt-2"><i class="fas fa-plus text-success me-2"></i>Add multiple courses per quotation</div>
+            </div>
+        </div>
+    </div>
+</div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateSummary() {
+    const entries = document.querySelectorAll('.item-entry');
+    document.getElementById('itemCount').textContent = entries.length;
+    let persons = 0;
+    entries.forEach(e => {
+        const p = e.querySelector('input[name*="number_of_persons"],input[name*="persons"]');
+        if(p) persons += parseInt(p.value)||0;
+    });
+    document.getElementById('totalPersons').textContent = persons;
+}
+
+function attachItem(e) {
+    e.querySelectorAll('input,select').forEach(el => el.addEventListener('input', updateSummary));
+    const del = e.querySelector('.btn-del-item');
+    if(del) del.addEventListener('click', () => { e.remove(); reNumItems(); updateSummary(); });
+}
+
+function reNumItems() {
+    document.querySelectorAll('.item-entry').forEach((e,i) => {
+        const n = e.querySelector('.item-num');
+        if(n) n.textContent = i+1;
+    });
+    const tf = document.getElementById('id_form-TOTAL_FORMS');
+    if(tf) tf.value = document.querySelectorAll('.item-entry').length;
+}
+
+document.getElementById('addItem')?.addEventListener('click', () => {
+    const fs = document.getElementById('itemFormset');
+    const tf = document.getElementById('id_form-TOTAL_FORMS');
+    const idx = parseInt(tf.value);
+    const first = fs.querySelector('.item-entry');
+    const clone = first.cloneNode(true);
+    const re = /form-(\d+)-/g;
+    clone.innerHTML = clone.innerHTML.replace(re, `form-${idx}-`);
+    clone.querySelectorAll('input,select').forEach(el => {
+        el.value=''; el.name=el.name.replace(re,`form-${idx}-`); el.id=el.id.replace(re,`form-${idx}-`);
+    });
+    // ensure delete button
+    if(!clone.querySelector('.btn-del-item')) {
+        const b = document.createElement('button'); b.type='button'; b.className='btn-del-item'; b.style.position='static'; b.title='Remove'; b.innerHTML='<i class="fas fa-times"></i>';
+        clone.querySelector('.col-md-1').appendChild(b);
+    }
+    fs.appendChild(clone); tf.value = idx+1; reNumItems(); attachItem(clone); updateSummary();
+    clone.scrollIntoView({behavior:'smooth',block:'nearest'});
+});
+
+// style formset inputs
+document.querySelectorAll('.item-entry select,.item-entry input').forEach(el => {
+    if(!el.classList.contains('form-select')&&!el.classList.contains('form-control')) {
+        el.classList.add(el.tagName==='SELECT'?'form-select':'form-control');
+    }
+});
+
+document.querySelectorAll('.item-entry').forEach(e => attachItem(e));
+// Floating label: activate for any filled input/select
+document.querySelectorAll('.floating-group input,.floating-group select,.floating-group textarea').forEach(el => {
+    const activate = () => el.closest('.floating-group').classList.toggle('active', !!(el.value));
+    el.addEventListener('input', activate);
+    el.addEventListener('change', activate);
+    activate();
+});
+updateSummary();
+</script>
+{% endblock %}

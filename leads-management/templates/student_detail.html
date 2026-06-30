@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}{{ student.name }} — Orbit CRM{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ url_for('main.students') }}" style="color:var(--text-muted);text-decoration:none;">Students</a>
+<span style="color:var(--border);margin:0 6px;">/</span>
+<span class="current">{{ student.name }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+    <!-- Left: Profile card -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body text-center pt-4 pb-3">
+                <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:26px;margin:0 auto 12px;">
+                    {{ (student.first_name[:1] + (student.last_name[:1] if student.last_name else ''))|upper }}
+                </div>
+                <h5 class="mb-1" style="font-weight:700;">{{ student.name }}</h5>
+                <div class="mb-2" style="font-size:12px;color:var(--text-muted);">
+                    {{ student.registration_number or '' }}
+                </div>
+                {% set sc = student.student_status %}
+                {% if sc == 'active' %}
+                    <span class="pill pill-green">Active</span>
+                {% elif sc == 'completed' %}
+                    <span class="pill pill-blue">Completed</span>
+                {% elif sc == 'dropped' %}
+                    <span class="pill pill-red">Dropped</span>
+                {% elif sc == 'suspended' %}
+                    <span class="pill pill-orange">Suspended</span>
+                {% else %}
+                    <span class="pill pill-gray">{{ sc|title if sc else 'Unknown' }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body border-top pt-3">
+                {% if student.phone %}
+                <div class="d-flex gap-3 mb-2 align-items-start">
+                    <i class="fas fa-phone" style="width:16px;color:var(--text-muted);margin-top:2px;font-size:13px;"></i>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;">Phone</div>
+                        <div style="font-size:13.5px;font-weight:500;">{{ student.phone }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if student.email %}
+                <div class="d-flex gap-3 mb-2 align-items-start">
+                    <i class="fas fa-envelope" style="width:16px;color:var(--text-muted);margin-top:2px;font-size:13px;"></i>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;">Email</div>
+                        <div style="font-size:13.5px;font-weight:500;">{{ student.email }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if student.country %}
+                <div class="d-flex gap-3 mb-2 align-items-start">
+                    <i class="fas fa-globe" style="width:16px;color:var(--text-muted);margin-top:2px;font-size:13px;"></i>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;">Country</div>
+                        <div style="font-size:13.5px;font-weight:500;">{{ student.country }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if student.registration_date %}
+                <div class="d-flex gap-3 mb-2 align-items-start">
+                    <i class="fas fa-calendar" style="width:16px;color:var(--text-muted);margin-top:2px;font-size:13px;"></i>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;">Registered</div>
+                        <div style="font-size:13.5px;font-weight:500;">{{ student.registration_date.strftime('%d %b %Y') }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if student.registration_type %}
+                <div class="d-flex gap-3 mb-2 align-items-start">
+                    <i class="fas fa-tag" style="width:16px;color:var(--text-muted);margin-top:2px;font-size:13px;"></i>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;">Type</div>
+                        <div style="font-size:13.5px;font-weight:500;">{{ 'Corporate' if student.registration_type == 'OC' else 'Individual' }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if student.class_type %}
+                <div class="d-flex gap-3 mb-2 align-items-start">
+                    <i class="fas fa-chalkboard" style="width:16px;color:var(--text-muted);margin-top:2px;font-size:13px;"></i>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;">Class Type</div>
+                        <div style="font-size:13.5px;font-weight:500;">{{ student.class_type|title }}</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="card-body border-top pt-3 d-grid gap-2">
+                {% if erp_url %}
+                <a href="{{ erp_url }}" class="btn btn-primary btn-sm" target="_blank">
+                    <i class="fas fa-edit me-2"></i>Edit in Orbit ERP
+                </a>
+                {% endif %}
+                <a href="{{ url_for('main.students') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Students
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Details -->
+    <div class="col-md-8">
+
+        <!-- Courses enrolled -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-book me-2 text-primary"></i>Enrolled Courses
+            </div>
+            <div class="card-body">
+                {% set course_list = student.courses %}
+                {% if course_list %}
+                <div class="d-flex flex-wrap gap-2">
+                    {% for cname in course_list %}
+                    <span style="background:rgba(37,99,235,.08);color:var(--primary);padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;border:1px solid rgba(37,99,235,.2);">
+                        <i class="fas fa-book-open me-2" style="font-size:11px;"></i>{{ cname }}
+                    </span>
+                    {% endfor %}
+                </div>
+                <div class="mt-3 pt-3 border-top d-flex justify-content-between align-items-center">
+                    <span style="font-size:13px;color:var(--text-muted);">Total Course Fee</span>
+                    <span style="font-size:18px;font-weight:800;color:var(--text);">
+                        AED {{ "{:,.0f}".format(student.total_fee|float or 0) }}
+                    </span>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0" style="font-size:13px;">No courses assigned.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Consultant info -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-user-tie me-2" style="color:var(--purple);"></i>Registered By
+            </div>
+            <div class="card-body">
+                {% if student.consultant_name %}
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width:40px;height:40px;border-radius:50%;background:rgba(139,92,246,.15);display:flex;align-items:center;justify-content:center;color:var(--purple);font-weight:700;font-size:14px;">
+                        {{ student.consultant_name[:2]|upper }}
+                    </div>
+                    <div>
+                        <div style="font-weight:600;">{{ student.consultant_name }}</div>
+                        {% if student.consultant_username %}
+                        <div style="font-size:12px;color:var(--text-muted);">@{{ student.consultant_username }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0" style="font-size:13px;">No consultant assigned.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- CRM Lead link -->
+        {% if student.lead_crm_id %}
+        <div class="card mb-4">
+            <div class="card-header" style="background:rgba(37,99,235,.06);border-bottom:1px solid rgba(37,99,235,.12);">
+                <i class="fas fa-link me-2" style="color:var(--primary);"></i>
+                <span style="font-weight:700;color:var(--primary);">Linked CRM Lead</span>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width:44px;height:44px;border-radius:10px;background:rgba(37,99,235,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas fa-funnel-dollar" style="color:var(--primary);font-size:18px;"></i>
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;">Lead ID</div>
+                        <div style="font-family:monospace;font-weight:800;font-size:18px;color:var(--primary);">L-{{ student.lead_crm_id }}</div>
+                    </div>
+                    <a href="{{ url_for('main.lead_detail', lead_id=student.lead_crm_id) }}"
+                       class="btn btn-primary btn-sm">
+                        <i class="fas fa-external-link-alt me-2"></i>View Lead
+                    </a>
+                </div>
+                <div class="mt-2 pt-2 border-top" style="font-size:12px;color:var(--text-muted);">
+                    <i class="fas fa-check-circle me-1" style="color:#10b981;"></i>
+                    This registration is attributed to Lead L-{{ student.lead_crm_id }} in the consultant's sales record.
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card mb-4" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.06);">
+            <div class="card-body py-3">
+                <div style="font-size:13px;color:#b91c1c;font-weight:500;">
+                    <i class="fas fa-exclamation-triangle me-2" style="color:#ef4444;"></i>
+                    <strong>No CRM lead linked.</strong> This registration may not be attributed to a sales consultant.
+                    <a href="http://localhost:8000/edit-registration/{{ student.ims_registration_id }}/" target="_blank"
+                       style="color:#b91c1c;font-weight:700;margin-left:6px;text-decoration:underline;">
+                        Add Lead ID in ERP <i class="fas fa-external-link-alt fa-xs ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Sync info -->
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-sync-alt me-2 text-success"></i>Sync Information
+            </div>
+            <div class="card-body">
+                <div class="row g-3" style="font-size:13px;">
+                    <div class="col-6">
+                        <div style="color:var(--text-muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;">IMS Registration ID</div>
+                        <div style="font-weight:600;font-family:monospace;">{{ student.ims_registration_id }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div style="color:var(--text-muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;">Last Synced</div>
+                        <div style="font-weight:600;">{{ student.updated_at.strftime('%d %b %Y %H:%M') if student.updated_at else '—' }}</div>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-top">
+                    <div style="font-size:12px;color:var(--text-muted);">
+                        <i class="fas fa-info-circle me-1"></i>
+                        This student record is synced automatically from Orbit ERP.
+                        To update details or change status, use the <strong>Edit in Orbit ERP</strong> button above.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

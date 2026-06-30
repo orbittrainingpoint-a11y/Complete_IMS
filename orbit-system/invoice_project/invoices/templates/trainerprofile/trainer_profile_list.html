@@ -1,0 +1,111 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Trainer Profiles{% endblock %}
+{% block breadcrumb_label %}<span class="current">Trainer Profiles</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.tp-table th { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600; }
+.tp-table td { font-size:13px;vertical-align:middle; }
+.tp-table tbody tr:hover { background:#f8faff; }
+.filter-card { background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px; }
+.filter-card .form-control { font-size:13px;border-radius:8px;border-color:var(--border); }
+.avatar-ring { width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#c026d3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700; }
+.empty-state { text-align:center;padding:60px 20px;color:var(--text-muted); }
+.empty-state i { font-size:48px;margin-bottom:16px;opacity:.3; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <div class="page-title">Trainer Profiles</div>
+    <div class="page-subtitle">Registered trainers and facilitators</div>
+  </div>
+  <a href="{% url 'create_trainer_profile' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Trainer</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-xl-4 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-purple"><i class="fas fa-chalkboard-teacher"></i></div>
+      <div class="kpi-value">{{ profiles|length }}</div>
+      <div class="kpi-label">Total Trainers</div>
+    </div>
+  </div>
+</div>
+
+<div class="filter-card">
+  <div class="input-group" style="max-width:420px;">
+    <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted" style="font-size:12px;"></i></span>
+    <input type="text" id="tpSearch" class="form-control border-start-0 ps-0" placeholder="Search trainer name…" style="font-size:13px;">
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table tp-table mb-0">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Trainer Name</th>
+          <th style="width:120px;">CV / Profile</th>
+          <th style="width:140px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for profile in profiles %}
+        <tr class="tp-row" data-name="{{ profile.name|lower }}">
+          <td style="color:var(--text-muted);font-size:11px;">{{ forloop.counter }}</td>
+          <td>
+            <div class="d-flex align-items-center gap-3">
+              <div class="avatar-ring">{{ profile.name|slice:":1"|upper }}</div>
+              <div style="font-weight:600;">{{ profile.name }}</div>
+            </div>
+          </td>
+          <td>
+            {% if profile.pdf_file %}
+              <a href="{{ profile.pdf_file.url }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fas fa-file-pdf me-1"></i>View CV</a>
+            {% else %}
+              <span class="text-muted" style="font-size:12px;">No file</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{% url 'edit_trainer_profile' profile.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="fas fa-pen"></i></a>
+              {% if user.username == 'admin' or user.profile.role == 'admin' %}
+              <a href="{% url 'delete_trainer_profile' profile.pk %}" class="btn btn-sm btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4"><div class="empty-state"><i class="fas fa-chalkboard-teacher d-block"></i>No trainers added yet. <a href="{% url 'create_trainer_profile' %}">Add the first.</a></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% if profiles.has_other_pages %}
+<nav class="mt-3">
+  <ul class="pagination pagination-sm justify-content-end">
+    {% if profiles.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ profiles.previous_page_number }}&q={{ search }}">‹</a></li>{% endif %}
+    {% for n in profiles.paginator.page_range %}
+    <li class="page-item {% if n == profiles.number %}active{% endif %}"><a class="page-link" href="?page={{ n }}&q={{ search }}">{{ n }}</a></li>
+    {% endfor %}
+    {% if profiles.has_next %}<li class="page-item"><a class="page-link" href="?page={{ profiles.next_page_number }}&q={{ search }}">›</a></li>{% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+document.getElementById('tpSearch').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('.tp-row').forEach(r => {
+    r.style.display = r.dataset.name.includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

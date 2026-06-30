@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}Lead Details - {{ lead.name }}{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<li class="breadcrumb-item"><a href="{{ url_for('main.leads') }}">Leads</a></li>
+<li class="breadcrumb-item active">{{ lead.name }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="dashboard-card">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4>{{ lead.name }}</h4>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('main.edit_lead', id=lead.id) }}" class="btn btn-primary">
+                        <i class="fas fa-edit me-2"></i>Edit
+                    </a>
+                    <a href="{{ url_for('main.delete_lead', id=lead.id) }}" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this lead?')">
+                        <i class="fas fa-trash me-2"></i>Delete
+                    </a>
+                    {% if lead.status != 'Converted' and lead.course_interest %}
+                    <form method="POST" action="{{ url_for('main.convert_lead', id=lead.id) }}" style="display: inline;" onsubmit="return confirm('Convert this lead to student?')">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-user-graduate me-2"></i>Convert to Student
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Lead Information -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h5>Personal Information</h5>
+                    <p><strong>Name:</strong> {{ lead.name }}</p>
+                    <p><strong>Phone:</strong> {{ lead.phone }}</p>
+                    <p><strong>WhatsApp:</strong> {{ lead.whatsapp or 'Not specified' }}</p>
+                    <p><strong>Email:</strong> {{ lead.email or 'Not specified' }}</p>
+                </div>
+                <div class="col-md-6">
+                    <h5>Lead Details</h5>
+                    <p><strong>Course Interest:</strong> {{ lead.course_interest.name if lead.course_interest else 'Not specified' }}</p>
+                    <p><strong>Lead Source:</strong> {{ lead.lead_source or 'Not specified' }}</p>
+                    <p><strong>Status:</strong> <span class="badge bg-{{ lead.status.lower() }}">{{ lead.status }}</span></p>
+                    <p><strong>Quoted Amount:</strong> AED {{ "{:,.2f}".format(lead.quoted_amount) if lead.quoted_amount > 0 else 'Not quoted' }}</p>
+                    <p><strong>Last Contact:</strong> {{ lead.last_contact_date.strftime('%Y-%m-%d') if lead.last_contact_date else 'Never' }}</p>
+                    <p><strong>Next Follow-up:</strong> {{ lead.next_followup_date.strftime('%Y-%m-%d') if lead.next_followup_date else 'Not set' }}</p>
+                    <p><strong>Follow-up Type:</strong> {{ lead.followup_type or 'Not specified' }}</p>
+                </div>
+            </div>
+
+            <!-- Comments -->
+            <div class="mb-4">
+                <h5>Comments</h5>
+                <p>{{ lead.comments or 'No comments' }}</p>
+            </div>
+
+            <!-- Interactions -->
+            <div class="mb-4">
+                <h5>Interactions</h5>
+                {% if interactions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Outcome</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for interaction in interactions %}
+                            <tr>
+                                <td>{{ interaction.interaction_date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ interaction.interaction_type }}</td>
+                                <td>{{ interaction.outcome or 'N/A' }}</td>
+                                <td>{{ interaction.notes or 'No notes' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No interactions recorded.</p>
+                {% endif %}
+            </div>
+
+            <!-- Quotes -->
+            <div class="mb-4">
+                <h5>Quotes</h5>
+                {% if quotes %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Course</th>
+                                <th>Amount</th>
+                                <th>Currency</th>
+                                <th>Valid Until</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for quote in quotes %}
+                            <tr>
+                                <td>{{ quote.course.name if quote.course else 'N/A' }}</td>
+                                <td>AED {{ "{:,.2f}".format(quote.quoted_amount) }}</td>
+                                <td>{{ quote.currency }}</td>
+                                <td>{{ quote.valid_until.strftime('%Y-%m-%d') if quote.valid_until else 'N/A' }}</td>
+                                <td>{{ quote.quote_notes or 'No notes' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No quotes recorded.</p>
+                {% endif %}
+            </div>
+
+            <!-- Add Quote Form -->
+            <div class="mb-4">
+                <h5>Add Quote</h5>
+                <form method="POST" action="{{ url_for('main.add_lead_quote', id=lead.id) }}">
+                    {{ quote_form.csrf_token }}
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="form-floating">
+                                {{ quote_form.course_id(class="form-select") }}
+                                <label for="course_id">Course *</label>
+                                {% if quote_form.course_id.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in quote_form.course_id.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-floating">
+                                {{ quote_form.quoted_amount(class="form-control") }}
+                                <label for="quoted_amount">Quoted Amount *</label>
+                                {% if quote_form.quoted_amount.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in quote_form.quoted_amount.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-floating">
+                                {{ quote_form.currency(class="form-control") }}
+                                <label for="currency">Currency *</label>
+                                {% if quote_form.currency.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in quote_form.currency.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-floating">
+                                {{ quote_form.valid_until(class="form-control") }}
+                                <label for="valid_until">Valid Until</label>
+                                {% if quote_form.valid_until.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in quote_form.valid_until.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="form-floating">
+                                {{ quote_form.quote_notes(class="form-control", style="height: 100px") }}
+                                <label for="quote_notes">Notes</label>
+                                {% if quote_form.quote_notes.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in quote_form.quote_notes.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">Add Quote</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Add Interaction Form -->
+            <div class="mb-4">
+                <h5>Add Interaction</h5>
+                <form method="POST" action="{{ url_for('main.add_lead_interaction', id=lead.id) }}">
+                    {{ interaction_form.csrf_token }}
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="form-floating">
+                                {{ interaction_form.interaction_type(class="form-select") }}
+                                <label for="interaction_type">Interaction Type *</label>
+                                {% if interaction_form.interaction_type.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in interaction_form.interaction_type.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-floating">
+                                {{ interaction_form.interaction_date(class="form-control") }}
+                                <label for="interaction_date">Date *</label>
+                                {% if interaction_form.interaction_date.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in interaction_form.interaction_date.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-floating">
+                                {{ interaction_form.outcome(class="form-control") }}
+                                <label for="outcome">Outcome</label>
+                                {% if interaction_form.outcome.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in interaction_form.outcome.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-floating">
+                                {{ interaction_form.notes(class="form-control", style="height: 100px") }}
+                                <label for="notes">Notes</label>
+                                {% if interaction_form.notes.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in interaction_form.notes.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">Add Interaction</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Update Follow-up Form -->
+            <div class="mb-4">
+                <h5>Update Follow-up</h5>
+                <form method="POST" action="{{ url_for('main.update_lead_followup', id=lead.id) }}">
+                    {{ followup_form.csrf_token }}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                {{ followup_form.followup_date(class="form-control") }}
+                                <label for="followup_date">Follow-up Date</label>
+                                {% if followup_form.followup_date.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in followup_form.followup_date.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                {{ followup_form.followup_type(class="form-control") }}
+                                <label for="followup_type">Follow-up Type</label>
+                                {% if followup_form.followup_type.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in followup_form.followup_type.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">Update Follow-up</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

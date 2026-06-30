@@ -1,0 +1,227 @@
+<!-- Meeting Modal -->
+<div class="modal fade" id="meetingModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-calendar-plus me-2"></i>
+                    <span id="meetingModalTitle">Schedule Meeting</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <form method="POST" action="{{ url_for('main.add_meeting') }}" id="meetingForm"
+                  style="display:flex;flex-direction:column;flex:1 1 auto;overflow:hidden;min-height:0;">
+                {{ meeting_form.csrf_token }}
+                <div class="modal-body" style="min-height:0;overflow-y:auto;">
+                    <!-- Meeting Participant -->
+                    <div class="section-header mb-3">
+                        <h6 class="text-primary">
+                            <i class="fas fa-users me-2"></i>Meeting Participant
+                        </h6>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                {{ meeting_form.lead_id(class="form-select", id="lead_id") }}
+                                <label for="lead_id">Lead</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                {{ meeting_form.student_id(class="form-select", id="student_id") }}
+                                <label for="student_id">Student</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Meeting Details -->
+                    <div class="section-header mb-3 mt-4">
+                        <h6 class="text-primary">
+                            <i class="fas fa-info-circle me-2"></i>Meeting Details
+                        </h6>
+                    </div>
+                    
+                    <div class="form-floating mb-3">
+                        {{ meeting_form.title(class="form-control", placeholder="Meeting Title") }}
+                        <label for="title">Meeting Title *</label>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-floating mb-3">
+                                {{ meeting_form.meeting_type(class="form-select") }}
+                                <label for="meeting_type">Meeting Type *</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-floating mb-3">
+                                {{ meeting_form.meeting_date(class="form-control") }}
+                                <label for="meeting_date">Date *</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-floating mb-3">
+                                {{ meeting_form.meeting_time(class="form-control") }}
+                                <label for="meeting_time">Time *</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-floating mb-3">
+                                {{ meeting_form.duration(class="form-control") }}
+                                <label for="duration">Duration (min) *</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Meeting Location/Link -->
+                    <div id="onlineFields" style="display: none;">
+                        <div class="form-floating mb-3">
+                            {{ meeting_form.meeting_link(class="form-control", placeholder="https://zoom.us/j/123456789") }}
+                            <label for="meeting_link">Meeting Link</label>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Enter the online meeting link (Zoom, Google Meet, Teams, etc.)
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="offlineFields" style="display: none;">
+                        <div class="form-floating mb-3">
+                            {{ meeting_form.location(class="form-control", placeholder="Office conference room, client location, etc.") }}
+                            <label for="location">Meeting Location</label>
+                        </div>
+                    </div>
+                    
+                    <!-- Meeting Agenda -->
+                    <div class="section-header mb-3 mt-4">
+                        <h6 class="text-primary">
+                            <i class="fas fa-list me-2"></i>Meeting Agenda
+                        </h6>
+                    </div>
+                    
+                    <div class="form-floating mb-3">
+                        {{ meeting_form.agenda(class="form-control", style="height: 120px", placeholder="Meeting agenda and discussion points...") }}
+                        <label for="agenda">Agenda</label>
+                        <div class="form-text">
+                            <span id="agendaCount">0</span>/500 characters
+                        </div>
+                    </div>
+                    
+                    <!-- Reminder Settings -->
+                    <div class="section-header mb-3 mt-4">
+                        <h6 class="text-primary">
+                            <i class="fas fa-bell me-2"></i>Reminder Settings
+                        </h6>
+                    </div>
+                    
+<div class="row">
+    <div class="col-md-6">
+        <div class="form-check mb-3">
+            {{ meeting_form.email_reminder(class="form-check-input", id="email_reminder") }}
+            <label class="form-check-label" for="email_reminder">Send Email Reminder</label>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-check mb-3">
+            {{ meeting_form.sms_reminder(class="form-check-input", id="sms_reminder") }}
+            <label class="form-check-label" for="sms_reminder">
+                <i class="fas fa-sms me-2"></i>SMS Reminder
+            </label>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="form-floating mb-3">
+            {{ meeting_form.reminder_time(class="form-select", id="reminder_time") }}
+            <label for="reminder_time">Reminder Time</label>
+        </div>
+    </div>
+</div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="saveDraft">
+                        <i class="fas fa-save me-2"></i>Save as Draft
+                    </button>
+                    <button type="submit" class="btn btn-primary-custom">
+                        <i class="fas fa-calendar-check me-2"></i>Schedule Meeting
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Meeting type change handler
+    document.getElementById('meeting_type').addEventListener('change', function() {
+        const onlineFields = document.getElementById('onlineFields');
+        const offlineFields = document.getElementById('offlineFields');
+        
+        if (this.value === 'Online') {
+            onlineFields.style.display = 'block';
+            offlineFields.style.display = 'none';
+            document.getElementById('meeting_link').required = true;
+            document.getElementById('location').required = false;
+        } else if (this.value === 'Offline') {
+            onlineFields.style.display = 'none';
+            offlineFields.style.display = 'block';
+            document.getElementById('meeting_link').required = false;
+            document.getElementById('location').required = true;
+        } else {
+            onlineFields.style.display = 'none';
+            offlineFields.style.display = 'none';
+            document.getElementById('meeting_link').required = false;
+            document.getElementById('location').required = false;
+        }
+    });
+    
+    // Agenda character counter
+    document.getElementById('agenda').addEventListener('input', function() {
+        const count = this.value.length;
+        document.getElementById('agendaCount').textContent = count;
+        
+        if (count > 500) {
+            this.value = this.value.substring(0, 500);
+            document.getElementById('agendaCount').textContent = 500;
+        }
+    });
+    
+    // Set minimum date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('meeting_date').min = today;
+    
+    // Mutual exclusivity of lead and student
+    document.getElementById('lead_id').addEventListener('change', function() {
+        if (this.value) {
+            document.getElementById('student_id').value = '';
+        }
+    });
+    
+    document.getElementById('student_id').addEventListener('change', function() {
+        if (this.value) {
+            document.getElementById('lead_id').value = '';
+        }
+    });
+    
+    // Form validation
+    document.getElementById('meetingForm').addEventListener('submit', function(e) {
+        const leadId = document.getElementById('lead_id').value;
+        const studentId = document.getElementById('student_id').value;
+        
+        if (!leadId && !studentId) {
+            e.preventDefault();
+            alert('Please select either a lead or a student for the meeting.');
+            return;
+        }
+    });
+});
+</script>

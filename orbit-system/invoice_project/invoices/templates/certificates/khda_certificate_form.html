@@ -1,0 +1,54 @@
+    <form id="khdaCertificateForm" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary">Create KHDA Certificate</button>
+    </form>
+
+    <script>
+$(document).ready(function() {
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    $('#khdaCertificateForm').on('submit', function(e) {
+        e.preventDefault();
+        var formData = new FormData(this);
+        $.ajax({
+            url: "{% url 'create_khda_certificate' %}",
+            type: 'POST',
+            data: formData,
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert(response.message);
+                    window.location.href = response.redirect_url;
+                } else {
+                    alert('Error: ' + JSON.stringify(response.errors));
+                }
+            },
+            error: function(xhr, status, error) {
+                alert('An error occurred. Please try again.');
+                console.error('Status:', status);
+                console.error('Error:', error);
+                console.error('Response:', xhr.responseText);
+            },
+            cache: false,
+            contentType: false,
+            processData: false
+        });
+    });
+});
+    </script>

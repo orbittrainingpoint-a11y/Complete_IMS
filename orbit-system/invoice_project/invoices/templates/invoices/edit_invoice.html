@@ -1,0 +1,415 @@
+{% extends 'base_generic.html' %}
+{% block title %}Edit Invoice #{{ invoice.invoice_number }}{% endblock %}
+{% block breadcrumb_label %}<a href="{% url 'dashboard' %}">Invoices</a> / <span class="current">Edit #{{ invoice.invoice_number }}</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.lookup-wrap { position:relative; }
+.lookup-wrap input { padding-right:48px; }
+.lookup-btn { position:absolute; right:4px; top:4px; height:calc(100% - 8px); padding:0 14px; border-radius:7px; }
+.reg-dropdown { position:absolute; top:100%; left:0; right:0; background:var(--card-bg); border:1.5px solid var(--primary); border-radius:0 0 12px 12px; z-index:9999; box-shadow:0 8px 32px rgba(0,0,0,.15); max-height:300px; overflow-y:auto; display:none; }
+.reg-option { padding:12px 16px; cursor:pointer; border-bottom:1px solid var(--border); font-size:13px; transition:background .12s; }
+.reg-option:last-child { border-bottom:none; }
+.reg-option:hover { background:rgba(37,99,235,.08); }
+.reg-option-num { font-weight:700; color:var(--primary); font-size:12px; font-family:monospace; }
+.reg-option-name { font-weight:600; color:var(--text); }
+.reg-option-meta { font-size:11px; color:var(--text-muted); margin-top:2px; }
+
+.field-row { margin-bottom:16px; }
+.field-row label { display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:6px; }
+.field-row .form-control,.field-row .form-select { border-radius:10px; border:1.5px solid var(--border); font-size:14px; padding:10px 14px; }
+.field-row .form-control:focus,.field-row .form-select:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.1); }
+
+.course-pill { background:rgba(37,99,235,.08); border:1px solid rgba(37,99,235,.2); border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.course-pill-name { font-size:14px; font-weight:600; color:var(--text); }
+.course-pill-rate { font-size:16px; font-weight:800; color:var(--primary); }
+
+.inv-summary { background:linear-gradient(135deg,#0f1b2d,#1a2d47); border-radius:16px; padding:22px; color:#fff; }
+.is-row { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(255,255,255,.09); font-size:14px; }
+.is-row:last-child { border-bottom:none; }
+.is-row.grand { font-size:20px; font-weight:800; border-top:1px solid rgba(255,255,255,.2); padding-top:12px; }
+.lookup-info { background:rgba(37,99,235,.08); border:1px solid rgba(37,99,235,.2); border-radius:10px; padding:14px 16px; margin-bottom:16px; font-size:13px; }
+.lookup-info .inf-row { display:flex; gap:10px; align-items:center; margin-bottom:4px; }
+.lookup-info .inf-label { color:var(--text-muted); min-width:100px; }
+.lookup-info .inf-val { font-weight:600; color:var(--text); }
+.status-found { background:rgba(16,185,129,.1); border-color:rgba(16,185,129,.3); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <div class="page-title"><i class="fas fa-edit me-2 text-primary"></i>Edit Invoice <span style="color:var(--text-muted);font-weight:400;">#{{ invoice.invoice_number }}</span></div>
+        <div class="page-subtitle">{{ invoice.client.name }} — {{ invoice.date }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+        <a href="{% url 'invoice_payments' invoice.pk %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-eye me-1"></i>View Invoice</a>
+    </div>
+</div>
+
+<form method="post" id="invoiceForm" novalidate>
+{% csrf_token %}
+<div class="row g-4">
+    <!-- LEFT: Details -->
+    <div class="col-xl-8">
+
+        <!-- Registration Lookup -->
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-search"></i></div>
+                <div>
+                    <div class="form-section-title">Student Registration</div>
+                    <div style="font-size:12px;opacity:.7">Change registration or keep existing</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <div class="lookup-wrap">
+                    <label class="form-label">Registration Number or Student Name / Phone</label>
+                    <input type="text" id="id_registration_number" name="registration_number"
+                        class="form-control" autocomplete="off"
+                        value="{{ invoice.registration.registration_number|default_if_none:'' }}"
+                        placeholder="Type to search or keep current…">
+                    <button type="button" class="btn btn-primary lookup-btn" id="lookupBtn" title="Search">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <div class="reg-dropdown" id="regDropdown"></div>
+                </div>
+                <div id="lookupResult" class="mt-3">
+                    {% if invoice.registration %}
+                    <div class="lookup-info status-found">
+                        <div class="inf-row"><i class="fas fa-check-circle text-success me-2"></i><strong>Current Registration</strong></div>
+                        <div class="inf-row"><span class="inf-label">Student</span><span class="inf-val">{{ invoice.client.name }}</span></div>
+                        <div class="inf-row"><span class="inf-label">Reg #</span><span class="inf-val">{{ invoice.registration.registration_number }}</span></div>
+                        <div class="inf-row"><span class="inf-label">Type</span><span class="inf-val">{{ invoice.class_type }}</span></div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div id="courseFields" class="mt-3">
+                    {% for item in invoice.items.all %}
+                    <div class="course-pill" data-rate="{{ item.unit_price }}" data-id="{{ item.course.id }}">
+                        <div>
+                            <div class="course-pill-name">{{ item.course.name }}</div>
+                            <div style="font-size:12px;color:var(--text-muted);">AED {{ item.unit_price }} / person</div>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label style="font-size:12px;color:var(--text-muted);">Qty</label>
+                            <input type="number" name="quantity_{{ item.course.id }}" value="{{ item.quantity }}" min="1" class="form-control qty-inp" style="width:70px;">
+                            <input type="hidden" name="course_{{ item.course.id }}" value="{{ item.course.id }}">
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Invoice Details -->
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-file-invoice"></i></div>
+                <div>
+                    <div class="form-section-title">Invoice Details</div>
+                    <div style="font-size:12px;opacity:.7">Update payment terms and invoice configuration</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Class Type</label>
+                            {{ form.class_type }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Invoice Date</label>
+                            {{ form.date }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Due Date</label>
+                            {{ form.due_date }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Payment Status</label>
+                            {{ form.status }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Amount Paid (AED)</label>
+                            {{ form.amount_paid }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Payment Method</label>
+                            {{ form.payment }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Number of Persons</label>
+                            {{ form.number_of_person }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>PO Number (Optional)</label>
+                            {{ form.po_number }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Discount (%)</label>
+                            <input type="number" id="id_discount" name="discount" class="form-control"
+                                   value="{{ form.discount.value|default:'0' }}" min="0" max="100" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Client Info -->
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-user"></i></div>
+                <div>
+                    <div class="form-section-title">Client Information</div>
+                    <div style="font-size:12px;opacity:.7">Auto-populated from registration — editable if needed</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Client Name</label>
+                            {{ form.client_name }}
+                        </div>
+                    </div>
+                    <div id="company_name_group" class="col-md-6" style="display:none;">
+                        <div class="field-row">
+                            <label>Company Name</label>
+                            {{ form.company_name }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Emirates</label>
+                            {{ form.client_emirates }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Country</label>
+                            {{ form.client_country }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if form.errors %}
+        <div class="alert alert-danger" style="border-radius:12px;">
+            {% for field, errors in form.errors.items %}
+            {% for error in errors %}<div><i class="fas fa-exclamation-circle me-2"></i>{{ field|capfirst }}: {{ error }}</div>{% endfor %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div><!-- /col-xl-8 -->
+
+    <!-- RIGHT: Summary -->
+    <div class="col-xl-4">
+        <div class="inv-summary" style="position:sticky;top:80px;">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:16px;">Invoice Summary</div>
+            <div class="is-row"><span style="color:rgba(255,255,255,.7);">Subtotal</span><span id="isSubtotal">AED 0.00</span></div>
+            <div class="is-row"><span style="color:rgba(255,255,255,.7);">Discount</span><span id="isDiscount" style="color:#fca5a5;">— AED 0.00</span></div>
+            <div class="is-row"><span style="color:rgba(255,255,255,.7);">VAT (5%)</span><span id="isVat" style="color:#93c5fd;">AED 0.00</span></div>
+            <div class="is-row grand"><span>Total</span><span id="isTotal">AED 0.00</span></div>
+
+            <div class="mt-4" style="padding-top:16px;border-top:1px solid rgba(255,255,255,.15);">
+                <div id="prevPaidRow" style="display:none;margin-bottom:10px;">
+                    <div style="font-size:11px;opacity:.6;margin-bottom:4px;">Other Invoices Paid</div>
+                    <div id="isPrevPaid" style="font-size:16px;font-weight:700;color:#fcd34d;">— AED 0.00</div>
+                </div>
+                <div style="font-size:11px;opacity:.6;margin-bottom:10px;">This Invoice Payment</div>
+                <div id="isPaid" style="font-size:20px;font-weight:800;color:#6ee7b7;">AED 0.00</div>
+                <div style="font-size:11px;opacity:.6;margin-top:12px;margin-bottom:6px;">Balance Due</div>
+                <div id="isDue" style="font-size:22px;font-weight:800;color:#fca5a5;">AED 0.00</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 mt-4" style="padding:14px;font-size:15px;font-weight:700;border-radius:12px;"
+                    data-other-paid="{{ other_invoices_paid|default:0 }}">
+                <i class="fas fa-save me-2"></i>Save Changes
+            </button>
+        </div>
+    </div>
+</div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+const fmt = n => 'AED ' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+// Payments from OTHER invoices on the same registration (excluding this invoice)
+let _alreadyPaid = parseFloat(document.querySelector('[data-other-paid]')?.dataset.otherPaid || 0);
+
+function calcTotals() {
+    let subtotal = 0;
+    $('#courseFields .course-pill').each(function() {
+        const rate    = parseFloat($(this).data('rate') || 0);
+        const qty     = parseInt($(this).find('.qty-inp').val() || 1);
+        const persons = parseInt($('#id_number_of_person').val() || 1);
+        subtotal += rate * qty * persons;
+    });
+    const disc      = parseFloat($('#id_discount').val() || 0);
+    const discAmt   = subtotal * disc / 100;
+    const afterDisc = subtotal - discAmt;
+    const vat       = afterDisc * 0.05;
+    const total     = afterDisc + vat;
+    const thisPaid  = parseFloat($('#id_amount_paid').val() || 0);
+    const due       = total - _alreadyPaid - thisPaid;
+
+    $('#isSubtotal').text(fmt(subtotal));
+    $('#isDiscount').text('— ' + fmt(discAmt));
+    $('#isVat').text(fmt(vat));
+    $('#isTotal').text(fmt(total));
+    $('#isPaid').text(fmt(thisPaid));
+    $('#isDue').text(fmt(Math.max(0, due))).css('color', due > 0.005 ? '#fca5a5' : '#6ee7b7');
+
+    if (_alreadyPaid > 0) {
+        $('#prevPaidRow').show();
+        $('#isPrevPaid').text('— ' + fmt(_alreadyPaid));
+    } else {
+        $('#prevPaidRow').hide();
+    }
+}
+
+function doLookup(regNum) {
+    if (!regNum) return;
+    $('#lookupResult').show().html('<div style="color:var(--text-muted);font-size:13px;"><i class="fas fa-spinner fa-spin me-2"></i>Looking up…</div>');
+    $.ajax({
+        url: '/get_registration_details/',
+        data: { registration_number: regNum },
+        dataType: 'json',
+        success: function(data) {
+            _alreadyPaid = parseFloat(data.already_paid || 0);
+            const prevBlock = _alreadyPaid > 0
+                ? `<div class="inf-row"><span class="inf-label" style="color:#d97706;">Already Paid</span><span class="inf-val" style="color:#d97706;">AED ${_alreadyPaid.toFixed(2)}</span></div>`
+                : '';
+            $('#lookupResult').html(`
+                <div class="lookup-info status-found">
+                    <div class="inf-row"><i class="fas fa-check-circle text-success me-2"></i><strong>Registration Found</strong></div>
+                    <div class="inf-row"><span class="inf-label">Student</span><span class="inf-val">${data.client_name || '—'}</span></div>
+                    <div class="inf-row"><span class="inf-label">Type</span><span class="inf-val">${data.class_type || '—'}</span></div>
+                    <div class="inf-row"><span class="inf-label">Discount</span><span class="inf-val">${data.discount || 0}%</span></div>
+                    ${prevBlock}
+                </div>`);
+            $('#id_client_name').val(data.client_name || '');
+            $('#id_client_emirates').val(data.client_emirates || '');
+            $('#id_client_country').val(data.client_country || '');
+            $('#id_discount').val(data.discount || 0);
+            $('#id_class_type').val(data.class_type || '');
+            if (data.registration_type === 'OC') {
+                $('#company_name_group').show();
+                $('#id_company_name').val(data.company_name || '');
+            } else {
+                $('#company_name_group').hide();
+            }
+            $('#courseFields').empty();
+            if (data.courses && data.courses.length) {
+                data.courses.forEach((c, i) => {
+                    $('#courseFields').append(`
+                        <div class="course-pill" data-rate="${c.rate}" data-id="${c.id}">
+                            <div>
+                                <div class="course-pill-name">${c.name}</div>
+                                <div style="font-size:12px;color:var(--text-muted);">AED ${parseFloat(c.rate||0).toFixed(2)} / person</div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <label style="font-size:12px;color:var(--text-muted);">Qty</label>
+                                <input type="number" name="quantity_${c.id}" value="1" min="1" class="form-control qty-inp" style="width:70px;">
+                                <input type="hidden" name="course_${c.id}" value="${c.id}">
+                            </div>
+                        </div>`);
+                });
+                $('#courseFields .qty-inp').on('input', calcTotals);
+            }
+            calcTotals();
+        },
+        error: function() {
+            $('#lookupResult').html('<div class="alert alert-danger" style="font-size:13px;"><i class="fas fa-exclamation-circle me-2"></i>Registration not found. Check the number and try again.</div>');
+        }
+    });
+}
+
+// Smart autocomplete dropdown
+let _searchTimer = null;
+function showDropdown(results) {
+    const dd = $('#regDropdown');
+    dd.empty();
+    if (!results || !results.length) { dd.hide(); return; }
+    results.forEach(r => {
+        const coursePills = r.courses.map(c => `<span style="background:rgba(37,99,235,.1);border-radius:4px;padding:1px 6px;font-size:10px;margin-right:3px;">${c}</span>`).join('');
+        dd.append(`<div class="reg-option" data-reg="${r.registration_number}">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><span class="reg-option-num">${r.registration_number}</span><span class="reg-option-name ms-2">${r.name}</span></div>
+                <span style="font-size:10px;background:rgba(16,185,129,.1);color:#10b981;border-radius:4px;padding:1px 6px;">${r.class_type}</span>
+            </div>
+            <div class="reg-option-meta mt-1">${coursePills}</div>
+        </div>`);
+    });
+    dd.show();
+    dd.find('.reg-option').on('click', function() {
+        const regNum = $(this).data('reg');
+        $('#id_registration_number').val(regNum);
+        dd.hide();
+        doLookup(regNum);
+    });
+}
+
+$('#id_registration_number').on('input', function() {
+    const q = $(this).val().trim();
+    clearTimeout(_searchTimer);
+    if (q.length < 2) { $('#regDropdown').hide(); return; }
+    _searchTimer = setTimeout(() => {
+        $.ajax({
+            url: '/api/search-registrations/',
+            data: { q },
+            dataType: 'json',
+            success: d => showDropdown(d.results),
+            error: () => $('#regDropdown').hide()
+        });
+    }, 220);
+});
+
+$(document).on('click', function(e) {
+    if (!$(e.target).closest('.lookup-wrap').length) $('#regDropdown').hide();
+});
+
+$('#id_registration_number').on('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); $('#regDropdown').hide(); doLookup($(this).val().trim()); }
+    if (e.key === 'Escape') { $('#regDropdown').hide(); }
+});
+$('#lookupBtn').on('click', function() { $('#regDropdown').hide(); doLookup($('#id_registration_number').val().trim()); });
+
+$('#id_amount_paid, #id_number_of_person, #id_discount').on('input', calcTotals);
+$('#courseFields').on('input', '.qty-inp', calcTotals);
+
+// Style form controls
+$('.field-row select, .field-row input').each(function() {
+    if (!$(this).hasClass('form-control') && !$(this).hasClass('form-select'))
+        $(this).addClass($(this).is('select') ? 'form-select' : 'form-control');
+});
+
+// Populate client fields from existing invoice on load
+$('#id_client_name').val("{{ invoice.client.name|escapejs }}");
+$('#id_client_emirates').val("{{ invoice.client.emirates|default_if_none:''|escapejs }}");
+$('#id_client_country').val("{{ invoice.client.country|default_if_none:''|escapejs }}");
+
+calcTotals();
+</script>
+{% endblock %}

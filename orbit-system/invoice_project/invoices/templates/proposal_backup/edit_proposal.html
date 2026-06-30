@@ -1,0 +1,64 @@
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h1>{% if form.instance.pk %}Edit{% else %}Create{% endif %} Proposal</h1>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+        <div class="form-group">
+            {{ field.label_tag }}
+            {% if field.name == 'logo' %}
+                {% if form.instance.logo %}
+                    <p id="current_logo">Current logo: {{ form.instance.logo.name }}</p>
+                    <button type="button" class="btn btn-danger btn-sm" id="remove_logo_btn" onclick="removeLogo()">Remove Logo</button>
+                {% endif %}
+            {% endif %}
+            {{ field }}
+            {{ field.errors }}
+        </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">Save</button>
+</form>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function removeLogo() {
+    if (confirm('Are you sure you want to remove the logo?')) {
+        $.ajax({
+            url: '{% url "remove_logo" form.instance.pk %}',
+            type: 'POST',
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+            success: function(response) {
+                if (response.status === 'success') {
+                    $('#current_logo').remove();
+                    $('#remove_logo_btn').remove();
+                    $('#id_logo').val('');
+                    alert('Logo removed successfully');
+                } else {
+                    alert('Failed to remove logo');
+                }
+            },
+            error: function() {
+                alert('An error occurred while removing the logo');
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

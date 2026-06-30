@@ -1,0 +1,237 @@
+{% extends 'base_generic.html' %}
+{% block title %}{% if form.instance.pk %}Edit Course{% else %}Add Course{% endif %}{% endblock %}
+{% block breadcrumb_label %}<span class="current">{% if form.instance.pk %}Edit Course{% else %}New Course{% endif %}</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.rate-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+@media(max-width:576px){.rate-grid{grid-template-columns:1fr;}}
+.rate-card { background: var(--bg); border: 1.5px solid var(--border); border-radius: 12px; padding: 16px; transition: all .2s; }
+.rate-card:hover { border-color: var(--primary); background: rgba(37,99,235,.03); }
+.rate-card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.rate-input-wrap { position: relative; }
+.rate-currency { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.rate-input-wrap input { padding-left: 44px; font-size: 18px; font-weight: 700; color: var(--text); border: none; border-bottom: 2px solid var(--border); border-radius: 0; background: transparent; outline: none; width: 100%; transition: border-color .2s; }
+.rate-input-wrap input:focus { border-color: var(--primary); }
+
+.field-row { margin-bottom: 18px; }
+.field-row label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 6px; }
+.field-row .form-control,.field-row .form-select,.field-row textarea { border-radius: 10px; font-size: 14px; border: 1.5px solid var(--border); padding: 10px 14px; }
+.field-row .form-control:focus,.field-row .form-select:focus,.field-row textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+
+.icon-option { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px; cursor: pointer; transition: all .15s; background: var(--card-bg); }
+.icon-option:hover,.icon-option.selected { border-color: var(--primary); background: rgba(37,99,235,.07); }
+.icon-option input { display:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <div class="page-title">
+            {% if form.instance.pk %}<i class="fas fa-edit me-2 text-primary"></i>Edit Course
+            {% else %}<i class="fas fa-plus-circle me-2 text-primary"></i>New Course{% endif %}
+        </div>
+        <div class="page-subtitle">{% if form.instance.pk %}Update course details and pricing{% else %}Add a new course to the catalogue{% endif %}</div>
+    </div>
+    <a href="{% url 'course_list' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+</div>
+
+<form method="post" id="courseForm" novalidate>
+{% csrf_token %}
+<div class="row g-4">
+    <!-- LEFT -->
+    <div class="col-xl-8">
+
+        <!-- Basic Details -->
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-book-open"></i></div>
+                <div>
+                    <div class="form-section-title">Course Details</div>
+                    <div style="font-size:12px;opacity:.7">Basic information about the course</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <div class="field-row">
+                            <label>Course Name *</label>
+                            {{ form.name }}
+                            {% if form.name.errors %}<div class="text-danger" style="font-size:12px;margin-top:4px;">{{ form.name.errors.0 }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="field-row">
+                            <label>Course Code</label>
+                            {{ form.code }}
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="field-row">
+                            <label>Description</label>
+                            {{ form.description }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Duration</label>
+                            {{ form.duration }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>Category</label>
+                            {{ form.category }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pricing -->
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-tag"></i></div>
+                <div>
+                    <div class="form-section-title">Pricing by Class Type</div>
+                    <div style="font-size:12px;opacity:.7">Set rates for each delivery method (AED, excl. VAT)</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <div class="rate-grid">
+                    <div class="rate-card">
+                        <div class="rate-card-label"><i class="fas fa-desktop text-primary"></i> Online</div>
+                        <div class="rate-input-wrap">
+                            <span class="rate-currency">AED</span>
+                            {{ form.online_rate }}
+                        </div>
+                    </div>
+                    <div class="rate-card">
+                        <div class="rate-card-label"><i class="fas fa-chalkboard text-success"></i> Classroom (Offline)</div>
+                        <div class="rate-input-wrap">
+                            <span class="rate-currency">AED</span>
+                            {{ form.rate }}
+                        </div>
+                    </div>
+                    <div class="rate-card">
+                        <div class="rate-card-label"><i class="fas fa-user-tie text-warning"></i> Private (1-on-1)</div>
+                        <div class="rate-input-wrap">
+                            <span class="rate-currency">AED</span>
+                            {{ form.private_rate }}
+                        </div>
+                    </div>
+                    <div class="rate-card">
+                        <div class="rate-card-label"><i class="fas fa-users text-info"></i> Batch / Group</div>
+                        <div class="rate-input-wrap">
+                            <span class="rate-currency">AED</span>
+                            {{ form.batch_rate }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Fields -->
+        {% with remaining=form %}
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-cog"></i></div>
+                <div>
+                    <div class="form-section-title">Additional Settings</div>
+                    <div style="font-size:12px;opacity:.7">Extra configuration for this course</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <div class="row g-3">
+                    {% for field in form %}
+                    {% if field.name not in 'name,code,description,duration,category,rate,online_rate,private_rate,batch_rate' %}
+                    <div class="col-md-6">
+                        <div class="field-row">
+                            <label>{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}<div class="text-danger" style="font-size:12px;margin-top:4px;">{{ field.errors.0 }}</div>{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endwith %}
+
+    </div><!-- /col-xl-8 -->
+
+    <!-- RIGHT: Actions + Preview -->
+    <div class="col-xl-4">
+        <div class="price-summary-card" style="background:linear-gradient(135deg,#0f1b2d,#1a2d47);border-radius:16px;padding:24px;color:#fff;position:sticky;top:80px;">
+            <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:20px;">Rate Summary</div>
+            <div class="d-flex flex-column gap-3">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+                    <span style="color:rgba(255,255,255,.7);font-size:13px;"><i class="fas fa-desktop me-2"></i>Online</span>
+                    <span style="font-size:16px;font-weight:700;" id="preview-online">AED 0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+                    <span style="color:rgba(255,255,255,.7);font-size:13px;"><i class="fas fa-chalkboard me-2"></i>Classroom</span>
+                    <span style="font-size:16px;font-weight:700;" id="preview-offline">AED 0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+                    <span style="color:rgba(255,255,255,.7);font-size:13px;"><i class="fas fa-user-tie me-2"></i>Private</span>
+                    <span style="font-size:16px;font-weight:700;" id="preview-private">AED 0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
+                    <span style="color:rgba(255,255,255,.7);font-size:13px;"><i class="fas fa-users me-2"></i>Batch</span>
+                    <span style="font-size:16px;font-weight:700;" id="preview-batch">AED 0</span>
+                </div>
+            </div>
+
+            <div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,.15);">
+                <div style="font-size:11px;opacity:.6;margin-bottom:6px;">Name Preview</div>
+                <div style="font-size:16px;font-weight:700;color:#93c5fd;" id="preview-name">—</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 mt-4" style="padding:14px;font-size:15px;font-weight:700;border-radius:12px;">
+                <i class="fas fa-save me-2"></i>{% if form.instance.pk %}Save Changes{% else %}Create Course{% endif %}
+            </button>
+            <a href="{% url 'course_list' %}" class="btn btn-outline-secondary w-100 mt-2" style="border-radius:12px;color:#fff;border-color:rgba(255,255,255,.2);">Cancel</a>
+        </div>
+    </div>
+
+</div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function fmtRate(val) {
+    const n = parseFloat(val) || 0;
+    return 'AED ' + n.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+}
+
+function updatePreview() {
+    const nameVal = document.getElementById('id_name')?.value || '—';
+    document.getElementById('preview-name').textContent = nameVal || '—';
+
+    const fields = { online: 'id_online_rate', offline: 'id_rate', private: 'id_private_rate', batch: 'id_batch_rate' };
+    for(const [key, id] of Object.entries(fields)) {
+        const el = document.getElementById(id);
+        const previewEl = document.getElementById('preview-'+key);
+        if(el && previewEl) previewEl.textContent = fmtRate(el.value);
+    }
+}
+
+// Add AED prefix styling to rate inputs
+document.querySelectorAll('.rate-input-wrap input').forEach(inp => {
+    inp.addEventListener('input', updatePreview);
+    inp.style.paddingLeft = '44px';
+});
+document.getElementById('id_name')?.addEventListener('input', updatePreview);
+
+// Style all form inputs consistently
+document.querySelectorAll('.field-row input,.field-row select,.field-row textarea').forEach(el => {
+    el.classList.add('form-control');
+});
+
+updatePreview();
+</script>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends 'base_generic.html' %}
+
+{% block title %}Delete Quotation{% endblock %}
+
+{% block content %}
+<div class="quotation-container">
+    <h1 class="text-center">Delete Quotation</h1>
+    <p>Are you sure you want to delete the quotation "{{ quotation.quotation_number }}"?</p>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Confirm Delete</button>
+        <a href="{% url 'quotation_detail' quotation.pk %}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In — Orbit ERP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Poppins',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1628;overflow:hidden;}
+
+/* animated background */
+.bg-wrap{position:fixed;inset:0;z-index:0;overflow:hidden;}
+.bg-wrap::before{content:'';position:absolute;width:900px;height:900px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.18) 0%,transparent 70%);top:-200px;left:-200px;animation:pulse1 8s ease-in-out infinite;}
+.bg-wrap::after{content:'';position:absolute;width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,.12) 0%,transparent 70%);bottom:-150px;right:-150px;animation:pulse2 10s ease-in-out infinite;}
+.grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:48px 48px;}
+@keyframes pulse1{0%,100%{transform:scale(1) translate(0,0);}50%{transform:scale(1.12) translate(30px,20px);}}
+@keyframes pulse2{0%,100%{transform:scale(1) translate(0,0);}50%{transform:scale(1.08) translate(-20px,-30px);}}
+
+.page{position:relative;z-index:1;width:100%;max-width:960px;margin:24px;display:grid;grid-template-columns:1fr 1fr;border-radius:24px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,.6);}
+
+/* ── LEFT PANEL ── */
+.left{background:linear-gradient(160deg,#0f1b2d 0%,#1a2d47 60%,#1e3a5f 100%);padding:52px 44px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;}
+.left::before{content:'';position:absolute;width:280px;height:280px;border-radius:50%;border:1px solid rgba(37,99,235,.2);top:-80px;right:-80px;}
+.left::after{content:'';position:absolute;width:180px;height:180px;border-radius:50%;border:1px solid rgba(37,99,235,.15);bottom:60px;left:-60px;}
+
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:48px;}
+.brand-icon{width:48px;height:48px;background:linear-gradient(135deg,#2563eb,#3b82f6);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;font-weight:800;flex-shrink:0;box-shadow:0 8px 24px rgba(37,99,235,.4);}
+.brand-text{color:#fff;font-size:18px;font-weight:700;line-height:1.2;}
+.brand-sub{color:rgba(148,163,184,.7);font-size:12px;font-weight:400;}
+
+.left-headline{color:#fff;font-size:28px;font-weight:700;line-height:1.35;margin-bottom:10px;}
+.left-sub{color:rgba(148,163,184,.8);font-size:14px;font-weight:400;line-height:1.7;margin-bottom:40px;}
+
+.feature-list{display:flex;flex-direction:column;gap:18px;}
+.feature{display:flex;align-items:center;gap:14px;}
+.feature-icon{width:38px;height:38px;border-radius:10px;background:rgba(37,99,235,.18);display:flex;align-items:center;justify-content:center;color:#60a5fa;font-size:14px;flex-shrink:0;}
+.feature-label{color:rgba(226,232,240,.85);font-size:13px;font-weight:500;}
+
+.left-footer{color:rgba(100,116,139,.7);font-size:11px;margin-top:auto;padding-top:40px;}
+
+/* ── RIGHT PANEL ── */
+.right{background:#ffffff;padding:52px 44px;display:flex;flex-direction:column;justify-content:center;}
+.right-title{font-size:26px;font-weight:700;color:#0f172a;margin-bottom:6px;}
+.right-sub{font-size:14px;color:#64748b;margin-bottom:36px;}
+
+.alert-err{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px;}
+.alert-err i{margin-top:2px;flex-shrink:0;}
+
+.field-wrap{margin-bottom:20px;}
+.field-label{display:block;font-size:12px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px;}
+.input-group-wrap{position:relative;}
+.input-group-wrap .fi{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;pointer-events:none;}
+.field-input{width:100%;padding:12px 16px 12px 42px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:14px;color:#0f172a;background:#f8fafc;transition:all .18s ease;outline:none;}
+.field-input:focus{border-color:#2563eb;background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.field-input.is-invalid{border-color:#ef4444;background:#fff9f9;}
+.field-err{font-size:12px;color:#ef4444;margin-top:5px;display:flex;align-items:center;gap:5px;}
+.eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;padding:4px;font-size:14px;}
+.eye-btn:hover{color:#2563eb;}
+
+.row-opts{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;}
+.check-wrap{display:flex;align-items:center;gap:8px;cursor:pointer;}
+.check-wrap input{accent-color:#2563eb;width:15px;height:15px;}
+.check-label{font-size:13px;color:#64748b;}
+
+.btn-signin{width:100%;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;border:none;border-radius:10px;padding:14px;font-family:'Poppins',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s ease;display:flex;align-items:center;justify-content:center;gap:10px;}
+.btn-signin:hover{background:linear-gradient(135deg,#1d4ed8,#2563eb);transform:translateY(-1px);box-shadow:0 8px 24px rgba(37,99,235,.35);}
+.btn-signin:active{transform:translateY(0);}
+.btn-signin:disabled{opacity:.65;cursor:not-allowed;transform:none;}
+
+.divider{display:flex;align-items:center;gap:12px;margin:28px 0;}
+.divider-line{flex:1;height:1px;background:#e2e8f0;}
+.divider-text{font-size:12px;color:#94a3b8;}
+
+.system-badge{display:inline-flex;align-items:center;gap:8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;font-size:12px;color:#64748b;}
+.system-badge i{color:#2563eb;}
+.system-badges{display:flex;gap:8px;flex-wrap:wrap;}
+
+@media(max-width:680px){
+  .page{grid-template-columns:1fr;max-width:440px;}
+  .left{display:none;}
+  .right{padding:40px 28px;}
+}
+</style>
+</head>
+<body>
+<div class="bg-wrap"><div class="grid-bg"></div></div>
+
+<div class="page">
+  <!-- LEFT -->
+  <div class="left">
+    <div>
+      <div class="brand">
+        <div class="brand-icon">O</div>
+        <div>
+          <div class="brand-text">Orbit ERP</div>
+          <div class="brand-sub">Institute Management System</div>
+        </div>
+      </div>
+      <div class="left-headline">Manage everything,<br>in one place.</div>
+      <div class="left-sub">Your complete institute management platform — invoices, registrations, courses, certificates, and reports.</div>
+      <div class="feature-list">
+        <div class="feature"><div class="feature-icon"><i class="fas fa-file-invoice"></i></div><span class="feature-label">Invoices &amp; Quotations</span></div>
+        <div class="feature"><div class="feature-icon"><i class="fas fa-user-graduate"></i></div><span class="feature-label">Student Registrations</span></div>
+        <div class="feature"><div class="feature-icon"><i class="fas fa-certificate"></i></div><span class="feature-label">Certificate Management</span></div>
+        <div class="feature"><div class="feature-icon"><i class="fas fa-chart-bar"></i></div><span class="feature-label">Revenue Reports</span></div>
+        <div class="feature"><div class="feature-icon"><i class="fas fa-building"></i></div><span class="feature-label">Corporate Training</span></div>
+      </div>
+    </div>
+    <div class="left-footer">© 2025 Orbit Training Point · All rights reserved</div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="right-title">Welcome back</div>
+    <div class="right-sub">Sign in to your Orbit ERP account</div>
+
+    {% if form.non_field_errors %}
+    <div class="alert-err"><i class="fas fa-exclamation-circle"></i><span>{{ form.non_field_errors|join:", " }}</span></div>
+    {% endif %}
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert-err"><i class="fas fa-exclamation-circle"></i><span>{{ message }}</span></div>
+    {% endfor %}
+    {% endif %}
+
+    <form method="post" id="loginForm" autocomplete="on">
+      {% csrf_token %}
+
+      <div class="field-wrap">
+        <label class="field-label" for="id_username">Username</label>
+        <div class="input-group-wrap">
+          <i class="fas fa-user fi"></i>
+          <input
+            type="text"
+            id="id_username"
+            name="username"
+            class="field-input{% if form.username.errors %} is-invalid{% endif %}"
+            placeholder="Enter your username"
+            autocomplete="username"
+            value="{{ form.username.value|default:'' }}"
+            autofocus>
+        </div>
+        {% if form.username.errors %}
+        <div class="field-err"><i class="fas fa-circle-exclamation"></i>{{ form.username.errors|join:", " }}</div>
+        {% endif %}
+      </div>
+
+      <div class="field-wrap">
+        <label class="field-label" for="id_password">Password</label>
+        <div class="input-group-wrap">
+          <i class="fas fa-lock fi"></i>
+          <input
+            type="password"
+            id="id_password"
+            name="password"
+            class="field-input{% if form.password.errors %} is-invalid{% endif %}"
+            placeholder="Enter your password"
+            autocomplete="current-password">
+          <button type="button" class="eye-btn" onclick="togglePwd()" tabindex="-1" id="eyeBtn">
+            <i class="fas fa-eye" id="eyeIcon"></i>
+          </button>
+        </div>
+        {% if form.password.errors %}
+        <div class="field-err"><i class="fas fa-circle-exclamation"></i>{{ form.password.errors|join:", " }}</div>
+        {% endif %}
+      </div>
+
+      <div class="row-opts">
+        <label class="check-wrap">
+          <input type="checkbox" name="remember" id="remember">
+          <span class="check-label">Remember me</span>
+        </label>
+      </div>
+
+      <button type="submit" class="btn-signin" id="submitBtn">
+        <i class="fas fa-arrow-right-to-bracket"></i>Sign In
+      </button>
+    </form>
+
+    <div class="divider"><div class="divider-line"></div><span class="divider-text">SYSTEM</span><div class="divider-line"></div></div>
+    <div class="system-badges">
+      <span class="system-badge"><i class="fas fa-shield-halved"></i>Secure Login</span>
+      <span class="system-badge"><i class="fas fa-server"></i>Orbit ERP v2.0</span>
+    </div>
+  </div>
+</div>
+
+<script>
+function togglePwd(){
+  const inp=document.getElementById('id_password');
+  const icon=document.getElementById('eyeIcon');
+  if(inp.type==='password'){inp.type='text';icon.className='fas fa-eye-slash';}
+  else{inp.type='password';icon.className='fas fa-eye';}
+}
+document.getElementById('loginForm').addEventListener('submit',function(){
+  const btn=document.getElementById('submitBtn');
+  btn.disabled=true;
+  btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>Signing in…';
+});
+</script>
+</body>
+</html>

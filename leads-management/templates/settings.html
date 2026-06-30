@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-cogs me-2"></i>Settings Management</h2>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#systemSettings">
+                        <i class="fas fa-server me-1"></i>System Settings
+                    </button>
+                    <button type="button" class="btn btn-outline-info" data-bs-toggle="collapse" data-bs-target="#leadSettings">
+                        <i class="fas fa-users me-1"></i>Lead Settings
+                    </button>
+                    <button type="button" class="btn btn-outline-success" data-bs-toggle="collapse" data-bs-target="#addSetting">
+                        <i class="fas fa-plus me-1"></i>Add Setting
+                    </button>
+                </div>
+            </div>
+
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- System Settings Section -->
+            <div class="collapse mb-4" id="systemSettings">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0"><i class="fas fa-server me-2"></i>System Settings</h4>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST">
+                            {{ system_form.hidden_tag() }}
+                            
+                            <div class="row">
+                                <!-- Company Information -->
+                                <div class="col-md-6">
+                                    <h5 class="text-primary mb-3">Company Information</h5>
+                                    <div class="mb-3">
+                                        {{ system_form.company_name.label(class="form-label") }}
+                                        {{ system_form.company_name(class="form-control") }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ system_form.company_email.label(class="form-label") }}
+                                        {{ system_form.company_email(class="form-control") }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ system_form.company_phone.label(class="form-label") }}
+                                        {{ system_form.company_phone(class="form-control") }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ system_form.company_address.label(class="form-label") }}
+                                        {{ system_form.company_address(class="form-control", rows="3") }}
+                                    </div>
+                                </div>
+                                
+                                <!-- Application Settings -->
+                                <div class="col-md-6">
+                                    <h5 class="text-primary mb-3">Application Settings</h5>
+                                    <div class="mb-3">
+                                        {{ system_form.default_currency.label(class="form-label") }}
+                                        {{ system_form.default_currency(class="form-select") }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ system_form.timezone.label(class="form-label") }}
+                                        {{ system_form.timezone(class="form-select") }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ system_form.leads_per_page.label(class="form-label") }}
+                                        {{ system_form.leads_per_page(class="form-control") }}
+                                    </div>
+                                    <div class="mb-3">
+                                        {{ system_form.auto_followup_days.label(class="form-label") }}
+                                        {{ system_form.auto_followup_days(class="form-control") }}
+                                    </div>
+                                    
+                                    <!-- Notification Settings -->
+                                    <h6 class="text-secondary mt-4 mb-3">Notifications</h6>
+                                    <div class="form-check mb-2">
+                                        {{ system_form.email_notifications(class="form-check-input") }}
+                                        {{ system_form.email_notifications.label(class="form-check-label") }}
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        {{ system_form.sms_notifications(class="form-check-input") }}
+                                        {{ system_form.sms_notifications.label(class="form-check-label") }}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid">
+                                <button type="submit" name="save_system_settings" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>Save System Settings
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lead Settings Section -->
+            <div class="collapse mb-4" id="leadSettings">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0"><i class="fas fa-users me-2"></i>Lead Management Settings</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Lead Sources -->
+                            <div class="col-md-6 mb-4">
+                                <h5 class="text-success mb-3">Lead Sources</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Source</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for source in lead_sources %}
+                                            <tr>
+                                                <td>{{ source.display_name }}</td>
+                                                <td>
+                                                    {% if source.is_active %}
+                                                        <span class="badge bg-success">Active</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Inactive</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <form method="POST" style="display: inline;">
+                                                        <button type="submit" formaction="{{ url_for('main.toggle_setting', setting_id=source.id) }}" 
+                                                                class="btn btn-sm btn-outline-warning" title="Toggle Status">
+                                                            <i class="fas fa-toggle-on"></i>
+                                                        </button>
+                                                    </form>
+                                                    <form method="POST" style="display: inline;">
+                                                        <button type="submit" formaction="{{ url_for('main.delete_setting', setting_id=source.id) }}" 
+                                                                class="btn btn-sm btn-outline-danger ms-1" 
+                                                                onclick="return confirm('Are you sure?')" title="Delete">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Lead Statuses -->
+                            <div class="col-md-6 mb-4">
+                                <h5 class="text-info mb-3">Lead Statuses</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Status</th>
+                                                <th>Active</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for status in lead_statuses %}
+                                            <tr>
+                                                <td>{{ status.display_name }}</td>
+                                                <td>
+                                                    {% if status.is_active %}
+                                                        <span class="badge bg-success">Active</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Inactive</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <form method="POST" style="display: inline;">
+                                                        <button type="submit" formaction="{{ url_for('main.toggle_setting', setting_id=status.id) }}" 
+                                                                class="btn btn-sm btn-outline-warning" title="Toggle Status">
+                                                            <i class="fas fa-toggle-on"></i>
+                                                        </button>
+                                                    </form>
+                                                    <form method="POST" style="display: inline;">
+                                                        <button type="submit" formaction="{{ url_for('main.delete_setting', setting_id=status.id) }}" 
+                                                                class="btn btn-sm btn-outline-danger ms-1" 
+                                                                onclick="return confirm('Are you sure?')" title="Delete">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Follow-up Types -->
+                            <div class="col-md-4 mb-4">
+                                <h5 class="text-warning mb-3">Follow-up Types</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Type</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for type in followup_types %}
+                                            <tr>
+                                                <td>{{ type.display_name }}</td>
+                                                <td>
+                                                    {% if type.is_active %}
+                                                        <span class="badge bg-success">Active</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Inactive</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <form method="POST" style="display: inline;">
+                                                        <button type="submit" formaction="{{ url_for('main.toggle_setting', setting_id=type.id) }}" 
+                                                                class="btn btn-sm btn-outline-warning" title="Toggle">
+                                                            <i class="fas fa-toggle-on"></i>
+                                                        </button>
+                                                    </form>
+                                                    <form method="POST" style="display: inline;">
+                                                        <button type="submit" formaction="{{ url_for('main.delete_setting', setting_id=type.id) }}" 
+                                                                class="btn btn-sm btn-outline-danger ms-1" 
+                                                                onclick="return confirm('Are you sure?')" title="Delete">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Priority Levels -->
+                            <div class="col-md-4 mb-4">
+                                <h5 class="text-danger mb-3">Priority Levels</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Priority</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for priority in priority_levels %}
+                                            <tr>
+                                                <td>{{ priority.display_name }}</td>
+                                                <td>
+                                                    {% if priority.is_active %}
+                                                        <span class="badge bg-success">Active</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Inactive</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <form method="POST" style="display: inline;">
+                                                        <button type="submit" formaction="{{ url_for('main.toggle_setting', setting_id=priority.id) }}" 
+                                                                class="btn btn-sm btn-outline-warning" title="Toggle">
+                                                            <i class="fas fa-toggle-on"></i>
+                                                        </button>
+                                                    </form>
+                                                    <form method="POST" style="display: inline;">
+                                                        <button type="submit" formaction="{{ url_for('main.delete_setting', setting_id=priority.id) }}" 
+                                                                class="btn btn-sm btn-outline-danger ms-1" 
+                                                                onclick="return confirm('Are you sure?')" title="Delete">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Meeting Types -->
+                            <div class="col-md-4 mb-4">
+                                <h5 class="text-purple mb-3">Meeting Types</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Type</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for meeting in meeting_types %}
+                                            <tr>
+                                                <td>{{ meeting.display_name }}</td>
+                                                <td>
+                                                    {% if meeting.is_active %}
+                                                        <span class="badge bg-success">Active</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Inactive</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <form method="POST" style="display: inline;">
+                                                        <button type="submit" formaction="{{ url_for('main.toggle_setting', setting_id=meeting.id) }}" 
+                                                                class="btn btn-sm btn-outline-warning" title="Toggle">
+                                                            <i class="fas fa-toggle-on"></i>
+                                                        </button>
+                                                    </form>
+                                                    <form method="POST" style="display: inline;">
+                                                        <button type="submit" formaction="{{ url_for('main.delete_setting', setting_id=meeting.id) }}" 
+                                                                class="btn btn-sm btn-outline-danger ms-1" 
+                                                                onclick="return confirm('Are you sure?')" title="Delete">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add New Setting Section -->
+            <div class="collapse mb-4" id="addSetting">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0"><i class="fas fa-plus me-2"></i>Add New Setting</h4>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST">
+                            {{ setting_form.hidden_tag() }}
+                            
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        {{ setting_form.key.label(class="form-label") }}
+                                        {{ setting_form.key(class="form-control", placeholder="e.g., lead_source") }}
+                                        <small class="form-text text-muted">Use underscore format: lead_source, lead_status, etc.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        {{ setting_form.value.label(class="form-label") }}
+                                        {{ setting_form.value(class="form-control", placeholder="e.g., Facebook") }}
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        {{ setting_form.display_name.label(class="form-label") }}
+                                        {{ setting_form.display_name(class="form-control", placeholder="e.g., Facebook Marketing") }}
+                                    </div>
+                                </div>
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        {{ setting_form.description.label(class="form-label") }}
+                                        {{ setting_form.description(class="form-control", rows="2", placeholder="Optional description") }}
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        {{ setting_form.sort_order.label(class="form-label") }}
+                                        {{ setting_form.sort_order(class="form-control") }}
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label class="form-label">&nbsp;</label>
+                                        <div class="form-check">
+                                            {{ setting_form.is_active(class="form-check-input") }}
+                                            {{ setting_form.is_active.label(class="form-check-label") }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid">
+                                <button type="submit" name="add_setting" class="btn btn-success">
+                                    <i class="fas fa-plus me-1"></i>Add Setting
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Settings Overview -->
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-info-circle me-2"></i>Current System Configuration</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <h6 class="text-primary">Company Info</h6>
+                            <p><strong>Name:</strong> {{ system_settings.get('company_name', 'Not Set') }}</p>
+                            <p><strong>Email:</strong> {{ system_settings.get('company_email', 'Not Set') }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-success">Lead Sources</h6>
+                            <p><strong>Total:</strong> {{ lead_sources|length }}</p>
+                            <p><strong>Active:</strong> {{ lead_sources|selectattr('is_active')|list|length }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-info">Lead Statuses</h6>
+                            <p><strong>Total:</strong> {{ lead_statuses|length }}</p>
+                            <p><strong>Active:</strong> {{ lead_statuses|selectattr('is_active')|list|length }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-warning">Application</h6>
+                            <p><strong>Currency:</strong> {{ system_settings.get('default_currency', 'USD') }}</p>
+                            <p><strong>Timezone:</strong> {{ system_settings.get('timezone', 'UTC') }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.text-purple {
+    color: #6f42c1 !important;
+}
+.btn-group .btn {
+    margin-right: 0.25rem;
+}
+</style>
+{% endblock %}

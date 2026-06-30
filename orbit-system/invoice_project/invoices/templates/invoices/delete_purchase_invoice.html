@@ -1,0 +1,13 @@
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<div class="form-container">
+  <h2>Delete Invoice</h2>
+  <p>Are you sure you want to delete the invoice for {{ invoice.client.name }}?</p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit">Delete</button>
+    <a href="{% url 'dashboard' %}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

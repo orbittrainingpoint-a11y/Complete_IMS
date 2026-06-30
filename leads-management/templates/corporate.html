@@ -1,0 +1,573 @@
+{% extends "base.html" %}
+{% block title %}Corporate Training — Orbit CRM{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ url_for('main.dashboard') }}" style="color:var(--text-muted);text-decoration:none;">Dashboard</a>
+<span style="color:var(--border);margin:0 6px;">/</span>
+<span class="current">Corporate Training</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Kanban ────────────────────────────────── */
+.kb-board { display:flex; gap:14px; overflow-x:auto; padding-bottom:12px; align-items:flex-start; }
+.kb-col { flex:0 0 230px; min-width:230px; border-radius:12px; background:var(--sidebar-bg,#f1f5f9); display:flex; flex-direction:column; max-height:calc(100vh - 260px); }
+.kb-col-header { padding:12px 14px 10px; border-radius:12px 12px 0 0; }
+.kb-col-title { font-weight:800; font-size:13px; letter-spacing:.3px; }
+.kb-col-meta { font-size:11px; margin-top:3px; opacity:.8; display:flex; gap:10px; }
+.kb-body { flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:8px; }
+.kb-body::-webkit-scrollbar { width:3px; } .kb-body::-webkit-scrollbar-thumb { background:rgba(0,0,0,.15); border-radius:2px; }
+.kb-card { background:var(--card-bg,#fff); border-radius:10px; padding:12px; cursor:grab; box-shadow:0 1px 4px rgba(0,0,0,.07); transition:box-shadow .15s,transform .1s; border-left:3px solid; position:relative; }
+.kb-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.12); transform:translateY(-1px); }
+.kb-card.dragging { opacity:.45; transform:rotate(1.5deg); cursor:grabbing; }
+.kb-col.drag-over .kb-body { background:rgba(37,99,235,.06); border-radius:8px; outline:2px dashed rgba(37,99,235,.3); }
+.kb-card .card-company { font-weight:700; font-size:13px; color:var(--text); line-height:1.3; }
+.kb-card .card-contact { font-size:11px; color:var(--text-muted); margin-top:3px; }
+.kb-card .card-value { font-size:12px; font-weight:700; color:#059669; margin-top:6px; }
+.kb-card .card-actions { display:flex; gap:4px; margin-top:9px; padding-top:9px; border-top:1px solid var(--border); }
+.kb-card .ca-btn { flex:1; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--text-muted); font-size:11px; padding:3px 0; cursor:pointer; transition:all .12s; display:flex; align-items:center; justify-content:center; }
+.kb-card .ca-btn:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
+.kb-add-btn { margin:8px; border:1.5px dashed var(--border); border-radius:8px; background:transparent; color:var(--text-muted); font-size:12px; padding:7px; cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center; gap:5px; }
+.kb-add-btn:hover { border-color:var(--primary); color:var(--primary); background:rgba(37,99,235,.04); }
+
+/* Status colour map */
+.kb-inquiry    { border-color:#3b82f6; } .kb-col-inquiry    .kb-col-header { background:linear-gradient(135deg,#2563eb,#3b82f6); color:#fff; }
+.kb-proposal   { border-color:#f59e0b; } .kb-col-proposal   .kb-col-header { background:linear-gradient(135deg,#d97706,#f59e0b); color:#fff; }
+.kb-negotiation{ border-color:#8b5cf6; } .kb-col-negotiation.kb-col-header { background:linear-gradient(135deg,#7c3aed,#8b5cf6); color:#fff; }
+.kb-col-negotiation .kb-col-header { background:linear-gradient(135deg,#7c3aed,#8b5cf6); color:#fff; }
+.kb-confirmed  { border-color:#10b981; } .kb-col-confirmed  .kb-col-header { background:linear-gradient(135deg,#059669,#10b981); color:#fff; }
+.kb-completed  { border-color:#64748b; } .kb-col-completed  .kb-col-header { background:linear-gradient(135deg,#475569,#64748b); color:#fff; }
+.kb-lost       { border-color:#ef4444; } .kb-col-lost       .kb-col-header { background:linear-gradient(135deg,#dc2626,#ef4444); color:#fff; }
+
+/* Stat chips */
+.stat-chip { padding:12px 18px; border-radius:12px; background:var(--card-bg); box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.stat-chip .num { font-size:26px; font-weight:800; line-height:1; }
+.stat-chip .lbl { font-size:11px; color:var(--text-muted); margin-top:4px; text-transform:uppercase; letter-spacing:.4px; font-weight:600; }
+
+/* Company cards */
+.company-tile { background:var(--card-bg); border-radius:14px; padding:20px; box-shadow:0 1px 6px rgba(0,0,0,.07); transition:box-shadow .2s,transform .2s; border:1px solid var(--border); }
+.company-tile:hover { box-shadow:0 6px 20px rgba(0,0,0,.12); transform:translateY(-3px); }
+.co-avatar { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:800; color:#fff; flex-shrink:0; }
+
+/* View switch */
+.view-pill { display:inline-flex; align-items:center; gap:6px; padding:5px 14px; border-radius:20px; border:1.5px solid var(--border); background:transparent; color:var(--text-muted); font-size:12px; font-weight:600; cursor:pointer; transition:all .15s; }
+.view-pill.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# Embed data for JS #}
+<script>
+const DEALS = {{ corporate_trainings | tojson }};
+</script>
+
+<!-- Header -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+    <div>
+        <h4 style="margin:0;font-weight:800;">Corporate Training</h4>
+        <p style="margin:0;font-size:13px;color:var(--text-muted);">Enterprise deals pipeline</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button class="view-pill active" id="btnKanban" onclick="switchMain('kanban', this)">
+            <i class="fas fa-columns"></i>Kanban
+        </button>
+        <button class="view-pill" id="btnList" onclick="switchMain('list', this)">
+            <i class="fas fa-list"></i>List
+        </button>
+        <button class="view-pill" id="btnCompanies" onclick="switchMain('companies', this)">
+            <i class="fas fa-building"></i>Companies
+        </button>
+        <a href="{{ url_for('main.corporate_leads') }}" class="view-pill">
+            <i class="fas fa-edit"></i>Leads
+        </a>
+        <button class="btn btn-primary" style="border-radius:20px;padding:6px 18px;font-size:13px;"
+            data-bs-toggle="modal" data-bs-target="#corporateModal">
+            <i class="fas fa-plus me-1"></i>New Deal
+        </button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+    <div class="stat-chip" style="border-left:3px solid #3b82f6;">
+        <div class="num" style="color:#2563eb;">{{ corporate_trainings | length }}</div>
+        <div class="lbl">Total Deals</div>
+    </div>
+    <div class="stat-chip" style="border-left:3px solid #10b981;">
+        <div class="num" style="color:#059669;">{{ corporate_trainings | selectattr('status','equalto','Confirmed') | list | length }}</div>
+        <div class="lbl">Confirmed</div>
+    </div>
+    <div class="stat-chip" style="border-left:3px solid #8b5cf6;">
+        <div class="num" style="color:#7c3aed;">{{ corporate_trainings | selectattr('status','equalto','Negotiation') | list | length }}</div>
+        <div class="lbl">Negotiating</div>
+    </div>
+    <div class="stat-chip" style="border-left:3px solid #f59e0b;">
+        <div class="num" style="color:#d97706;">AED {{ "{:,.0f}".format(corporate_trainings | sum(attribute='deal_value') if corporate_trainings else 0) }}</div>
+        <div class="lbl">Pipeline Value</div>
+    </div>
+</div>
+
+<!-- ── KANBAN VIEW ─────────────────────────────── -->
+<div id="viewKanban">
+{% set stages = [
+    ('Inquiry',     'inquiry'),
+    ('Proposal',    'proposal'),
+    ('Negotiation', 'negotiation'),
+    ('Confirmed',   'confirmed'),
+    ('Completed',   'completed'),
+    ('Lost',        'lost')
+] %}
+<div class="kb-board">
+{% for status, cls in stages %}
+{% set stage_deals = corporate_trainings | selectattr('status','equalto', status) | list %}
+<div class="kb-col kb-col-{{ cls }}" data-status="{{ status }}"
+     ondragover="event.preventDefault()" ondragenter="colEnter(this)" ondragleave="colLeave(this)" ondrop="colDrop(event,this)">
+    <div class="kb-col-header">
+        <div class="kb-col-title">{{ status }}</div>
+        <div class="kb-col-meta">
+            <span>{{ stage_deals | length }} deal{{ 's' if stage_deals | length != 1 }}</span>
+            {% if stage_deals | sum(attribute='deal_value') %}
+            <span>AED {{ "{:,.0f}".format(stage_deals | sum(attribute='deal_value') or 0) }}</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="kb-body" id="col-{{ status.lower() }}">
+        {% for d in stage_deals %}
+        <div class="kb-card kb-{{ cls }}" draggable="true" data-id="{{ d.id }}"
+             ondragstart="cardDragStart(event,this)">
+            <!-- Company + contact -->
+            <div class="card-company">{{ d.company_name }}</div>
+            <div class="card-contact"><i class="fas fa-user fa-xs me-1"></i>{{ d.contact_person }}</div>
+            <!-- Courses -->
+            {% if d.course_names %}
+            <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px;">
+                {% for cn in d.course_names[:2] %}
+                <span style="background:rgba(37,99,235,.1);color:#2563eb;font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;">{{ cn }}</span>
+                {% endfor %}
+                {% if d.course_names | length > 2 %}
+                <span style="background:var(--border);color:var(--text-muted);font-size:10px;padding:2px 7px;border-radius:8px;">+{{ d.course_names|length - 2 }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            <!-- Trainees + value -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+                <span style="font-size:11px;color:var(--text-muted);"><i class="fas fa-users fa-xs me-1"></i>{{ d.trainee_count }} trainees</span>
+                {% if d.deal_value and d.deal_value > 0 %}
+                <span class="card-value">AED {{ "{:,.0f}".format(d.deal_value) }}</span>
+                {% endif %}
+            </div>
+            <!-- Actions -->
+            <div class="card-actions">
+                <button class="ca-btn" onclick="viewDeal({{ d.id }})" title="View"><i class="fas fa-eye fa-xs"></i></button>
+                <button class="ca-btn" onclick="editDeal({{ d.id }})" title="Edit"><i class="fas fa-edit fa-xs"></i></button>
+                {% if d.contact_phone %}
+                <button class="ca-btn" onclick="window.open('tel:{{ d.contact_phone }}')" title="Call"><i class="fas fa-phone fa-xs"></i></button>
+                {% endif %}
+                {% if d.contact_email %}
+                <button class="ca-btn" onclick="mailTo('{{ d.contact_email }}')" title="Email"><i class="fas fa-envelope fa-xs"></i></button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <button class="kb-add-btn" data-bs-toggle="modal" data-bs-target="#corporateModal">
+        <i class="fas fa-plus fa-xs"></i>Add Deal
+    </button>
+</div>
+{% endfor %}
+</div>
+</div>
+
+<!-- ── LIST VIEW ─────────────────────────────── -->
+<div id="viewList" style="display:none;">
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" style="font-size:13px;">
+                <thead style="background:var(--sidebar-bg);">
+                    <tr>
+                        <th style="padding:12px 16px;">Company</th>
+                        <th>Contact</th>
+                        <th>Courses</th>
+                        <th>Trainees</th>
+                        <th>Value</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for d in corporate_trainings %}
+                <tr>
+                    <td style="padding:12px 16px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <div style="width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                {{ d.company_name[0].upper() }}
+                            </div>
+                            <div>
+                                <div style="font-weight:700;">{{ d.company_name }}</div>
+                                {% if d.industry %}<small class="text-muted">{{ d.industry }}</small>{% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div>{{ d.contact_person }}</div>
+                        <small class="text-muted">{{ d.contact_email }}</small>
+                    </td>
+                    <td>
+                        {% for cn in d.course_names %}
+                        <span style="background:rgba(37,99,235,.1);color:#2563eb;font-size:11px;padding:2px 8px;border-radius:8px;font-weight:600;display:inline-block;margin:1px;">{{ cn }}</span>
+                        {% endfor %}
+                    </td>
+                    <td><span style="font-weight:700;">{{ d.trainee_count }}</span></td>
+                    <td>
+                        {% if d.deal_value and d.deal_value > 0 %}
+                        <span style="font-weight:700;color:#059669;">AED {{ "{:,.0f}".format(d.deal_value) }}</span>
+                        {% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    <td>
+                        <select class="form-select form-select-sm" style="width:130px;font-size:12px;"
+                            onchange="updateStatus({{ d.id }}, this.value, this)">
+                            {% for s, _ in stages %}
+                            <option value="{{ s }}" {% if d.status == s %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td style="font-size:12px;color:var(--text-muted);">{{ d.created_at.strftime('%d %b %Y') }}</td>
+                    <td>
+                        <div style="display:flex;gap:4px;">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewDeal({{ d.id }})" title="View"><i class="fas fa-eye"></i></button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="editDeal({{ d.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ── COMPANIES VIEW ─────────────────────────── -->
+<div id="viewCompanies" style="display:none;">
+<div class="row g-3">
+{% set companies = corporate_trainings | groupby('company_name') %}
+{% for company_name, group_deals in companies %}
+{% set glist = group_deals | list %}
+{% set first = glist[0] %}
+<div class="col-lg-4 col-md-6">
+    <div class="company-tile">
+        <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:14px;">
+            <div class="co-avatar" style="background:linear-gradient(135deg,#2563eb,#7c3aed);">
+                {{ company_name[0].upper() }}
+            </div>
+            <div>
+                <div style="font-weight:700;font-size:15px;">{{ company_name }}</div>
+                <div style="font-size:12px;color:var(--text-muted);">{{ first.industry or 'Corporate' }}</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px;">
+            <div style="flex:1;padding:10px;text-align:center;border-right:1px solid var(--border);">
+                <div style="font-weight:800;font-size:18px;color:#2563eb;">{{ glist | length }}</div>
+                <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600;">Deals</div>
+            </div>
+            <div style="flex:1;padding:10px;text-align:center;border-right:1px solid var(--border);">
+                <div style="font-weight:800;font-size:18px;color:#059669;">{{ glist | sum(attribute='trainee_count') }}</div>
+                <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600;">Trainees</div>
+            </div>
+            <div style="flex:1;padding:10px;text-align:center;">
+                <div style="font-weight:800;font-size:15px;color:#d97706;">{{ "{:,.0f}".format(glist | sum(attribute='deal_value') or 0) }}</div>
+                <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600;">AED</div>
+            </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+            <div><i class="fas fa-user fa-xs me-2"></i>{{ first.contact_person }}</div>
+            {% if first.contact_email %}<div><i class="fas fa-envelope fa-xs me-2"></i>{{ first.contact_email }}</div>{% endif %}
+            {% if first.contact_phone %}<div><i class="fas fa-phone fa-xs me-2"></i>{{ first.contact_phone }}</div>{% endif %}
+        </div>
+        <div style="display:flex;gap:6px;">
+            {% if first.contact_email %}
+            <button class="btn btn-sm btn-outline-primary flex-fill" onclick="mailTo('{{ first.contact_email }}')">
+                <i class="fas fa-envelope me-1"></i>Email
+            </button>
+            {% endif %}
+            {% if first.contact_phone %}
+            <button class="btn btn-sm btn-outline-success" onclick="window.open('tel:{{ first.contact_phone }}')">
+                <i class="fas fa-phone"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+</div>
+</div>
+
+<!-- ── New Deal Modal ───────────────────────── -->
+<div class="modal fade" id="corporateModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:1.25rem 1.5rem;border:0;">
+                <div>
+                    <h5 class="modal-title text-white mb-0" style="font-weight:700;">
+                        <i class="fas fa-building me-2 opacity-75"></i>New Corporate Deal
+                    </h5>
+                    <small class="text-white opacity-75">Register a new enterprise training enquiry</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form method="POST" action="{{ url_for('main.add_corporate') }}">
+                    {{ form.hidden_tag() }}
+
+                    <div class="pb-2 mb-3" style="border-bottom:1px solid #e2e8f0;">
+                        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;"><i class="fas fa-building me-1"></i>Company Info</span>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            {{ form.company_name.label(class="form-label fw-500", style="font-size:13px;") }}
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="fas fa-building text-secondary" style="font-size:12px;"></i></span>
+                                {{ form.company_name(class="form-control border-start-0", placeholder="Company name") }}
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            {{ form.industry.label(class="form-label fw-500", style="font-size:13px;") }}
+                            {{ form.industry(class="form-control", placeholder="e.g. Finance") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ form.company_size.label(class="form-label fw-500", style="font-size:13px;") }}
+                            {{ form.company_size(class="form-control", placeholder="e.g. 50-100") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.location.label(class="form-label fw-500", style="font-size:13px;") }}
+                            {{ form.location(class="form-control", placeholder="City / location") }}
+                        </div>
+                    </div>
+
+                    <div class="pb-2 mb-3" style="border-bottom:1px solid #e2e8f0;">
+                        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;"><i class="fas fa-user-tie me-1"></i>Contact Person</span>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            {{ form.contact_person_name.label(class="form-label fw-500", style="font-size:13px;") }}
+                            {{ form.contact_person_name(class="form-control", placeholder="Full name") }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.contact_person_email.label(class="form-label fw-500", style="font-size:13px;") }}
+                            {{ form.contact_person_email(class="form-control", placeholder="email@company.com") }}
+                        </div>
+                        <div class="col-md-2">
+                            {{ form.contact_person_country_code.label(class="form-label fw-500", style="font-size:13px;") }}
+                            {{ form.contact_person_country_code(class="form-control", placeholder="+971") }}
+                        </div>
+                        <div class="col-md-4">
+                            {{ form.contact_person_phone.label(class="form-label fw-500", style="font-size:13px;") }}
+                            {{ form.contact_person_phone(class="form-control", placeholder="Phone number") }}
+                        </div>
+                    </div>
+
+                    <div class="pb-2 mb-3" style="border-bottom:1px solid #e2e8f0;">
+                        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;"><i class="fas fa-graduation-cap me-1"></i>Training Details</span>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            {{ form.course_names.label(class="form-label fw-500", style="font-size:13px;") }}
+                            {{ form.course_names(class="form-select", multiple=True, size="4") }}
+                            <small class="text-muted">Hold Ctrl to select multiple</small>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    {{ form.training_mode.label(class="form-label fw-500", style="font-size:13px;") }}
+                                    {{ form.training_mode(class="form-select") }}
+                                </div>
+                                <div class="col-6">
+                                    {{ form.trainee_count.label(class="form-label fw-500", style="font-size:13px;") }}
+                                    {{ form.trainee_count(class="form-control", placeholder="0") }}
+                                </div>
+                                <div class="col-6">
+                                    {{ form.quotation_amount.label(class="form-label fw-500", style="font-size:13px;") }}
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0" style="font-size:12px;">AED</span>
+                                        {{ form.quotation_amount(class="form-control border-start-0", placeholder="0") }}
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    {{ form.budget_range.label(class="form-label fw-500", style="font-size:13px;") }}
+                                    {{ form.budget_range(class="form-control", placeholder="e.g. 50K-100K") }}
+                                </div>
+                                <div class="col-12">
+                                    {{ form.expected_start_date.label(class="form-label fw-500", style="font-size:13px;") }}
+                                    {{ form.expected_start_date(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            {{ form.special_requirements.label(class="form-label fw-500", style="font-size:13px;") }}
+                            {{ form.special_requirements(class="form-control", rows="2", placeholder="Any special requirements or notes…") }}
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2 pt-2">
+                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+                        <button type="submit" class="btn btn-primary px-5" style="border-radius:8px;background:linear-gradient(135deg,#1e3a5f,#2563eb);border:0;">
+                            <i class="fas fa-plus me-1"></i>Create Deal
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deal detail modal -->
+<div class="modal fade" id="dealDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);border:0;padding:1.25rem 1.5rem;">
+                <h5 class="modal-title text-white fw-700" id="dealDetailTitle">Deal Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4" id="dealDetailBody"></div>
+            <div class="modal-footer" style="border-top:1px solid var(--border);padding:.9rem 1.5rem;gap:8px;">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning" id="dealEditBtn" style="border-radius:8px;">
+                    <i class="fas fa-edit me-1"></i>Edit Deal
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── View switching ─────────────────────────
+function switchMain(view, btn) {
+    ['kanban','list','companies'].forEach(v => {
+        document.getElementById('view' + v.charAt(0).toUpperCase() + v.slice(1)).style.display = v === view ? '' : 'none';
+    });
+    document.querySelectorAll('.view-pill[onclick]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+// ── Drag & Drop ────────────────────────────
+let _dragId = null;
+
+function cardDragStart(event, el) {
+    _dragId = el.dataset.id;
+    el.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+}
+document.addEventListener('dragend', () => {
+    document.querySelectorAll('.kb-card.dragging').forEach(c => c.classList.remove('dragging'));
+});
+function colEnter(col) { col.classList.add('drag-over'); }
+function colLeave(col) { col.classList.remove('drag-over'); }
+
+function colDrop(event, col) {
+    event.preventDefault();
+    col.classList.remove('drag-over');
+    const newStatus = col.dataset.status;
+    if (!_dragId || !newStatus) return;
+
+    const card = document.querySelector(`.kb-card[data-id="${_dragId}"]`);
+    if (!card) return;
+    const oldStatus = card.closest('.kb-col')?.dataset.status;
+    if (oldStatus === newStatus) return;
+
+    updateStatus(_dragId, newStatus, null, card, col.querySelector('.kb-body'));
+}
+
+function updateStatus(dealId, newStatus, selectEl, card, targetBody) {
+    fetch(`/corporate/${dealId}/status`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: newStatus})
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            if (card && targetBody) {
+                card.style.opacity = '0';
+                setTimeout(() => {
+                    targetBody.insertBefore(card, targetBody.firstChild);
+                    card.style.opacity = '1';
+                    // Update border colour class
+                    card.className = card.className.replace(/\bkb-\w+\b/, 'kb-' + newStatus.toLowerCase());
+                }, 180);
+            }
+            if (selectEl) selectEl.style.background = '';
+        }
+    })
+    .catch(() => {
+        if (selectEl) selectEl.value = selectEl.dataset.orig || selectEl.value;
+    });
+
+    if (selectEl) selectEl.dataset.orig = selectEl.value;
+}
+
+// ── Deal detail viewer ─────────────────────
+let _viewingId = null;
+
+function viewDeal(id) {
+    _viewingId = id;
+    const d = DEALS.find(x => x.id == id);
+    if (!d) return;
+
+    document.getElementById('dealDetailTitle').textContent = d.company_name;
+    document.getElementById('dealEditBtn').onclick = () => editDeal(id);
+
+    const courseBadges = (d.course_names || []).map(cn =>
+        `<span style="background:rgba(37,99,235,.1);color:#2563eb;font-size:11px;padding:2px 9px;border-radius:8px;font-weight:600;display:inline-block;margin:2px;">${cn}</span>`
+    ).join('');
+
+    document.getElementById('dealDetailBody').innerHTML = `
+        <div class="row g-4">
+            <div class="col-md-7">
+                <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:10px;">Company</div>
+                <div style="font-weight:700;font-size:16px;">${d.company_name}</div>
+                <div style="font-size:13px;color:#64748b;">${d.industry || ''} ${d.company_size ? '· ' + d.company_size : ''}</div>
+
+                <div style="height:1px;background:var(--border);margin:14px 0;"></div>
+                <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:8px;">Contact</div>
+                <div style="font-size:13px;line-height:1.8;">
+                    <div><i class="fas fa-user fa-xs me-2 text-muted"></i>${d.contact_person}</div>
+                    ${d.contact_email ? `<div><i class="fas fa-envelope fa-xs me-2 text-muted"></i>${d.contact_email}</div>` : ''}
+                    ${d.contact_phone ? `<div><i class="fas fa-phone fa-xs me-2 text-muted"></i>${d.contact_phone}</div>` : ''}
+                </div>
+
+                <div style="height:1px;background:var(--border);margin:14px 0;"></div>
+                <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:8px;">Courses</div>
+                <div>${courseBadges || '<span class="text-muted">Not specified</span>'}</div>
+
+                ${d.special_requirements ? `<div style="margin-top:14px;"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:6px;">Special Requirements</div><div style="font-size:13px;">${d.special_requirements}</div></div>` : ''}
+            </div>
+            <div class="col-md-5">
+                <div style="background:var(--sidebar-bg,#f1f5f9);border-radius:12px;padding:16px;">
+                    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:12px;">Deal Info</div>
+                    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;">
+                        <div style="display:flex;justify-content:space-between;"><span class="text-muted">Status</span><span class="status-badge status-${(d.status||'').toLowerCase()}">${d.status}</span></div>
+                        <div style="display:flex;justify-content:space-between;"><span class="text-muted">Trainees</span><strong>${d.trainee_count}</strong></div>
+                        <div style="display:flex;justify-content:space-between;"><span class="text-muted">Mode</span><span>${d.training_mode || '—'}</span></div>
+                        <div style="display:flex;justify-content:space-between;"><span class="text-muted">Deal Value</span><strong style="color:#059669;">${d.deal_value ? 'AED ' + Number(d.deal_value).toLocaleString() : '—'}</strong></div>
+                        <div style="display:flex;justify-content:space-between;"><span class="text-muted">Budget Range</span><span>${d.budget_range || '—'}</span></div>
+                    </div>
+                    <div style="margin-top:14px;display:grid;gap:6px;">
+                        ${d.contact_email ? `<button class="btn btn-outline-primary btn-sm" onclick="mailTo('${d.contact_email}')"><i class="fas fa-envelope me-1"></i>Send Email</button>` : ''}
+                        ${d.contact_phone ? `<button class="btn btn-outline-success btn-sm" onclick="window.open('tel:${d.contact_phone}')"><i class="fas fa-phone me-1"></i>Call</button>` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('dealDetailModal')).show();
+}
+
+function editDeal(id) { window.location.href = `/corporate-leads/${id}/edit`; }
+function mailTo(email) { window.open(`mailto:${email}`); }
+</script>
+{% endblock %}

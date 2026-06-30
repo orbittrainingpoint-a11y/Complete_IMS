@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Edit Trainer - Training Center CRM{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chalkboard-teacher text-primary"></i>
+                        Edit Trainer: {{ trainer.name }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('main.edit_trainer', id=trainer.id) }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.name.label(class="form-label") }}
+                                    {{ form.name(class="form-control") }}
+                                    {% if form.name.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.name.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.email.label(class="form-label") }}
+                                    {{ form.email(class="form-control") }}
+                                    {% if form.email.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.email.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.phone.label(class="form-label") }}
+                                    {{ form.phone(class="form-control") }}
+                                    {% if form.phone.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.phone.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.specialization.label(class="form-label") }}
+                                    {{ form.specialization(class="form-control") }}
+                                    {% if form.specialization.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.specialization.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.hourly_rate.label(class="form-label") }}
+                                    {{ form.hourly_rate(class="form-control") }}
+                                    {% if form.hourly_rate.errors %}
+                                        <div class="text-danger">
+                                            {% for error in form.hourly_rate.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3 form-check">
+                                    {{ form.is_active(class="form-check-input") }}
+                                    {{ form.is_active.label(class="form-check-label") }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.bio.label(class="form-label") }}
+                            {{ form.bio(class="form-control", rows="4") }}
+                            {% if form.bio.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.bio.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Weekly Availability -->
+                        <h6 class="mt-4">Weekly Availability</h6>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h6>Monday</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        {{ form.monday_start.label(class="form-label") }}
+                                        {{ form.monday_start(class="form-control") }}
+                                    </div>
+                                    <div class="col-6">
+                                        {{ form.monday_end.label(class="form-label") }}
+                                        {{ form.monday_end(class="form-control") }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>Tuesday</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        {{ form.tuesday_start.label(class="form-label") }}
+                                        {{ form.tuesday_start(class="form-control") }}
+                                    </div>
+                                    <div class="col-6">
+                                        {{ form.tuesday_end.label(class="form-label") }}
+                                        {{ form.tuesday_end(class="form-control") }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>Wednesday</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        {{ form.wednesday_start.label(class="form-label") }}
+                                        {{ form.wednesday_start(class="form-control") }}
+                                    </div>
+                                    <div class="col-6">
+                                        {{ form.wednesday_end.label(class="form-label") }}
+                                        {{ form.wednesday_end(class="form-control") }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <h6>Thursday</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        {{ form.thursday_start.label(class="form-label") }}
+                                        {{ form.thursday_start(class="form-control") }}
+                                    </div>
+                                    <div class="col-6">
+                                        {{ form.thursday_end.label(class="form-label") }}
+                                        {{ form.thursday_end(class="form-control") }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>Friday</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        {{ form.friday_start.label(class="form-label") }}
+                                        {{ form.friday_start(class="form-control") }}
+                                    </div>
+                                    <div class="col-6">
+                                        {{ form.friday_end.label(class="form-label") }}
+                                        {{ form.friday_end(class="form-control") }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>Saturday</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        {{ form.saturday_start.label(class="form-label") }}
+                                        {{ form.saturday_start(class="form-control") }}
+                                    </div>
+                                    <div class="col-6">
+                                        {{ form.saturday_end.label(class="form-label") }}
+                                        {{ form.saturday_end(class="form-control") }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <h6>Sunday</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        {{ form.sunday_start.label(class="form-label") }}
+                                        {{ form.sunday_start(class="form-control") }}
+                                    </div>
+                                    <div class="col-6">
+                                        {{ form.sunday_end.label(class="form-label") }}
+                                        {{ form.sunday_end(class="form-control") }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{{ url_for('main.trainers') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Trainers
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Update Trainer
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

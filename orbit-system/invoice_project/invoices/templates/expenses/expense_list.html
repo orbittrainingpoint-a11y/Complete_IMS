@@ -1,0 +1,136 @@
+{% extends 'base_generic.html' %}
+{% block title %}Expense Tracking{% endblock %}
+{% block breadcrumb_label %}<span class="current">Expenses</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.exp-table th { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); font-weight:600; }
+.exp-table td { font-size:13px; vertical-align:middle; }
+.exp-table tbody tr:hover { background:#f8faff; }
+.cat-badge { display:inline-block; font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; }
+.summary-strip { background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="page-title"><i class="fas fa-receipt me-2 text-warning"></i>Expense Tracking</div>
+        <div class="page-subtitle">Record and manage business expenses</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'expense_report' %}" class="btn btn-outline-info btn-sm"><i class="fas fa-chart-bar me-1"></i>P&amp;L Report</a>
+        <a href="{% url 'expense_create' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Expense</a>
+    </div>
+</div>
+
+<!-- KPI Strip -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-orange"><i class="fas fa-receipt"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ total|floatformat:2 }}</div>
+            <div class="kpi-label">Total Expenses (Filtered)</div>
+        </div>
+    </div>
+    <div class="col-md-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-red"><i class="fas fa-percent"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ total_vat|floatformat:2 }}</div>
+            <div class="kpi-label">VAT on Expenses</div>
+        </div>
+    </div>
+    <div class="col-md-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-blue"><i class="fas fa-calendar-month"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ month_total|floatformat:2 }}</div>
+            <div class="kpi-label">This Month's Expenses</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Category</label>
+                <select name="category" class="form-select">
+                    <option value="">All Categories</option>
+                    {% for val, label in categories %}
+                    <option value="{{ val }}" {% if cat_filter == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Month</label>
+                <input type="month" name="month" value="{{ month_filter }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i>Filter</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{% url 'expense_list' %}" class="btn btn-outline-secondary w-100">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Expense Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-list me-2"></i>Expenses</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table exp-table mb-0">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Vendor</th>
+                    <th>Course</th>
+                    <th>Method</th>
+                    <th>VAT</th>
+                    <th>Amount</th>
+                    <th style="width:100px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in expenses %}
+                <tr>
+                    <td style="font-size:12px;white-space:nowrap;">{{ e.expense_date|date:"d M Y" }}</td>
+                    <td>
+                        <span class="cat-badge" style="background:rgba(245,158,11,.1);color:#92400e;">
+                            {{ e.get_category_display }}
+                        </span>
+                    </td>
+                    <td><strong style="font-size:13px;">{{ e.description }}</strong></td>
+                    <td style="font-size:12px;color:var(--text-muted);">{{ e.vendor|default:"—" }}</td>
+                    <td style="font-size:12px;">{{ e.course.name|default:"—"|truncatechars:20 }}</td>
+                    <td style="font-size:12px;">{{ e.get_payment_method_display|default:"—" }}</td>
+                    <td style="font-size:12px;">{% if e.vat_amount %}AED {{ e.vat_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td><strong style="color:var(--danger);">AED {{ e.amount|floatformat:2 }}</strong></td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            <a href="{% url 'expense_edit' e.pk %}" class="btn btn-outline-secondary btn-sm" title="Edit"><i class="fas fa-pen"></i></a>
+                            <form method="post" action="{% url 'expense_delete' e.pk %}" onsubmit="return confirm('Delete this expense?')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" class="text-center py-5 text-muted">
+                        <i class="fas fa-receipt fa-3x mb-3 d-block opacity-30"></i>
+                        No expenses found. <a href="{% url 'expense_create' %}">Add the first one.</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

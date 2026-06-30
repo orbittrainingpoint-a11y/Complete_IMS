@@ -1,0 +1,110 @@
+{% extends 'base_generic.html' %}
+{% block title %}{% if mode == 'create' %}Add Schedule{% else %}Edit Schedule{% endif %}{% endblock %}
+{% block breadcrumb_label %}
+<a href="{% url 'training_schedule_list' %}">Training Schedule</a>
+<span class="current"> / {% if mode == 'create' %}New{% else %}Edit{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="page-title">
+            <i class="fas fa-calendar-plus me-2 text-primary"></i>
+            {% if mode == 'create' %}Add Training Schedule{% else %}Edit Schedule{% endif %}
+        </div>
+    </div>
+    <a href="{% url 'training_schedule_list' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+</div>
+
+{% if error %}
+<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>{{ error }}</div>
+{% endif %}
+
+<div class="card" style="max-width:720px;">
+    <div class="card-body p-4">
+        <form method="post">
+            {% csrf_token %}
+            <div class="row g-3">
+                <div class="col-md-12">
+                    <label class="form-label fw-semibold">Schedule Title <span class="text-danger">*</span></label>
+                    <input type="text" name="title" class="form-control" required
+                        value="{{ schedule.title|default:'' }}" placeholder="e.g. Batch 12 — Cybersecurity Fundamentals">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Course <span class="text-danger">*</span></label>
+                    <select name="course" class="form-select" required>
+                        <option value="">— Select Course —</option>
+                        {% for c in courses %}
+                        <option value="{{ c.pk }}" {% if schedule and schedule.course_id == c.pk %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Class Type</label>
+                    <select name="class_type" class="form-select">
+                        <option value="offline" {% if not schedule or schedule.class_type == 'offline' %}selected{% endif %}>Offline</option>
+                        <option value="online"  {% if schedule and schedule.class_type == 'online' %}selected{% endif %}>Online</option>
+                        <option value="batch"   {% if schedule and schedule.class_type == 'batch' %}selected{% endif %}>Batch</option>
+                        <option value="private" {% if schedule and schedule.class_type == 'private' %}selected{% endif %}>Private</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Start Date <span class="text-danger">*</span></label>
+                    <input type="date" name="start_date" class="form-control" required
+                        value="{{ schedule.start_date|default:'' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">End Date <span class="text-danger">*</span></label>
+                    <input type="date" name="end_date" class="form-control" required
+                        value="{{ schedule.end_date|default:'' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Start Time</label>
+                    <input type="time" name="start_time" class="form-control"
+                        value="{{ schedule.start_time|default:'' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">End Time</label>
+                    <input type="time" name="end_time" class="form-control"
+                        value="{{ schedule.end_time|default:'' }}">
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Venue / Location</label>
+                    <input type="text" name="venue" class="form-control"
+                        value="{{ schedule.venue|default:'' }}" placeholder="e.g. Training Room A, Dubai">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Max Capacity</label>
+                    <input type="number" name="max_capacity" class="form-control" min="0"
+                        value="{{ schedule.max_capacity|default:0 }}">
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Instructor Name</label>
+                    <input type="text" name="instructor" class="form-control"
+                        value="{{ schedule.instructor|default:'' }}" placeholder="Trainer / instructor name">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="upcoming" {% if not schedule or schedule.status == 'upcoming' %}selected{% endif %}>Upcoming</option>
+                        <option value="ongoing" {% if schedule and schedule.status == 'ongoing' %}selected{% endif %}>Ongoing</option>
+                        <option value="completed" {% if schedule and schedule.status == 'completed' %}selected{% endif %}>Completed</option>
+                        <option value="cancelled" {% if schedule and schedule.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                    </select>
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label fw-semibold">Notes</label>
+                    <textarea name="notes" class="form-control" rows="3"
+                        placeholder="Additional details, prerequisites, materials needed…">{{ schedule.notes|default:'' }}</textarea>
+                </div>
+                <div class="col-12 d-flex gap-2 pt-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>{% if mode == 'create' %}Create Schedule{% else %}Save Changes{% endif %}
+                    </button>
+                    <a href="{% url 'training_schedule_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

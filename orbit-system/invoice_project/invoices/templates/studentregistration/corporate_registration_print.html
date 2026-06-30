@@ -1,0 +1,179 @@
+{% load custom_filters %}
+{% load static %}
+<style>
+    .container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        max-width: 100%;
+        background-color: white !important;
+        color: black !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .logo {
+        flex: 1;
+    }
+    .description {
+        flex: 1;
+        text-align: right;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    th, td {
+        border: 1px solid black;
+        padding: 8px;
+        text-align: left;
+    }
+    .dicl {
+        border: 1px solid black;
+        padding: 10px;
+    }
+    @media print {
+        .second-page {
+            page-break-before: always;
+        }
+        .print-button {
+            display: none;
+        }
+    }
+    @page {
+        size: A4;
+        margin: 0;
+    }
+    * {
+        font-size: 11px;
+    }
+    h2, h3 {
+        background-color: #1f1566 !important;
+        color: white;
+        text-align: center;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        font-size: 18px;
+        padding: 10px 0;
+        margin: 15px 0;
+    }
+</style>
+
+<div class="page">
+    <div class="first-page">
+        <div class="container">
+            <div class="logo">
+                <img alt='Orbit logo' src="{% static 'Orbit-Logo-1.png' %}"/>
+            </div>
+            <div class="description">
+                <p>Pinnacle-211-Sheikh Zayed Rd</p>
+                <p>Al Barsha 1, Dubai</p>
+                <p>+971-48852477</p>
+                <p>info@orbittraining.ae</p>
+            </div>
+        </div>
+
+        <h2>Corporate Registration Contract</h2>
+
+        <table>
+            <tr>
+                <th style="width: 35%;">Registration No.:</th>
+                <td style="width: 35%;">{{ registration.registration_number }}</td>
+                <th style="border: 0px;width: 15%;">Date:</th>
+                <td style="border: 0px;width: 15%;">{{ registration.date }}</td>
+            </tr>
+        </table>
+
+        <h3>Company Information</h3>
+        <table>
+            <tr><th style="width: 30%;">Company Name:</th><td>{{ corporate_details.company_name }}</td></tr>
+            <tr><th>Company Email:</th><td>{{ corporate_details.company_email }}</td></tr>
+            <tr><th>Company Phone:</th><td>{{ corporate_details.company_phone }}</td></tr>
+            <tr><th>Company Address:</th><td>{{ corporate_details.company_address }}</td></tr>
+            <tr><th>Contact Person:</th><td>{{ corporate_details.contact_person }}</td></tr>
+            <tr><th>Contact Person Position:</th><td>{{ corporate_details.contact_person_position }}</td></tr>
+        </table>
+
+        <h3>Course Details</h3>
+        <table>
+            <tr>
+                <th>Course Name</th>
+                <th>Price</th>
+                <th>Discount</th>
+                <th>VAT (5%)</th>
+                <th>Total</th>
+            </tr>
+            {% for course in course_details  %}
+            <tr>
+                <td>{{ course.name }}</td>
+                <td>{{ course.rate|floatformat:2 }}</td>
+                <td>{{ course.discount }}%</td>
+                <td>{{ course.vat|floatformat:2 }}</td>
+                <td>{{ course.total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <h3>Payment Details</h3>
+        <table>
+            <tr><th>Total Course Fee:</th><td>{{ total_course_fee }}</td></tr>
+            <tr><th>Total Discount:</th><td>{{ total_discount }}</td></tr>
+            <tr><th>Total VAT:</th><td>{{ total_vat }}</td></tr>
+            <tr><th>Grand Total:</th><td>{{ grand_total }}</td></tr>
+        </table>
+    </div>
+
+    <div class="second-page">
+        <div class="container">
+            <div class="logo">
+                <img alt='Orbit logo' src="{% static 'Orbit-Logo-1.png' %}"/>
+            </div>
+            <div class="description">
+                <p>Pinnacle-211-Sheikh Zayed Rd</p>
+                <p>Al Barsha 1, Dubai</p>
+                <p>+971-48852477</p>
+                <p>info@orbittraining.ae</p>
+            </div>
+        </div>
+
+        <h3>Terms and Conditions</h3>
+        <ol>
+            <li>The payment for any course must be made fully after signing the contract and prior to the course commencement.</li>
+            <li>Paid fees are made only for the mentioned company, for the specified course(s), and their specific time only.</li>
+            <li>Companies must commit to the course run, and every absence shall be counted and will result in the class cancellation without any make-up sessions to be given afterwards. Therefore, fees and other paid amounts are non-transferable & non-refundable.</li>
+            <li>Method of payment: Demand Draft, Cheque, Credit/Debit Card, Bank Account transfer, links and scan.</li>
+            <li>Payments are to be made in UAE Dirhams (AED) and/or a relevant currency of the international awarding Body.</li>
+            <li>Course fee and examination fee may be exclusive of any applicable taxes.</li>
+            <li>Attendance is mandatory for all participants.</li>
+            <li>The Management team reserves the full rights to interdict the participants from attending classes/exams, without any refund, in case of any non-compliance with our rules, regulations, behaviour and documentary requirements, as set and advised by the company.</li>
+        </ol>
+
+        <h4>Cancellation of Registration:</h4>
+        <p>Orbit Training Centre reserves all rights to cancel the registration of any company under any of the following circumstances:</p>
+        <ol type="a">
+            <li>If fees are not paid during the agreed date</li>
+            <li>If the company does not confirm the participation from the starting date, even if the fees have been paid.</li>
+            <li>If the company fails to furnish the required documents or information.</li>
+            <li>In case of any mischievous occurrence after registration.</li>
+        </ol>
+
+        <h4>The Right of Modification:</h4>
+        <ol type="a">
+            <li>The Institute reserves the full rights to alter or modify the structure of the course content.</li>
+            <li>The fee structure can be modified without prior notice.</li>
+            <li>The Institute reserves all the rights to impose, modify, alter, add other terms and conditions.</li>
+        </ol>
+
+        <p><b>Dispute Jurisdiction:</b> Any dispute shall ideally be resolved amicably amongst the parties with mutual agreement.</p>
+
+        <div class="dicl">
+            <p>I, hereby, certify that the information provided on both pages of the Corporate Registration Contract and all relevant forms are correct, updated & complete. I agree and understand that any misrepresentation of facts or omissions must be justified, and hence, will lead to the denial or cancellation of the registration.</p>
+            <p>I have read, understood, and I do hereby consent to the above Terms & Conditions</p>
+            <br><br>
+            <p style="display: inline;">Date: <div style="width: 10%; height: 1px; background-color: black;margin-left: 40px;"></div></p>
+            <p style="display: inline;">Signature: <div style="width: 10%; height: 1px; background-color: black;margin-left: 70px;"></div></p>
+            <p>Company Stamp: </p>
+        </div>
+    </div>
+</div>
+
+<button onclick="window.print()" class="btn btn-primary mt-3 print-button">Print Registration</button>

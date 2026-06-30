@@ -1,0 +1,337 @@
+{% extends "base_generic.html" %}
+{% load static %}
+
+{% block title %}Admin Dashboard{% endblock %}
+{% block breadcrumb_label %}<span class="current">Admin Dashboard</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.exec-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.exec-row:last-child { border-bottom: none; }
+.exec-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #7c3aed); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.exec-bar { flex: 1; }
+.exec-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.exec-sub { font-size: 11px; color: var(--text-muted); }
+.exec-amount { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.grade { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="page-title">Admin Dashboard</div>
+        <div class="page-subtitle">Good {{ greeting }}, {{ request.user.get_full_name|default:request.user.username }} — here's your business overview</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'set_targets' %}" class="btn btn-primary btn-sm"><i class="fas fa-bullseye me-1"></i>Set Targets</a>
+        <a href="{% url 'create_invoice' %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-plus me-1"></i>New Invoice</a>
+    </div>
+</div>
+
+<!-- ── KPI ROW 1 ─────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <i class="fas fa-chart-line kpi-bg"></i>
+            <div class="kpi-icon icon-blue"><i class="fas fa-file-invoice-dollar"></i></div>
+            <div class="kpi-value" data-count="{{ month_revenue }}" data-prefix="AED ">AED 0</div>
+            <div class="kpi-label">Revenue This Month</div>
+            <div class="kpi-trend {{ revenue_trend_dir }}">
+                <i class="fas fa-arrow-{{ revenue_trend_dir }}"></i> {{ revenue_trend_pct }}% vs last month
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <i class="fas fa-users kpi-bg"></i>
+            <div class="kpi-icon icon-green"><i class="fas fa-user-graduate"></i></div>
+            <div class="kpi-value" data-count="{{ month_registrations }}">0</div>
+            <div class="kpi-label">Registrations This Month</div>
+            <div class="kpi-trend {{ reg_trend_dir }}">
+                <i class="fas fa-arrow-{{ reg_trend_dir }}"></i> {{ reg_trend_pct }}% vs last month
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <i class="fas fa-hourglass-half kpi-bg"></i>
+            <div class="kpi-icon icon-orange"><i class="fas fa-clock"></i></div>
+            <div class="kpi-value" data-count="{{ outstanding_amount }}" data-prefix="AED ">AED 0</div>
+            <div class="kpi-label">Outstanding Dues</div>
+            <span class="kpi-trend neutral"><i class="fas fa-exclamation"></i> {{ overdue_count }} invoices</span>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <i class="fas fa-graduation-cap kpi-bg"></i>
+            <div class="kpi-icon icon-purple"><i class="fas fa-graduation-cap"></i></div>
+            <div class="kpi-value" data-count="{{ total_students }}">0</div>
+            <div class="kpi-label">Total Students (All Time)</div>
+            <a href="{% url 'student_dashboard' %}" class="kpi-trend neutral" style="text-decoration:none;"><i class="fas fa-arrow-right"></i> View all</a>
+        </div>
+    </div>
+</div>
+
+<!-- ── KPI ROW 2 ─────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-cyan"><i class="fas fa-file-invoice"></i></div>
+            <div class="kpi-value" data-count="{{ total_invoices }}">0</div>
+            <div class="kpi-label">Total Invoices (Month)</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-green"><i class="fas fa-check-circle"></i></div>
+            <div class="kpi-value" data-count="{{ paid_invoices }}">0</div>
+            <div class="kpi-label">Fully Paid Invoices</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-blue"><i class="fas fa-book-open"></i></div>
+            <div class="kpi-value" data-count="{{ total_courses }}">0</div>
+            <div class="kpi-label">Active Courses</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-red"><i class="fas fa-certificate"></i></div>
+            <div class="kpi-value" data-count="{{ total_certificates }}">0</div>
+            <div class="kpi-label">Certificates Issued</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── CHARTS ROW ─────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <!-- monthly revenue line chart -->
+    <div class="col-xl-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-chart-area me-2 text-primary"></i>Revenue Trend (Last 6 Months)</span>
+                <span class="pill pill-blue">AED</span>
+            </div>
+            <div class="card-body">
+                <canvas id="revenueChart" height="90"></canvas>
+            </div>
+        </div>
+    </div>
+    <!-- class type donut -->
+    <div class="col-xl-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="fas fa-chart-pie me-2 text-purple"></i>Registrations by Type</div>
+            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                <canvas id="classTypeDonut" width="180" height="180"></canvas>
+                <div class="mt-3 w-100" id="classTypeLegend"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── TEAM PERFORMANCE + RECENT ────────────────────────────── -->
+<div class="row g-3 mb-4">
+    <!-- team performance -->
+    <div class="col-xl-5">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-users me-2 text-success"></i>Team Performance</span>
+                <a href="{% url 'set_targets' %}" class="btn btn-sm btn-outline-primary">Targets</a>
+            </div>
+            <div class="card-body">
+                {% for exec in exec_performance %}
+                {% if exec.is_institute %}
+                <div class="exec-row" style="background:rgba(14,165,233,.05);border-radius:8px;padding-left:6px;padding-right:6px;margin:0 -6px;">
+                    <div class="exec-avatar" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);">
+                        <i class="fas fa-building" style="font-size:13px;"></i>
+                    </div>
+                    <div class="exec-bar">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="exec-name" style="color:#0284c7;">Institute Direct Sales</span>
+                            <span class="exec-amount" style="color:#0284c7;">AED {{ exec.month_revenue|floatformat:0 }}</span>
+                        </div>
+                        <div style="height:5px;background:rgba(14,165,233,.15);border-radius:3px;">
+                            <div style="width:100%;height:5px;background:linear-gradient(90deg,#0ea5e9,#38bdf8);border-radius:3px;"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-1">
+                            <span class="exec-sub">{{ exec.month_registrations }} direct invoice{{ exec.month_registrations|pluralize }}</span>
+                            <span class="exec-sub" style="color:#0284c7;">No CRM lead linked</span>
+                        </div>
+                    </div>
+                    <div class="grade" style="background:rgba(14,165,233,.12);color:#0284c7;">
+                        <i class="fas fa-building" style="font-size:10px;"></i>
+                    </div>
+                </div>
+                {% else %}
+                <div class="exec-row">
+                    <div class="exec-avatar">{{ exec.username|slice:":2"|upper }}</div>
+                    <div class="exec-bar">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="exec-name">{{ exec.full_name|default:exec.username }}</span>
+                            <span class="exec-amount">AED {{ exec.month_revenue|floatformat:0 }}</span>
+                        </div>
+                        <div class="progress" style="height:5px;">
+                            <div class="progress-bar bg-primary" style="width:{{ exec.target_pct }}%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-1">
+                            <span class="exec-sub">{{ exec.month_registrations }} registrations</span>
+                            <span class="exec-sub">{{ exec.target_pct }}% of target</span>
+                        </div>
+                    </div>
+                    {% if exec.target_pct >= 100 %}
+                    <div class="grade" style="background:rgba(16,185,129,.1);color:#10b981;">A+</div>
+                    {% elif exec.target_pct >= 75 %}
+                    <div class="grade" style="background:rgba(37,99,235,.1);color:#2563eb;">A</div>
+                    {% elif exec.target_pct >= 50 %}
+                    <div class="grade" style="background:rgba(245,158,11,.1);color:#f59e0b;">B</div>
+                    {% else %}
+                    <div class="grade" style="background:rgba(239,68,68,.1);color:#ef4444;">C</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% empty %}
+                <div class="text-center text-muted py-4"><i class="fas fa-users fa-2x mb-2 d-block"></i>No executives yet. <a href="{% url 'manage_users' %}">Add users</a></div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- top courses -->
+    <div class="col-xl-3">
+        <div class="card h-100">
+            <div class="card-header"><i class="fas fa-trophy me-2 text-warning"></i>Top Courses</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>#</th><th>Course</th><th>Enroll</th></tr></thead>
+                        <tbody>
+                            {% for c in top_courses %}
+                            <tr>
+                                <td><span class="pill {% if forloop.counter == 1 %}pill-orange{% elif forloop.counter == 2 %}pill-blue{% else %}pill-gray{% endif %}">{{ forloop.counter }}</span></td>
+                                <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.name }}</td>
+                                <td><strong>{{ c.count }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── UNATTRIBUTED REGISTRATIONS ALERT ──────────────────────── -->
+{% if unattributed_count > 0 %}
+<div class="alert d-flex align-items-center gap-3 mb-4" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:12px;color:#92400e;">
+    <div style="width:40px;height:40px;border-radius:50%;background:rgba(245,158,11,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="fas fa-unlink" style="font-size:16px;color:#d97706;"></i>
+    </div>
+    <div style="flex:1;">
+        <div style="font-weight:700;font-size:14px;color:#92400e;">
+            {{ unattributed_count }} registration{{ unattributed_count|pluralize }} this month not linked to a CRM lead
+        </div>
+        <div style="font-size:12px;color:#b45309;">
+            AED {{ unattributed_revenue|floatformat:0 }} in revenue cannot be attributed to a sales consultant.
+            Ask consultants to add the Lead ID when registering students.
+        </div>
+    </div>
+    <a href="{% url 'student_dashboard' %}" class="btn btn-sm" style="background:#d97706;color:#fff;border:none;font-weight:700;border-radius:8px;white-space:nowrap;">
+        View Registrations <i class="fas fa-arrow-right ms-1"></i>
+    </a>
+</div>
+{% endif %}
+
+<!-- ── RECENT INVOICES ─────────────────────────────────────────── -->
+<div class="row g-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-file-invoice me-2 text-primary"></i>Recent Invoices</span>
+                <a href="{% url 'dashboard' %}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead><tr><th>Invoice #</th><th>Client</th><th>Amount</th><th>Status</th><th>Due</th></tr></thead>
+                    <tbody>
+                        {% for inv in recent_invoices %}
+                        <tr>
+                            <td><a href="{% url 'dashboard' %}" class="fw-600" style="color:var(--primary);">{{ inv.invoice_number }}</a></td>
+                            <td>{{ inv.client.name|truncatechars:30 }}</td>
+                            <td class="fw-600">AED {{ inv.total_amount|floatformat:0 }}</td>
+                            <td>
+                                {% if inv.status == 'Full Payment' %}
+                                <span class="pill pill-green">Paid</span>
+                                {% else %}
+                                <span class="pill pill-orange">{{ inv.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td style="font-size:12px;color:var(--text-muted);">{{ inv.due_date }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Revenue Chart
+const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+new Chart(revenueCtx, {
+    type: 'line',
+    data: {
+        labels: {{ revenue_labels|safe }},
+        datasets: [{
+            label: 'Revenue (AED)',
+            data: {{ revenue_data|safe }},
+            borderColor: '#2563eb',
+            backgroundColor: 'rgba(37,99,235,.08)',
+            borderWidth: 2.5,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#2563eb',
+            pointRadius: 4,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { grid: { color: '#f1f5f9' }, ticks: { callback: v => 'AED '+v.toLocaleString() } },
+            x: { grid: { display: false } }
+        }
+    }
+});
+
+// Class Type Donut
+const ctDonutCtx = document.getElementById('classTypeDonut').getContext('2d');
+const ctLabels = {{ class_type_labels|safe }};
+const ctValues = {{ class_type_data|safe }};
+new Chart(ctDonutCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ctLabels,
+        datasets: [{ data: ctValues,
+            backgroundColor: ['#2563eb','#10b981','#f59e0b','#8b5cf6'],
+            borderWidth: 0, hoverOffset: 6 }]
+    },
+    options: {
+        cutout: '70%',
+        plugins: { legend: { display: false } }
+    }
+});
+const ctLegend = document.getElementById('classTypeLegend');
+const ctColors = ['#2563eb','#10b981','#f59e0b','#8b5cf6'];
+ctLabels.forEach((l,i) => {
+    ctLegend.innerHTML += `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ctColors[i]};margin-right:6px;"></span>${l}</span>
+        <strong>${ctValues[i]}</strong></div>`;
+});
+
+</script>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Add New Course{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<li class="breadcrumb-item"><a href="{{ url_for('main.courses') }}">Courses</a></li>
+<li class="breadcrumb-item active">Add New Course</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="d-flex align-items-center mb-4 gap-3">
+            <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#0f766e,#059669);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="fas fa-book-open text-white" style="font-size:22px;"></i>
+            </div>
+            <div>
+                <h4 class="mb-0 fw-700" style="color:#1e293b;">Create New Course</h4>
+                <small class="text-muted">Add a new training course to your catalogue</small>
+            </div>
+        </div>
+        <div style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.06);overflow:hidden;">
+            <form method="POST" action="{{ url_for('main.add_course') }}">
+                {{ form.hidden_tag() }}
+
+                <!-- Basic Info -->
+                <div style="padding:1.5rem 1.75rem 0;">
+                    <div class="pb-2 mb-3" style="border-bottom:1px solid #e2e8f0;">
+                        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">
+                            <i class="fas fa-info-circle me-1"></i>Basic Information
+                        </span>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                <i class="fas fa-book text-secondary" style="font-size:12px;"></i>
+                            </span>
+                            {{ form.name(class="form-control border-start-0" + (" is-invalid" if form.name.errors else ""),
+                                         placeholder="Course name", style="border-radius:0 8px 8px 0;") }}
+                            {% if form.name.errors %}
+                            <div class="invalid-feedback">{{ form.name.errors[0] }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                        {{ form.description(class="form-control", rows=4,
+                                            placeholder="Describe what students will learn in this course…",
+                                            style="border-radius:8px;resize:vertical;") }}
+                        <div class="d-flex justify-content-end mt-1">
+                            <small class="text-muted" id="descCounter">0/1000</small>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            {{ form.price.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;font-size:12px;">AED</span>
+                                {{ form.price(class="form-control border-start-0" + (" is-invalid" if form.price.errors else ""),
+                                              placeholder="0.00", style="border-radius:0 8px 8px 0;") }}
+                                {% if form.price.errors %}
+                                <div class="invalid-feedback">{{ form.price.errors[0] }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            {{ form.duration.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.duration(class="form-control", placeholder="e.g. 3", style="border-radius:8px;") }}
+                        </div>
+                        <div class="col-md-3">
+                            {{ form.duration_type.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            {{ form.duration_type(class="form-select", style="border-radius:8px;") }}
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            {{ form.category.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fas fa-tag text-secondary" style="font-size:12px;"></i>
+                                </span>
+                                {{ form.category(class="form-control border-start-0", placeholder="e.g. Technology, Business…",
+                                                  style="border-radius:0 8px 8px 0;") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.max_students.label(class="form-label fw-500", style="font-size:13px;color:#374151;") }}
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0" style="border-radius:8px 0 0 8px;">
+                                    <i class="fas fa-users text-secondary" style="font-size:12px;"></i>
+                                </span>
+                                {{ form.max_students(class="form-control border-start-0", placeholder="0 = unlimited",
+                                                      style="border-radius:0 8px 8px 0;") }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings -->
+                <div style="padding:0 1.75rem 1.5rem;background:#f8fafc;border-top:1px solid #e2e8f0;">
+                    <div class="pt-3 pb-2 mb-3" style="border-bottom:1px solid #e2e8f0;">
+                        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">
+                            <i class="fas fa-cog me-1"></i>Settings
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-center gap-3 p-3" style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;">
+                        <div class="form-check form-switch mb-0">
+                            {{ form.is_active(class="form-check-input", role="switch",
+                                              style="width:2.5em;height:1.4em;cursor:pointer;") }}
+                        </div>
+                        <div>
+                            {{ form.is_active.label(class="form-check-label fw-500 mb-0", style="font-size:14px;cursor:pointer;") }}
+                            <div class="text-muted" style="font-size:12px;">Course is visible to consultants and available for enrollment</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-flex justify-content-between align-items-center p-4" style="border-top:1px solid #e2e8f0;">
+                    <a href="{{ url_for('main.courses') }}" class="btn btn-light px-4" style="border-radius:8px;">
+                        <i class="fas fa-arrow-left me-1"></i>Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary px-5" style="border-radius:8px;background:linear-gradient(135deg,#0f766e,#059669);border:0;">
+                        <i class="fas fa-plus me-1"></i>Create Course
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const desc = document.querySelector('textarea[name="description"]');
+    const counter = document.getElementById('descCounter');
+    if (desc && counter) {
+        desc.addEventListener('input', () => {
+            const n = desc.value.length;
+            counter.textContent = n + '/1000';
+            counter.style.color = n > 1000 ? '#ef4444' : '#94a3b8';
+        });
+    }
+});
+</script>
+{% endblock %}

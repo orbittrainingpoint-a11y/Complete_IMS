@@ -1,0 +1,122 @@
+{% extends 'base_generic.html' %}
+{% block title %}Certificate Report{% endblock %}
+{% block breadcrumb_label %}<span class="current">Certificate Report</span>{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="page-title"><i class="fas fa-certificate me-2 text-warning"></i>Certificate Report</div>
+        <div class="page-subtitle">{{ total_count }} certificates in selected period</div>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <a href="{% url 'orbit_dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Dashboard</a>
+        <a href="?date_from={{ date_from }}&date_to={{ date_to }}&cert_type={{ cert_type }}&export=csv" class="btn btn-outline-success btn-sm">
+            <i class="fas fa-file-csv me-1"></i>Export CSV
+        </a>
+        <button class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4 no-print">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Date From</label>
+                <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Date To</label>
+                <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Certificate Type</label>
+                <select name="cert_type" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="KHDA" {% if cert_type == 'KHDA' %}selected{% endif %}>KHDA</option>
+                    <option value="regular" {% if cert_type == 'regular' %}selected{% endif %}>Internal</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i>Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-orange"><i class="fas fa-certificate"></i></div>
+            <div class="kpi-value" data-count="{{ total_count }}">0</div>
+            <div class="kpi-label">Total Certificates</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-blue"><i class="fas fa-stamp"></i></div>
+            <div class="kpi-value" data-count="{{ khda_count }}">0</div>
+            <div class="kpi-label">KHDA Certificates</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-green"><i class="fas fa-scroll"></i></div>
+            <div class="kpi-value" data-count="{{ internal_count }}">0</div>
+            <div class="kpi-label">Internal Certificates</div>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-list me-2"></i>Certificates ({{ total_count }})</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table mb-0" data-sortable>
+            <thead>
+                <tr>
+                    <th data-sort="0">Cert #</th>
+                    <th data-sort="1">Reg #</th>
+                    <th data-sort="2">Student Name</th>
+                    <th data-sort="3">Course</th>
+                    <th data-sort="4">Type</th>
+                    <th data-sort="5">Grade</th>
+                    <th data-sort="6">Duration</th>
+                    <th data-sort="7">Issued</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cert in certificates %}
+                <tr>
+                    <td><strong style="color:var(--primary);">{{ cert.certificate_number }}</strong></td>
+                    <td style="font-size:12px;color:var(--text-muted);">{{ cert.register_number }}</td>
+                    <td><strong>{{ cert.student_name }}</strong></td>
+                    <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ cert.course_name }}</td>
+                    <td>
+                        <span class="pill {% if cert.certificate_type == 'KHDA' %}pill-orange{% else %}pill-blue{% endif %}">
+                            {{ cert.certificate_type }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if cert.grade %}
+                        <span class="pill {% if cert.grade == 'A' or cert.grade == 'Excellent' %}pill-green{% elif cert.grade == 'B' %}pill-blue{% else %}pill-gray{% endif %}">
+                            {{ cert.grade }}
+                        </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td style="font-size:12px;color:var(--text-muted);">
+                        {% if cert.from_date %}{{ cert.from_date }} → {{ cert.end_date }}{% else %}—{% endif %}
+                    </td>
+                    <td style="font-size:12px;color:var(--text-muted);">{{ cert.created_at|date:"d M Y" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-center py-4 text-muted"><i class="fas fa-certificate me-2"></i>No certificates found for selected filters.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Registration — Orbit Training</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+:root { --primary:#2563eb; --border:#e2e8f0; --bg:#f8faff; }
+body { background:var(--bg); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; }
+.portal-header { background:linear-gradient(135deg,#0f1b2d,#1a2d47); color:#fff; padding:32px 0; text-align:center; }
+.card { border:none; border-radius:16px; box-shadow:0 2px 20px rgba(0,0,0,.06); }
+.section-head { background:linear-gradient(135deg,#0f1b2d,#1a2d47); color:#fff; border-radius:12px 12px 0 0; padding:14px 20px; display:flex; align-items:center; gap:12px; }
+.section-icon { width:32px; height:32px; border-radius:8px; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; font-size:13px; }
+.section-body { padding:22px 20px; }
+.form-label { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#64748b; margin-bottom:6px; }
+.form-control,.form-select { border-radius:10px; border:1.5px solid var(--border); font-size:14px; padding:10px 14px; }
+.form-control:focus,.form-select:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.1); outline:none; }
+.course-check-item { border:1.5px solid var(--border); border-radius:10px; padding:12px 16px; margin-bottom:8px; cursor:pointer; transition:border-color .15s,background .15s; }
+.course-check-item:hover { border-color:var(--primary); background:rgba(37,99,235,.03); }
+.course-check-item.selected { border-color:var(--primary); background:rgba(37,99,235,.06); }
+.course-check-item input[type=checkbox] { display:none; }
+.course-name { font-weight:700; font-size:14px; color:#1e293b; }
+.consultant-locked { background:rgba(37,99,235,.06); border:1px solid rgba(37,99,235,.2); border-radius:10px; padding:12px 16px; display:flex; align-items:center; gap:10px; }
+.btn-submit { background:linear-gradient(135deg,#2563eb,#1d4ed8); border:none; color:#fff; font-weight:700; font-size:15px; padding:14px 32px; border-radius:12px; width:100%; cursor:pointer; }
+.success-box { background:rgba(16,185,129,.08); border:1.5px solid rgba(16,185,129,.3); border-radius:16px; padding:32px; text-align:center; }
+.required-note { color:#ef4444; }
+</style>
+</head>
+<body>
+<div class="portal-header">
+    <div class="container">
+        <div style="font-size:26px;font-weight:900;color:#93c5fd;letter-spacing:1px;">ORBIT</div>
+        <div style="font-size:12px;opacity:.6;margin-bottom:12px;">Training & Development</div>
+        <div style="font-size:22px;font-weight:800;">Student Registration</div>
+        <div style="font-size:13px;opacity:.7;margin-top:4px;">Fill in your details to complete enrollment</div>
+    </div>
+</div>
+
+<div class="container" style="max-width:720px;padding:28px 16px;">
+
+{% if success %}
+<div class="success-box">
+    <i class="fas fa-check-circle fa-3x mb-3" style="color:#10b981;"></i>
+    <h3 style="font-weight:800;">Registration Submitted!</h3>
+    <p style="color:#334155;margin:12px 0;">Your registration has been received. Our team will contact you shortly with course details and scheduling.</p>
+    <div style="font-size:13px;color:#64748b;">
+        <i class="fas fa-envelope me-1"></i>A confirmation will be sent to your email.
+    </div>
+</div>
+{% else %}
+
+{% if error %}
+<div class="alert alert-danger" style="border-radius:12px;">
+    <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+</div>
+{% endif %}
+
+<!-- Consultant badge -->
+<div class="consultant-locked mb-4">
+    <div style="width:36px;height:36px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0;">
+        {{ link.consultant_name_locked|slice:":1"|upper }}
+    </div>
+    <div>
+        <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Your Sales Consultant</div>
+        <div style="font-weight:700;font-size:14px;color:#1e293b;">{{ link.consultant_name_locked }}</div>
+    </div>
+    <i class="fas fa-lock ms-auto" style="color:#2563eb;opacity:.5;"></i>
+</div>
+
+<form method="post" novalidate>
+{% csrf_token %}
+{% if crm_lead_id %}<input type="hidden" name="crm_lead_id" value="{{ crm_lead_id }}">{% endif %}
+
+<!-- Personal Info -->
+<div class="card mb-4">
+    <div class="section-head">
+        <div class="section-icon"><i class="fas fa-user"></i></div>
+        <div>
+            <div style="font-weight:700;">Personal Information</div>
+            <div style="font-size:12px;opacity:.7;">Your details as per your Emirates ID</div>
+        </div>
+    </div>
+    <div class="section-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">First Name <span class="required-note">*</span></label>
+                <input type="text" name="first_name" class="form-control" required placeholder="First name">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Last Name <span class="required-note">*</span></label>
+                <input type="text" name="last_name" class="form-control" required placeholder="Last name">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Phone Number <span class="required-note">*</span></label>
+                <input type="tel" name="phone_no" class="form-control" required placeholder="+971 50 000 0000">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Email Address</label>
+                <input type="email" name="email" class="form-control" placeholder="your@email.com">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Nationality</label>
+                <input type="text" name="nationality" class="form-control" placeholder="e.g. Emirati, Indian">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Emirates ID</label>
+                <input type="text" name="emirates_id" class="form-control" placeholder="784-XXXX-XXXXXXX-X">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Country</label>
+                <input type="text" name="country" class="form-control" placeholder="UAE" value="UAE">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Preferred Class Type</label>
+                <select name="class_type" class="form-select">
+                    <option value="offline">Offline / In-Person</option>
+                    <option value="online">Online</option>
+                    <option value="batch">Batch / Group</option>
+                    <option value="private">Private / 1-on-1</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Course Selection (no pricing) -->
+<div class="card mb-4">
+    <div class="section-head">
+        <div class="section-icon"><i class="fas fa-graduation-cap"></i></div>
+        <div>
+            <div style="font-weight:700;">Course Selection</div>
+            <div style="font-size:12px;opacity:.7;">Select the course(s) you wish to enroll in</div>
+        </div>
+    </div>
+    <div class="section-body">
+        <div id="courseList">
+        {% for course in courses %}
+        <div class="course-check-item" onclick="toggleCourse(this, {{ course.id }})">
+            <input type="checkbox" name="course_ids" value="{{ course.id }}" id="c{{ course.id }}">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width:32px;height:32px;border-radius:8px;background:rgba(37,99,235,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="fas fa-book" style="color:#2563eb;font-size:12px;"></i>
+                </div>
+                <div style="flex:1;">
+                    <div class="course-name">{{ course.name }}</div>
+                    {% if course.code %}<div style="font-size:11px;color:#64748b;">{{ course.code }}</div>{% endif %}
+                </div>
+                <div style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;" class="check-icon">
+                    <i class="fas fa-check" style="font-size:11px;color:#2563eb;display:none;"></i>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        </div>
+        <div id="noSelect" style="display:none;font-size:13px;color:#ef4444;margin-top:8px;">
+            <i class="fas fa-exclamation-circle me-1"></i>Please select at least one course.
+        </div>
+    </div>
+</div>
+
+<!-- Privacy note -->
+<div style="background:#f1f5f9;border-radius:12px;padding:14px 16px;margin-bottom:20px;font-size:12px;color:#64748b;">
+    <i class="fas fa-lock me-2"></i>Your information is kept confidential and used only for training enrollment purposes. Pricing and payment terms will be communicated separately by your consultant.
+</div>
+
+<button type="submit" class="btn-submit" onclick="return validateForm()">
+    <i class="fas fa-paper-plane me-2"></i>Submit Registration
+</button>
+</form>
+{% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function toggleCourse(el, id) {
+    const cb = el.querySelector('input');
+    cb.checked = !cb.checked;
+    el.classList.toggle('selected', cb.checked);
+    const icon = el.querySelector('.check-icon i');
+    const circle = el.querySelector('.check-icon');
+    if(cb.checked) {
+        icon.style.display = '';
+        circle.style.borderColor = '#2563eb';
+        circle.style.background = 'rgba(37,99,235,.1)';
+    } else {
+        icon.style.display = 'none';
+        circle.style.borderColor = 'var(--border)';
+        circle.style.background = '';
+    }
+}
+
+function validateForm() {
+    const checked = document.querySelectorAll('input[name="course_ids"]:checked').length;
+    if(!checked) {
+        document.getElementById('noSelect').style.display = 'block';
+        document.getElementById('courseList').scrollIntoView({behavior:'smooth'});
+        return false;
+    }
+    document.getElementById('noSelect').style.display = 'none';
+    return true;
+}
+</script>
+</body>
+</html>

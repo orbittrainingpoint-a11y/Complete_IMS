@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+venv314/
+venv_win/
+myenv/
+orbit-env/
+.venv/
+env/
+
+# Django
+*.log
+debug.log
+local_settings.py
+db.sqlite3
+/orbit-system/invoice_project/static/
+/orbit-system/invoice_project/media/
+/orbit-system/invoice_project/staticfiles/admin/
+/orbit-system/invoice_project/staticfiles/rest_framework/
+
+# Flask
+instance/
+.webassets-cache
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# SQL dumps (use deploy/ versions only)
+backup-*.sql
+lead_*.sql
+leads.sql
+orbiterp.sql
+leadsnov*.sql
+june30erp.sql
+june30leads.sql
+*.sql
+!deploy/*.sql
+
+# Windows specific
+web.config
+*.bat
+start_crm.bat
+
+# Misc
+uv.lock
+pyproject.toml
+replit.md
+attached_assets/
+.local/
+.deployment
+.breakpoints
+*.bin
+*.replit
+.replit

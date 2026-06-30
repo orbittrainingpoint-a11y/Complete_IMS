@@ -1,0 +1,91 @@
+{% extends "base_generic.html" %}
+{% block title %}Sales Targets{% endblock %}
+{% block breadcrumb_label %}
+    <span>Administration</span><span style="color:var(--border);margin:0 6px;">/</span>
+    <span class="current">Sales Targets</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+        <div class="page-title">Sales Targets</div>
+        <div class="page-subtitle">Set monthly revenue & registration targets for each executive</div>
+    </div>
+</div>
+
+<!-- month selector -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="d-flex gap-3 align-items-end flex-wrap">
+            <div>
+                <label class="form-label">Month</label>
+                <input type="month" name="month" class="form-control" value="{{ selected_month }}" style="width:200px;">
+            </div>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i>Load</button>
+        </form>
+    </div>
+</div>
+
+<!-- target form -->
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="month" value="{{ selected_month }}">
+    <div class="row g-3">
+        {% for exec in executives %}
+        <div class="col-xl-4 col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:800;">{{ exec.username|slice:":2"|upper }}</div>
+                        <div>
+                            <div style="font-weight:700;font-size:14px;">{{ exec.get_full_name|default:exec.username }}</div>
+                            <div style="font-size:11px;color:var(--text-muted);">@{{ exec.username }}</div>
+                        </div>
+                    </div>
+
+                    <!-- current month achievement -->
+                    <div class="mb-3 p-3" style="background:var(--bg);border-radius:8px;">
+                        <div class="d-flex justify-content-between mb-1" style="font-size:12px;">
+                            <span style="color:var(--text-muted);">This Month Achievement</span>
+                            <strong>{{ exec.month_pct }}%</strong>
+                        </div>
+                        <div class="progress" style="height:6px;">
+                            <div class="progress-bar bg-primary" style="width:{{ exec.month_pct }}%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-1" style="font-size:11px;color:var(--text-muted);">
+                            <span>AED {{ exec.month_revenue|floatformat:0 }} collected</span>
+                            <span>{{ exec.month_registrations }} regs</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Revenue Target (AED)</label>
+                        <input type="number" name="target_amount_{{ exec.id }}"
+                               class="form-control" placeholder="e.g. 50000"
+                               value="{{ exec.target_amount|default:'' }}" min="0" step="500">
+                    </div>
+                    <div>
+                        <label class="form-label">Registration Target</label>
+                        <input type="number" name="target_reg_{{ exec.id }}"
+                               class="form-control" placeholder="e.g. 20"
+                               value="{{ exec.target_registrations|default:'' }}" min="0">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card text-center py-5 text-muted">
+                No sales executives found. <a href="{% url 'manage_users' %}">Assign roles first</a>.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% if executives %}
+    <div class="mt-4">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Save All Targets</button>
+        <a href="{% url 'orbit_dashboard' %}" class="btn btn-outline-secondary ms-2">Cancel</a>
+    </div>
+    {% endif %}
+</form>
+{% endblock %}

@@ -1,0 +1,481 @@
+{% extends "base.html" %}
+
+{% block title %}Pipeline - Training Center CRM{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<li class="breadcrumb-item active">Sales Pipeline</li>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Pipeline Page Styles ─────────────────────────── */
+.pipeline-stats-row { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
+.pipeline-stat-card {
+  flex:1; min-width:140px; background:#fff; border:1px solid #e2e8f0;
+  border-radius:14px; padding:16px 18px;
+  box-shadow:0 2px 8px rgba(0,0,0,.04);
+}
+.pipeline-stat-card .num { font-size:24px; font-weight:800; line-height:1; }
+.pipeline-stat-card .lbl { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:#64748b; margin-top:4px; }
+
+/* ── Kanban Board ──────────────────────────────────── */
+.kanban-board {
+  display:flex; gap:12px; overflow-x:auto; padding-bottom:16px;
+  -webkit-overflow-scrolling: touch; scrollbar-width:thin;
+  align-items:flex-start;
+}
+.kanban-board::-webkit-scrollbar { height:6px; }
+.kanban-board::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+
+.kanban-col {
+  min-width:240px; max-width:260px; flex:0 0 240px;
+  background:#f8fafc; border-radius:14px; overflow:hidden;
+  border:1px solid #e2e8f0; display:flex; flex-direction:column;
+}
+.kanban-col-header {
+  padding:12px 14px 10px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.kanban-col-header .col-title {
+  font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.5px;
+}
+.kanban-col-header .col-badge {
+  font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px;
+}
+.col-value {
+  font-size:10px; color:#94a3b8; padding:0 14px 8px;
+}
+.kanban-leads { padding:8px; min-height:100px; flex:1; }
+
+/* Column colour themes */
+.col-new    { border-top:3px solid #3b82f6; } .col-new    .col-title { color:#2563eb; }
+.col-new    .col-badge { background:rgba(37,99,235,.12); color:#2563eb; }
+.col-contacted{ border-top:3px solid #f59e0b; } .col-contacted .col-title{ color:#d97706; }
+.col-contacted .col-badge{ background:rgba(245,158,11,.12); color:#d97706; }
+.col-interested{ border-top:3px solid #f97316; } .col-interested .col-title{ color:#ea580c; }
+.col-interested .col-badge{ background:rgba(249,115,22,.12); color:#ea580c; }
+.col-quoted { border-top:3px solid #8b5cf6; } .col-quoted  .col-title { color:#7c3aed; }
+.col-quoted  .col-badge { background:rgba(139,92,246,.12); color:#7c3aed; }
+.col-converted{ border-top:3px solid #10b981; } .col-converted .col-title{ color:#059669; }
+.col-converted .col-badge{ background:rgba(16,185,129,.12); color:#059669; }
+.col-lost   { border-top:3px solid #ef4444; } .col-lost    .col-title { color:#dc2626; }
+.col-lost    .col-badge { background:rgba(239,68,68,.12); color:#dc2626; }
+
+/* ── Lead Cards ───────────────────────────────────── */
+.kcard {
+  background:#fff; border:1px solid #e8edf2; border-radius:10px;
+  padding:12px 12px 10px; margin-bottom:8px; cursor:grab;
+  transition:box-shadow .15s, transform .15s;
+  position:relative;
+}
+.kcard:hover { box-shadow:0 4px 16px rgba(0,0,0,.08); transform:translateY(-1px); }
+.kcard.dragging { opacity:.5; }
+.kcard.drag-over { border-color:#2563eb; background:#eff6ff; }
+
+.kcard-name { font-size:13px; font-weight:700; color:#1e293b; line-height:1.2; }
+.kcard-phone { font-size:11px; color:#64748b; margin-top:4px; }
+.kcard-course { display:inline-block; font-size:10px; background:#dbeafe; color:#2563eb; padding:2px 8px; border-radius:20px; margin-top:5px; font-weight:600; }
+.kcard-amount { font-size:12px; font-weight:700; color:#059669; margin-top:5px; }
+.kcard-followup { font-size:11px; margin-top:5px; }
+.kcard-followup.overdue { color:#dc2626; }
+.kcard-followup.today   { color:#d97706; font-weight:700; }
+.kcard-followup.upcoming{ color:#64748b; }
+.kcard-actions { display:flex; gap:4px; margin-top:8px; padding-top:7px; border-top:1px solid #f1f5f9; }
+.kcard-actions .ka-btn {
+  flex:1; padding:4px 0; font-size:11px; border:1px solid #e2e8f0;
+  border-radius:6px; background:#f8fafc; color:#64748b; text-align:center; cursor:pointer;
+  transition:all .12s;
+}
+.kcard-actions .ka-btn:hover { background:#dbeafe; color:#2563eb; border-color:#bfdbfe; }
+.kcard-menu { position:absolute; top:8px; right:8px; }
+.kcard-menu-btn {
+  width:22px; height:22px; border-radius:6px; border:none;
+  background:transparent; color:#94a3b8; font-size:11px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .12s;
+}
+.kcard-menu-btn:hover { background:#f1f5f9; color:#475569; }
+
+.kcard-empty { text-align:center; padding:24px 16px; color:#cbd5e1; }
+.kcard-empty i { font-size:24px; display:block; margin-bottom:6px; }
+.kcard-empty span { font-size:12px; }
+
+/* ── Kanban drop zone highlight ───────────────────── */
+.kanban-leads.drag-active { background:rgba(37,99,235,.04); border:1.5px dashed #93c5fd; border-radius:8px; }
+
+/* ── Pipeline Health ──────────────────────────────── */
+.health-bar { height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden; margin-top:4px; }
+.health-bar-fill { height:100%; border-radius:4px; transition:width .6s ease; }
+
+/* ── Analytics Chart Card ─────────────────────────── */
+.analytics-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px;
+  padding:20px; box-shadow:0 2px 8px rgba(0,0,0,.04);
+}
+
+/* ── Responsive mobile ────────────────────────────── */
+@media (max-width:576px) {
+  .pipeline-stat-card { min-width:calc(50% - 7px); padding:12px; }
+  .pipeline-stat-card .num { font-size:18px; }
+  .kanban-col { min-width:210px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── Computed stats ─────────────────────────────────────────── #}
+{% set total_leads    = pipeline_data.values() | sum(attribute='count') %}
+{% set converted_cnt  = pipeline_data.get('Converted', {}).get('count', 0) %}
+{% set quoted_cnt     = pipeline_data.get('Quoted', {}).get('count', 0) %}
+{% set new_cnt        = pipeline_data.get('New', {}).get('count', 0) %}
+{% set total_value    = pipeline_data.values() | sum(attribute='total_value') %}
+{% set conv_rate      = (converted_cnt / total_leads * 100) | round(1) if total_leads > 0 else 0 %}
+{% set avg_deal       = (total_value / total_leads) | round(0) if total_leads > 0 else 0 %}
+
+<!-- ── Stats Row ─────────────────────────────────────────────── -->
+<div class="pipeline-stats-row">
+  <div class="pipeline-stat-card">
+    <div class="num" style="color:#2563eb;">{{ total_leads }}</div>
+    <div class="lbl">Total Leads</div>
+  </div>
+  <div class="pipeline-stat-card">
+    <div class="num" style="color:#10b981;">{{ conv_rate }}%</div>
+    <div class="lbl">Conversion Rate</div>
+  </div>
+  <div class="pipeline-stat-card">
+    <div class="num" style="color:#f59e0b; font-size:16px;">AED {{ "{:,.0f}".format(total_value) }}</div>
+    <div class="lbl">Pipeline Value</div>
+  </div>
+  <div class="pipeline-stat-card">
+    <div class="num" style="color:#7c3aed; font-size:16px;">AED {{ "{:,.0f}".format(avg_deal) }}</div>
+    <div class="lbl">Avg Deal Size</div>
+  </div>
+</div>
+
+<!-- ── Kanban Board ──────────────────────────────────────────── -->
+<div class="kanban-board" id="kanbanBoard">
+  {% set col_themes = {
+    'New':'new', 'Contacted':'contacted', 'Interested':'interested',
+    'Quoted':'quoted', 'Converted':'converted', 'Lost':'lost'
+  } %}
+  {% for status in statuses %}
+  {% set theme = col_themes.get(status, 'new') %}
+  {% set col_leads = leads_by_status.get(status, []) %}
+  {% set col_count = pipeline_data.get(status, {}).get('count', 0) %}
+  {% set col_value = pipeline_data.get(status, {}).get('total_value', 0) %}
+
+  <div class="kanban-col col-{{ theme }}" data-status="{{ status }}">
+    <div class="kanban-col-header">
+      <span class="col-title">{{ status }}</span>
+      <span class="col-badge" id="{{ theme }}-badge">{{ col_count }}</span>
+    </div>
+    <div class="col-value" id="{{ theme }}-value">AED {{ "{:,.0f}".format(col_value) }}</div>
+
+    <div class="kanban-leads" id="pipeline-{{ status.lower() }}">
+      {% for lead in col_leads %}
+      {% set today_d = today if today is defined else '' %}
+      {% set fup = lead.next_followup_date %}
+      <div class="kcard" data-lead-id="{{ lead.id }}" draggable="true">
+        <!-- Menu -->
+        <div class="kcard-menu dropdown">
+          <button class="kcard-menu-btn" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-ellipsis-v"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" style="font-size:12px;min-width:150px;border-radius:10px;">
+            <li><a class="dropdown-item" href="/leads/{{ lead.id }}"><i class="fas fa-eye me-2 text-primary"></i>View Details</a></li>
+            <li><a class="dropdown-item" href="/leads/{{ lead.id }}/edit"><i class="fas fa-edit me-2 text-warning"></i>Edit</a></li>
+            <li><a class="dropdown-item" href="#" onclick="scheduleMeeting({{ lead.id }});return false;"><i class="fas fa-calendar me-2 text-info"></i>Meeting</a></li>
+          </ul>
+        </div>
+
+        <div class="kcard-name">{{ lead.name }}</div>
+        {% if lead.phone %}<div class="kcard-phone"><i class="fas fa-phone" style="font-size:10px;margin-right:3px;"></i>{{ lead.phone }}</div>{% endif %}
+        {% if lead.course_interest %}<span class="kcard-course">{{ lead.course_interest.name }}</span>{% endif %}
+        {% if lead.quoted_amount and lead.quoted_amount > 0 %}
+        <div class="kcard-amount"><i class="fas fa-tag" style="font-size:10px;margin-right:3px;"></i>AED {{ "{:,.0f}".format(lead.quoted_amount) }}</div>
+        {% endif %}
+        {% if fup %}
+        {% if today is defined %}
+          {% if fup < today %}<div class="kcard-followup overdue"><i class="fas fa-exclamation-triangle" style="font-size:10px;margin-right:3px;"></i>Overdue: {{ fup.strftime('%b %d') }}</div>
+          {% elif fup == today %}<div class="kcard-followup today"><i class="fas fa-bell" style="font-size:10px;margin-right:3px;"></i>Today!</div>
+          {% else %}<div class="kcard-followup upcoming"><i class="fas fa-clock" style="font-size:10px;margin-right:3px;"></i>{{ fup.strftime('%b %d') }}</div>
+          {% endif %}
+        {% else %}
+        <div class="kcard-followup upcoming"><i class="fas fa-clock" style="font-size:10px;margin-right:3px;"></i>{{ fup.strftime('%b %d') }}</div>
+        {% endif %}
+        {% endif %}
+
+        <div class="kcard-actions">
+          {% if lead.phone %}
+          <button class="ka-btn" onclick="makeCall('{{ lead.phone }}')" title="Call"><i class="fas fa-phone"></i></button>
+          {% endif %}
+          {% if lead.whatsapp %}
+          <button class="ka-btn" onclick="openWhatsApp('{{ lead.whatsapp }}')" title="WhatsApp"><i class="fab fa-whatsapp"></i></button>
+          {% elif lead.phone %}
+          <button class="ka-btn" onclick="openWhatsApp('{{ lead.phone }}')" title="WhatsApp"><i class="fab fa-whatsapp"></i></button>
+          {% endif %}
+          {% if lead.email %}
+          <button class="ka-btn" onclick="sendEmail('{{ lead.email }}')" title="Email"><i class="fas fa-envelope"></i></button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      {% if not col_leads %}
+      <div class="kcard-empty">
+        <i class="fas fa-inbox"></i>
+        <span>No leads here</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── Analytics + Pipeline Health ─────────────────────────── -->
+<div class="row mt-4 g-3">
+  <div class="col-lg-8">
+    <div class="analytics-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h6 style="font-weight:700;margin:0;">Pipeline Analysis</h6>
+        <span style="font-size:11px;color:#94a3b8;">Live data</span>
+      </div>
+      <div style="height:280px;"><canvas id="pipelineAnalyticsChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="analytics-card h-100">
+      <h6 style="font-weight:700;margin-bottom:16px;">Pipeline Health</h6>
+
+      {% set active_leads = total_leads - pipeline_data.get('Lost', {}).get('count', 0) %}
+      {% set contact_rate = ((pipeline_data.get('Contacted', {}).get('count', 0) + pipeline_data.get('Interested', {}).get('count', 0) + quoted_cnt + converted_cnt) / active_leads * 100) | round(0) | int if active_leads > 0 else 0 %}
+      {% set qual_rate    = ((pipeline_data.get('Interested', {}).get('count', 0) + quoted_cnt + converted_cnt) / active_leads * 100) | round(0) | int if active_leads > 0 else 0 %}
+      {% set quote_to_conv = (converted_cnt / quoted_cnt * 100) | round(0) | int if quoted_cnt > 0 else 0 %}
+
+      {% macro health_row(label, pct, color) %}
+      <div class="mb-3">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:12px;font-weight:600;color:#475569;">{{ label }}</span>
+          <span style="font-size:12px;font-weight:800;color:{{ color }};">{{ pct }}%</span>
+        </div>
+        <div class="health-bar"><div class="health-bar-fill" style="width:{{ [pct, 100] | min }}%;background:{{ color }};"></div></div>
+      </div>
+      {% endmacro %}
+
+      {{ health_row('Contact Rate', contact_rate, '#2563eb') }}
+      {{ health_row('Qualification Rate', qual_rate, '#f59e0b') }}
+      {{ health_row('Quote → Convert', quote_to_conv, '#10b981') }}
+      {{ health_row('Overall Conversion', conv_rate | int, '#7c3aed') }}
+
+      <hr style="border-color:#f1f5f9;margin:14px 0;">
+
+      <div style="font-size:12px;color:#64748b;line-height:1.7;">
+        <div><i class="fas fa-circle text-primary" style="font-size:7px;margin-right:6px;"></i>{{ new_cnt }} new lead{{ 's' if new_cnt != 1 else '' }} need first contact</div>
+        <div><i class="fas fa-circle text-warning" style="font-size:7px;margin-right:6px;"></i>{{ pipeline_data.get('Contacted', {}).get('count', 0) }} awaiting follow-up</div>
+        <div><i class="fas fa-circle text-info" style="font-size:7px;margin-right:6px;"></i>{{ quoted_cnt }} quote{{ 's' if quoted_cnt != 1 else '' }} pending decision</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FAB -->
+<div class="position-fixed bottom-0 end-0 p-4">
+  <button class="btn btn-primary rounded-circle shadow-lg"
+          style="width:56px;height:56px;font-size:18px;"
+          data-bs-toggle="modal" data-bs-target="#leadModal" title="Add Lead">
+    <i class="fas fa-plus"></i>
+  </button>
+</div>
+
+{% include 'modals/meeting_modal.html' %}
+
+<!-- Lead Detail Modal -->
+<div class="modal fade" id="leadDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="border-radius:14px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #f1f5f9;">
+        <h5 class="modal-title" style="font-weight:700;">Lead Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="leadDetailContent"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const _pipelineData = {{ pipeline_data | tojsonfilter }};
+const _statuses     = {{ statuses | tojsonfilter }};
+
+/* ── Drag-and-drop for new Kanban (.kcard / data-status) ─── */
+function initializePipelineDragDrop() {
+    let dragged = null;
+
+    document.addEventListener('dragstart', e => {
+        const card = e.target.closest('.kcard');
+        if (!card) return;
+        dragged = card;
+        card.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', card.dataset.leadId);
+        e.dataTransfer.effectAllowed = 'move';
+    });
+
+    document.addEventListener('dragend', e => {
+        if (dragged) { dragged.classList.remove('dragging'); dragged = null; }
+        document.querySelectorAll('.kanban-leads').forEach(z => z.classList.remove('drag-active'));
+    });
+
+    document.addEventListener('dragover', e => {
+        e.preventDefault();
+        const zone = e.target.closest('.kanban-leads');
+        if (zone) zone.classList.add('drag-active');
+    });
+
+    document.addEventListener('dragleave', e => {
+        const zone = e.target.closest('.kanban-leads');
+        if (zone && !zone.contains(e.relatedTarget)) zone.classList.remove('drag-active');
+    });
+
+    document.addEventListener('drop', e => {
+        e.preventDefault();
+        const zone = e.target.closest('.kanban-leads');
+        if (!zone || !dragged) return;
+        zone.classList.remove('drag-active');
+
+        const col = zone.closest('.kanban-col');
+        const newStatus = col?.dataset.status;
+        const leadId    = dragged.dataset.leadId;
+        if (!newStatus || !leadId) return;
+
+        // Optimistically move the card
+        const empty = zone.querySelector('.kcard-empty');
+        if (empty) empty.remove();
+        zone.appendChild(dragged);
+
+        // Persist via API
+        fetch(`/api/leads/${leadId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+            body: JSON.stringify({ status: newStatus })
+        })
+        .then(r => r.json())
+        .then(d => { if (!d.success) location.reload(); })
+        .catch(() => location.reload());
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initializePipelineDragDrop();
+    initPipelineAnalyticsChart();
+});
+
+function initPipelineAnalyticsChart() {
+    const ctx = document.getElementById('pipelineAnalyticsChart');
+    if (!ctx) return;
+    const counts = _statuses.map(s => _pipelineData[s]?.count || 0);
+    const values = _statuses.map(s => _pipelineData[s]?.total_value || 0);
+    const colors = ['#3b82f6','#f59e0b','#f97316','#8b5cf6','#10b981','#ef4444'];
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: _statuses,
+            datasets: [
+                {
+                    label: 'Leads',
+                    data: counts,
+                    backgroundColor: colors,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    yAxisID: 'y',
+                    order: 2
+                },
+                {
+                    label: 'Value (AED)',
+                    data: values,
+                    type: 'line',
+                    borderColor: '#1e293b',
+                    backgroundColor: 'rgba(30,41,59,.06)',
+                    borderWidth: 2.5,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#1e293b',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    yAxisID: 'y1',
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true, position: 'top', labels: { usePointStyle: true, font: { size: 11 } } },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: ctx2 => ctx2.datasetIndex === 1 ? '' : `Value: AED ${(values[ctx2.dataIndex]||0).toLocaleString('en-AE',{maximumFractionDigits:0})}`
+                    }
+                }
+            },
+            scales: {
+                y  : { type:'linear', display:true, position:'left', beginAtZero:true, grid:{color:'rgba(0,0,0,.05)'}, ticks:{maxTicksLimit:8,precision:0,color:'#64748b',font:{size:11}}, title:{display:true,text:'Leads',font:{size:11}} },
+                y1 : { type:'linear', display:true, position:'right', beginAtZero:true, grid:{drawOnChartArea:false}, ticks:{callback:v=>'AED '+v.toLocaleString('en-AE',{maximumFractionDigits:0}),color:'#64748b',font:{size:10}}, title:{display:true,text:'Value',font:{size:11}} }
+            }
+        }
+    });
+}
+
+function viewLead(leadId) {
+    fetch(`/api/leads/${leadId}`)
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById('leadDetailContent').innerHTML = `
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <h6 style="font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:10px;">Contact</h6>
+                  <p class="mb-2"><strong>Name:</strong> ${d.name}</p>
+                  <p class="mb-2"><strong>Phone:</strong> ${d.phone||'—'}</p>
+                  <p class="mb-2"><strong>Email:</strong> ${d.email||'—'}</p>
+                  <p class="mb-2"><strong>WhatsApp:</strong> ${d.whatsapp||'—'}</p>
+                </div>
+                <div class="col-md-6">
+                  <h6 style="font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:10px;">Lead</h6>
+                  <p class="mb-2"><strong>Status:</strong> <span class="badge bg-primary">${d.status}</span></p>
+                  <p class="mb-2"><strong>Source:</strong> ${d.lead_source||'—'}</p>
+                  <p class="mb-2"><strong>Course:</strong> ${d.course_name||'—'}</p>
+                  <p class="mb-2"><strong>Quoted:</strong> ${d.quoted_amount ? 'AED '+Number(d.quoted_amount).toLocaleString() : '—'}</p>
+                </div>
+              </div>
+              ${d.comments ? `<div class="mt-3"><h6 style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Notes</h6><p style="font-size:13px;">${d.comments}</p></div>` : ''}
+              <div class="mt-3 pt-2 border-top d-flex gap-2">
+                <a href="/leads/${d.id}" class="btn btn-primary btn-sm">View Full Profile</a>
+                <a href="/leads/${d.id}/edit" class="btn btn-outline-secondary btn-sm">Edit</a>
+              </div>`;
+            new bootstrap.Modal(document.getElementById('leadDetailModal')).show();
+        })
+        .catch(() => alert('Could not load lead details.'));
+}
+
+function scheduleMeeting(leadId) {
+    const m = new bootstrap.Modal(document.getElementById('meetingModal'));
+    const sel = document.querySelector('#meetingModal select[name="lead_id"]');
+    if (sel) sel.value = leadId;
+    m.show();
+}
+
+function makeCall(phone) { window.open(`tel:${phone}`); }
+function openWhatsApp(phone) {
+    const msg = encodeURIComponent("Hi! I'm reaching out regarding your interest in our training courses.");
+    window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${msg}`, '_blank');
+}
+function sendEmail(email) {
+    window.open(`mailto:${email}?subject=${encodeURIComponent('Training Course Inquiry')}`, '_blank');
+}
+</script>
+{% endblock %}

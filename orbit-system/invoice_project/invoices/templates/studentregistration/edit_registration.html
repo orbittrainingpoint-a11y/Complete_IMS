@@ -1,0 +1,216 @@
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Edit Registration</h2>
+<form method="post" id="editRegistrationForm">
+    {% csrf_token %}
+    
+    <!-- Personal Information -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3>Personal Information</h3>
+        </div>
+        <div class="card-body">
+            {% for field in form %}
+                {% if field.name != 'courses' %}
+                    <div class="form-group">
+                        {{ field.label_tag }} {{ field }}
+                        {% if field.help_text %}
+                            <small class="form-text text-muted">{{ field.help_text }}</small>
+                        {% endif %}
+                        {% for error in field.errors %}
+                            <div class="alert alert-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Course Selection -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3>Course Selection</h3>
+        </div>
+        <div class="card-body">
+            <div id="courseFormset">
+                {{ formset.management_form }}
+                {% for course_form in formset %}
+                    <div class="course-form mb-3">
+                        <div class="form-group">
+                            {{ course_form.course.label_tag }}
+                            <select name="{{ course_form.course.html_name }}" class="form-control course-select">
+                                <option value="">---------</option>
+                                {% for course in courses %}
+                                    <option value="{{ course.id }}" 
+                                        data-online-rate="{{ course.online_rate }}"
+                                        data-offline-rate="{{ course.rate }}"
+                                        data-private-rate="{{ course.private_rate }}"
+                                        data-batch-rate="{{ course.batch_rate }}"
+                                        {% if course_form.initial.course == course.id %}selected{% endif %}>
+                                        {{ course.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            {{ course_form.discount.label_tag }}
+                            <input type="number" name="{{ course_form.discount.html_name }}" 
+                                   class="form-control" step="0.01" min="0" max="20" required
+                                   value="{{ course_form.discount.value|default:'' }}">
+                        </div>
+                        <input type="hidden" name="{{ course_form.price.html_name }}" value="0">
+                    </div>
+                {% endfor %}
+            </div>
+            <button type="button" id="addCourse" class="btn btn-secondary">Add Course</button>
+        </div>
+    </div>
+
+    <!-- Invoicing Details -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3>Invoicing Details</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Total Course Price:</strong> <span id="totalCoursePrice">0.00</span></p>
+                    <p><strong>Total Discount:</strong> <span id="totalDiscount">0.00</span></p>
+                    <p><strong>Total VAT:</strong> <span id="totalVat">0.00</span></p>
+                    <p><strong>Grand Total:</strong> <span id="grandTotal">0.00</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const courseFormset = document.getElementById('courseFormset');
+    const addCourseButton = document.getElementById('addCourse');
+    const totalCoursePriceSpan = document.getElementById('totalCoursePrice');
+    const totalVatSpan = document.getElementById('totalVat');
+    const totalDiscountSpan = document.getElementById('totalDiscount');
+    const grandTotalSpan = document.getElementById('grandTotal');
+    const classTypeSelect = document.getElementById('id_class_type');
+
+    function updatePrices() {
+        let totalCoursePrice = 0;
+        let totalVat = 0;
+        let totalDiscount = 0;
+        let grandTotal = 0;
+        const classType = classTypeSelect.value;
+
+        document.querySelectorAll('.course-form').forEach(function(courseForm) {
+            const courseSelect = courseForm.querySelector('.course-select');
+            const discountInput = courseForm.querySelector('input[name$="-discount"]');
+            const priceInput = courseForm.querySelector('input[name$="-price"]');
+
+            if (courseSelect && courseSelect.value) {
+                const selectedOption = courseSelect.options[courseSelect.selectedIndex];
+                let price;
+                switch (classType) {
+                    case 'online':
+                        price = parseFloat(selectedOption.getAttribute('data-online-rate') || 0);
+                        break;
+                    case 'offline':
+                        price = parseFloat(selectedOption.getAttribute('data-offline-rate') || 0);
+                        break;
+                    case 'private':
+                        price = parseFloat(selectedOption.getAttribute('data-private-rate') || 0);
+                        break;
+                    case 'batch':
+                        price = parseFloat(selectedOption.getAttribute('data-batch-rate') || 0);
+                        break;
+                    default:
+                        price = 0;
+                }
+                const discountPercentage = parseFloat(discountInput.value) || 0;
+
+                const discountAmount = price * (discountPercentage / 100);
+                const discountedPrice = price - discountAmount;
+                const vat = discountedPrice * 0.05;
+                priceInput.value = price;  // Store the original price
+
+                totalCoursePrice += price;
+                totalDiscount += discountAmount;
+                totalVat += vat;
+                grandTotal += discountedPrice + vat;
+            }
+        });
+
+        totalCoursePriceSpan.textContent = totalCoursePrice.toFixed(2);
+        totalVatSpan.textContent = totalVat.toFixed(2);
+        totalDiscountSpan.textContent = totalDiscount.toFixed(2);
+        grandTotalSpan.textContent = grandTotal.toFixed(2);
+    }
+
+    function addCourseForm() {
+        const formCount = document.querySelector('#id_courses-TOTAL_FORMS');
+        const newForm = courseFormset.querySelector('.course-form').cloneNode(true);
+        const formRegex = RegExp(`courses-(\\d){1}-`,'g');
+
+        formCount.value = parseInt(formCount.value) + 1;
+        newForm.innerHTML = newForm.innerHTML.replace(formRegex, `courses-${formCount.value - 1}-`);
+        newForm.querySelectorAll('input, select').forEach(input => {
+            input.value = '';
+            input.name = input.name.replace(formRegex, `courses-${formCount.value - 1}-`);
+            input.id = input.id.replace(formRegex, `courses-${formCount.value - 1}-`);
+        });
+
+        // Add delete button
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'btn btn-danger btn-sm delete-course';
+        deleteButton.textContent = 'Delete Course';
+        deleteButton.addEventListener('click', deleteCourseForm);
+        newForm.appendChild(deleteButton);
+
+        courseFormset.appendChild(newForm);
+        attachEventListeners(newForm);
+        updatePrices();
+    }
+
+    function attachEventListeners(form) {
+        const courseSelect = form.querySelector('.course-select');
+        const discountInput = form.querySelector('input[name$="-discount"]');
+
+        courseSelect.addEventListener('change', updatePrices);
+        discountInput.addEventListener('input', updatePrices);
+    }
+
+    function deleteCourseForm(event) {
+        const courseForm = event.target.closest('.course-form');
+        if (courseForm) {
+            courseForm.remove();
+            updateFormIndexes();
+            updatePrices();
+        }
+    }
+
+    function updateFormIndexes() {
+        const formCount = document.querySelector('#id_courses-TOTAL_FORMS');
+        const courseForms = document.querySelectorAll('.course-form');
+        formCount.value = courseForms.length;
+
+        courseForms.forEach((form, index) => {
+            form.querySelectorAll('input, select').forEach(input => {
+                input.name = input.name.replace(/-\d+-/, `-${index}-`);
+                input.id = input.id.replace(/-\d+-/, `-${index}-`);
+            });
+        });
+    }
+
+    addCourseButton.addEventListener('click', addCourseForm);
+
+    document.querySelectorAll('.course-form').forEach(attachEventListeners);
+
+    classTypeSelect.addEventListener('change', updatePrices);
+
+    updatePrices();
+});
+</script>
+{% endblock %}

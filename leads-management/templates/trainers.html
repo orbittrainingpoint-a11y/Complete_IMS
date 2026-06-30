@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Trainers — Orbit CRM{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ url_for('main.dashboard') }}" style="color:var(--text-muted);text-decoration:none;">Dashboard</a>
+<span style="color:var(--border);margin:0 6px;">/</span>
+<span class="current">Trainers</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.trainer-card { background:var(--card-bg); border-radius:16px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,.07); transition:box-shadow .2s,transform .2s; border:1px solid var(--border); }
+.trainer-card:hover { box-shadow:0 8px 24px rgba(0,0,0,.12); transform:translateY(-3px); }
+.trainer-banner { height:72px; position:relative; }
+.trainer-avatar { width:64px; height:64px; border-radius:50%; border:3px solid var(--card-bg); font-weight:800; font-size:24px; color:#fff; display:flex; align-items:center; justify-content:center; position:absolute; bottom:-24px; left:20px; }
+.trainer-body { padding:32px 20px 16px; }
+.trainer-name { font-weight:800; font-size:16px; color:var(--text); }
+.trainer-spec { font-size:12px; color:var(--text-muted); margin-top:2px; }
+.trainer-info { font-size:12px; color:var(--text-muted); margin-top:10px; display:flex; flex-direction:column; gap:5px; }
+.trainer-info span { display:flex; align-items:center; gap:7px; }
+.trainer-courses { display:flex; flex-wrap:wrap; gap:4px; margin-top:12px; }
+.course-chip { background:rgba(37,99,235,.08); color:#2563eb; font-size:11px; font-weight:600; padding:3px 10px; border-radius:10px; }
+.trainer-footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; gap:6px; }
+.tf-btn { flex:1; border:1.5px solid var(--border); border-radius:8px; background:transparent; color:var(--text-muted); font-size:12px; font-weight:600; padding:6px 4px; cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center; gap:4px; }
+.tf-btn:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
+.tf-btn.danger:hover { background:#ef4444; border-color:#ef4444; color:#fff; }
+.active-dot { width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+    <div>
+        <h4 style="margin:0;font-weight:800;">Trainers</h4>
+        <p style="margin:0;font-size:13px;color:var(--text-muted);">{{ trainers | length }} trainer{{ 's' if trainers | length != 1 }} · {{ trainers | selectattr('is_active') | list | length }} active</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a href="{{ url_for('main.weekly_schedule') }}" class="btn btn-outline-secondary btn-sm" style="border-radius:20px;padding:6px 16px;">
+            <i class="fas fa-calendar-week me-1"></i>Weekly Schedule
+        </a>
+        <button class="btn btn-primary btn-sm" style="border-radius:20px;padding:6px 18px;" data-bs-toggle="modal" data-bs-target="#addTrainerModal">
+            <i class="fas fa-plus me-1"></i>Add Trainer
+        </button>
+    </div>
+</div>
+
+<!-- Stats row -->
+<div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;">
+    {% set active_count = trainers | selectattr('is_active') | list | length %}
+    <div style="background:var(--card-bg);border-radius:12px;padding:14px 20px;border-left:3px solid #10b981;box-shadow:0 1px 4px rgba(0,0,0,.06);">
+        <div style="font-size:22px;font-weight:800;color:#059669;">{{ active_count }}</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:600;">Active</div>
+    </div>
+    <div style="background:var(--card-bg);border-radius:12px;padding:14px 20px;border-left:3px solid #94a3b8;box-shadow:0 1px 4px rgba(0,0,0,.06);">
+        <div style="font-size:22px;font-weight:800;color:#64748b;">{{ trainers | length - active_count }}</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:600;">Inactive</div>
+    </div>
+</div>
+
+{% if trainers %}
+<!-- Trainer grid -->
+<div class="row g-3">
+{% for trainer in trainers %}
+{% set colors = ['#2563eb','#7c3aed','#059669','#d97706','#dc2626','#0891b2'] %}
+{% set color = colors[loop.index0 % colors | length] %}
+<div class="col-xl-3 col-lg-4 col-md-6">
+    <div class="trainer-card">
+        <!-- Banner + avatar -->
+        <div class="trainer-banner" style="background:linear-gradient(135deg, {{ color }}, {{ color }}99);"></div>
+        <div class="trainer-avatar" style="background:{{ color }};">{{ trainer.name[0].upper() }}</div>
+
+        <div class="trainer-body">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div>
+                    <div class="trainer-name">{{ trainer.name }}</div>
+                    <div class="trainer-spec">{{ trainer.specialization or 'Trainer' }}</div>
+                </div>
+                <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;{% if trainer.is_active %}color:#059669;background:rgba(16,185,129,.1);{% else %}color:#64748b;background:var(--sidebar-bg);{% endif %}padding:3px 10px;border-radius:10px;">
+                    <span class="active-dot" style="background:{% if trainer.is_active %}#10b981{% else %}#94a3b8{% endif %};"></span>
+                    {{ 'Active' if trainer.is_active else 'Inactive' }}
+                </span>
+            </div>
+
+            <div class="trainer-info">
+                {% if trainer.phone %}
+                <span><i class="fas fa-phone fa-xs" style="width:14px;color:var(--primary);"></i>{{ trainer.phone }}</span>
+                {% endif %}
+                {% if trainer.email %}
+                <span><i class="fas fa-envelope fa-xs" style="width:14px;color:var(--primary);"></i>{{ trainer.email }}</span>
+                {% endif %}
+            </div>
+
+            <!-- Assigned courses -->
+            {% if trainer.courses %}
+            <div class="trainer-courses">
+                {% for course in trainer.courses[:4] %}
+                <span class="course-chip">{{ course.name }}</span>
+                {% endfor %}
+                {% if trainer.courses | length > 4 %}
+                <span class="course-chip" style="background:var(--border);color:var(--text-muted);">+{{ trainer.courses | length - 4 }} more</span>
+                {% endif %}
+            </div>
+            {% else %}
+            <div style="margin-top:10px;font-size:12px;color:var(--text-muted);">No courses assigned</div>
+            {% endif %}
+        </div>
+
+        <div class="trainer-footer">
+            <a href="{{ url_for('main.trainer_schedule', id=trainer.id) }}" class="tf-btn">
+                <i class="fas fa-calendar fa-xs"></i>Schedule
+            </a>
+            <a href="{{ url_for('main.edit_trainer', id=trainer.id) }}" class="tf-btn">
+                <i class="fas fa-edit fa-xs"></i>Edit
+            </a>
+            <button class="tf-btn danger" onclick="deleteTrainer({{ trainer.id }}, '{{ trainer.name|e }}')">
+                <i class="fas fa-trash fa-xs"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endfor %}
+</div>
+
+{% else %}
+<!-- Empty state -->
+<div style="text-align:center;padding:72px 24px;">
+    <div style="width:80px;height:80px;border-radius:20px;background:rgba(37,99,235,.08);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <i class="fas fa-chalkboard-teacher fa-2x" style="color:#2563eb;"></i>
+    </div>
+    <h5 style="font-weight:700;margin-bottom:8px;">No Trainers Yet</h5>
+    <p style="color:var(--text-muted);margin-bottom:20px;">Add your first trainer to manage classes and schedules.</p>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTrainerModal" style="border-radius:20px;padding:8px 24px;">
+        <i class="fas fa-plus me-1"></i>Add First Trainer
+    </button>
+</div>
+{% endif %}
+
+<!-- ── Add Trainer Modal ─────────────────── -->
+<div class="modal fade" id="addTrainerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:540px;">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:1.25rem 1.5rem;border:0;">
+                <div>
+                    <h5 class="modal-title text-white mb-0" style="font-weight:700;">
+                        <i class="fas fa-user-plus me-2 opacity-75"></i>Add New Trainer
+                    </h5>
+                    <small class="text-white opacity-75">Register a trainer profile</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('main.add_trainer') }}">
+                {{ trainer_form.hidden_tag() }}
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Full Name <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text" style="background:var(--card-bg);border-color:var(--border);"><i class="fas fa-user" style="font-size:12px;color:var(--text-muted);"></i></span>
+                                {{ trainer_form.name(class="form-control", placeholder="Trainer full name", style="border-left:0;") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Phone</label>
+                            <div class="input-group">
+                                <span class="input-group-text" style="background:var(--card-bg);border-color:var(--border);"><i class="fas fa-phone" style="font-size:12px;color:var(--text-muted);"></i></span>
+                                {{ trainer_form.phone(class="form-control", placeholder="+971 50 000 0000", style="border-left:0;") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Email</label>
+                            <div class="input-group">
+                                <span class="input-group-text" style="background:var(--card-bg);border-color:var(--border);"><i class="fas fa-envelope" style="font-size:12px;color:var(--text-muted);"></i></span>
+                                {{ trainer_form.email(class="form-control", placeholder="trainer@example.com", style="border-left:0;") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Specialization</label>
+                            <div class="input-group">
+                                <span class="input-group-text" style="background:var(--card-bg);border-color:var(--border);"><i class="fas fa-star" style="font-size:12px;color:var(--text-muted);"></i></span>
+                                {{ trainer_form.specialization(class="form-control", placeholder="e.g. Safety, Leadership", style="border-left:0;") }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Assign Courses</label>
+                    {{ trainer_form.course_ids(class="form-select", multiple=True, size="5") }}
+                    <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple</small>
+
+                    <div class="mt-3 d-flex align-items-center gap-3 p-3" style="background:var(--sidebar-bg,#f8fafc);border-radius:10px;border:1px solid var(--border);">
+                        <div class="form-check form-switch mb-0">
+                            {{ trainer_form.is_active(class="form-check-input", role="switch", style="width:2.5em;height:1.4em;") }}
+                        </div>
+                        <div>
+                            {{ trainer_form.is_active.label(class="form-check-label fw-500 mb-0", style="font-size:14px;") }}
+                            <div style="font-size:12px;color:var(--text-muted);">Trainer is available for scheduling</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid var(--border);padding:.9rem 1.5rem;gap:8px;">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-5" style="border-radius:8px;background:linear-gradient(135deg,#1e3a5f,#2563eb);border:0;">
+                        <i class="fas fa-user-plus me-1"></i>Add Trainer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function deleteTrainer(id, name) {
+    if (!confirm(`Delete trainer "${name}"? This cannot be undone.`)) return;
+    fetch(`/trainers/${id}/delete`, { method: 'POST',
+        headers: {'Content-Type':'application/json', 'X-CSRFToken': document.querySelector('[name=csrf_token]')?.value || ''}
+    })
+    .then(r => { if (r.ok || r.redirected) window.location.reload(); });
+}
+</script>
+{% endblock %}

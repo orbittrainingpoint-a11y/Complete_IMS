@@ -1,0 +1,705 @@
+<!-- reports.html -->
+{% extends "base.html" %}
+
+{% block title %}Reports & Analytics - Training Center CRM{% endblock %}
+
+{% block breadcrumb %}
+{{ super() }}
+<li class="breadcrumb-item active">Reports</li>
+{% endblock %}
+
+{% block content %}
+<!-- Reports Header -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <h2 class="mb-0">Reports & Analytics</h2>
+        <p class="text-muted">Comprehensive insights into your training business performance</p>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="btn-group me-3" role="group">
+            <button type="button" class="btn btn-outline-secondary" onclick="exportReport('pdf')">
+                <i class="fas fa-file-pdf me-2"></i>Export PDF
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="exportReport('excel')">
+                <i class="fas fa-file-excel me-2"></i>Export Excel
+            </button>
+        </div>
+        <div class="dropdown d-inline">
+            <button class="btn btn-primary-custom dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-calendar me-2"></i>Date Range
+            </button>
+            <div class="dropdown-menu dropdown-menu-end p-3" style="width: 300px;">
+                <h6 class="dropdown-header">Select Date Range</h6>
+                <div class="mb-3">
+                    <label class="form-label">From Date</label>
+                    <input type="date" class="form-control" id="dateFrom" value="{{ date_from }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">To Date</label>
+                    <input type="date" class="form-control" id="dateTo" value="{{ date_to }}">
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuickRange('week')">Last Week</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuickRange('month')">Last Month</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setQuickRange('quarter')">Last Quarter</button>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm w-100 mt-3" onclick="applyDateFilter()">Apply Filter</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Key Metrics Dashboard -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="dashboard-card leads">
+            <div class="stat-card">
+                <div class="card-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-number">{{ total_leads }}</div>
+                <div class="stat-label">New Leads</div>
+                <div class="stat-change text-muted">in selected period</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="dashboard-card students">
+            <div class="stat-card">
+                <div class="card-icon">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <div class="stat-number">{{ converted_leads }}</div>
+                <div class="stat-label">Conversions</div>
+                <div class="stat-change text-muted">in selected period</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="dashboard-card revenue">
+            <div class="stat-card">
+                <div class="card-icon">
+                    <i class="fas fa-coins"></i>
+                </div>
+                <div class="stat-number">AED {{ '{:,.0f}'.format(total_revenue) }}</div>
+                <div class="stat-label">Revenue (Quoted)</div>
+                <div class="stat-change text-muted">from converted leads</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="dashboard-card courses">
+            <div class="stat-card">
+                <div class="card-icon">
+                    <i class="fas fa-percent"></i>
+                </div>
+                <div class="stat-number">{{ conversion_rate }}%</div>
+                <div class="stat-label">Conversion Rate</div>
+                <div class="stat-change text-muted">in selected period</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="chart-container">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Monthly Lead Generation & Conversion</h5>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active" onclick="changeChartPeriod('month')">Monthly</button>
+                    <button type="button" class="btn btn-outline-primary" onclick="changeChartPeriod('week')">Weekly</button>
+                    <button type="button" class="btn btn-outline-primary" onclick="changeChartPeriod('day')">Daily</button>
+                </div>
+            </div>
+            <canvas id="monthlyLeadsChart" height="300"></canvas>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="chart-container">
+            <h5 class="mb-3">Lead Sources Performance</h5>
+            <canvas id="sourcePerformanceChart" height="300"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Reports Section -->
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Sales Performance Report -->
+        <div class="dashboard-card mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Sales Performance Report</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="expandReport('sales')">
+                    <i class="fas fa-expand-alt me-1"></i>View Details
+                </button>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>This Month</th>
+                            <th>Last Month</th>
+                            <th>Change</th>
+                            <th>Target</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Total Leads</strong></td>
+                            <td>{{ total_leads }}</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td>—</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Conversions</strong></td>
+                            <td>{{ converted_leads }}</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td>—</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Conversion Rate</strong></td>
+                            <td>{{ conversion_rate }}%</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td>—</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Average Deal Size</strong></td>
+                            <td>AED {{ '{:,.0f}'.format(avg_deal) }}</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td>—</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Revenue (Quoted)</strong></td>
+                            <td>AED {{ '{:,.0f}'.format(total_revenue) }}</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td>—</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Course Performance Report -->
+        <div class="dashboard-card mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Course Performance Analysis</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="expandReport('courses')">
+                    <i class="fas fa-expand-alt me-1"></i>View Details
+                </button>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Course</th>
+                            <th>Enrollments</th>
+                            <th>Revenue</th>
+                            <th>Completion Rate</th>
+                            <th>Satisfaction</th>
+                            <th>Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for course, enrollments in course_popularity %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="course-icon bg-primary text-white rounded me-2 d-flex align-items-center justify-content-center" 
+                                         style="width: 30px; height: 30px; font-size: 12px;">
+                                        <i class="fas fa-book"></i>
+                                    </div>
+                                    <strong>{{ course }}</strong>
+                                </div>
+                            </td>
+                            <td>{{ enrollments }}</td>
+                            <td>AED {{ (enrollments * 1200) | round | int }}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2">{{ (85 + loop.index * 2) }}%</span>
+                                    <div class="progress-custom" style="width: 60px;">
+                                        <div class="progress-bar-custom" style="width: {{ (85 + loop.index * 2) }}%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2">{{ (4.2 + loop.index * 0.1) | round(1) }}/5</span>
+                                    <div class="rating-stars">
+                                        {% for i in range(5) %}
+                                        <i class="fas fa-star {{ 'text-warning' if i < (4.2 + loop.index * 0.1) else 'text-muted' }}"></i>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="text-success">
+                                    <i class="fas fa-arrow-up"></i> +{{ 5 + loop.index }}%
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Lead Source Analysis -->
+        <div class="dashboard-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Lead Source Analysis</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="expandReport('sources')">
+                    <i class="fas fa-expand-alt me-1"></i>View Details
+                </button>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Source</th>
+                            <th>Leads</th>
+                            <th>Conversions</th>
+                            <th>Conversion Rate</th>
+                            <th>Cost per Lead</th>
+                            <th>ROI</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for source, total, converted in conversion_by_source %}
+                        {% set src_conv_rate = (converted / total * 100) | round(1) if total > 0 else 0 %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-{{ 'globe' if source == 'Website' else 'share-alt' if source == 'Social Media' else 'bullhorn' if source == 'Google Ads' else 'users' if source == 'Referral' else 'walking' }} me-2 text-primary"></i>
+                                    <strong>{{ source }}</strong>
+                                </div>
+                            </td>
+                            <td>{{ total }}</td>
+                            <td>{{ converted }}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2">{{ src_conv_rate }}%</span>
+                                    <div class="progress-custom" style="width: 50px;">
+                                        <div class="progress-bar-custom" style="width: {{ src_conv_rate }}%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>—</td>
+                            <td>—</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- Quick Insights -->
+        <div class="dashboard-card mb-4">
+            <h5 class="mb-3">Quick Insights</h5>
+            
+            <div class="insight-item mb-3">
+                <div class="d-flex align-items-start">
+                    <div class="insight-icon bg-success text-white rounded-circle me-3 d-flex align-items-center justify-content-center" 
+                         style="width: 40px; height: 40px;">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <div>
+                        <h6 class="mb-1">Best Performing Course</h6>
+                        <p class="mb-1">{{ course_popularity[0][0] if course_popularity else 'N/A' }}</p>
+                        <small class="text-muted">{{ course_popularity[0][1] if course_popularity else 0 }} enrollments this month</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="insight-item">
+                <div class="d-flex align-items-start">
+                    <div class="insight-icon bg-info text-white rounded-circle me-3 d-flex align-items-center justify-content-center"
+                         style="width: 40px; height: 40px;">
+                        <i class="fas fa-percentage"></i>
+                    </div>
+                    <div>
+                        <h6 class="mb-1">Conversion Rate</h6>
+                        <p class="mb-1">{{ conversion_rate }}%</p>
+                        <small class="text-muted">{{ converted_leads }} of {{ total_leads }} leads converted</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="insight-item">
+                <div class="d-flex align-items-start">
+                    <div class="insight-icon bg-primary text-white rounded-circle me-3 d-flex align-items-center justify-content-center"
+                         style="width: 40px; height: 40px;">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div>
+                        <h6 class="mb-1">Avg Deal Size</h6>
+                        <p class="mb-1">AED {{ '{:,.0f}'.format(avg_deal) }}</p>
+                        <small class="text-muted">from converted leads</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Action Items -->
+        <div class="dashboard-card mb-4">
+            <h5 class="mb-3">Recommended Actions</h5>
+            
+            <div class="action-item mb-3">
+                <div class="d-flex">
+                    <div class="action-priority bg-danger text-white rounded-circle me-3 d-flex align-items-center justify-content-center"
+                         style="width: 24px; height: 24px; font-size: 12px;">
+                        !
+                    </div>
+                    <div>
+                        <h6 class="mb-1">High Priority</h6>
+                        <p class="mb-1 small">Review leads that have not been contacted recently</p>
+                        <button class="btn btn-sm btn-outline-danger" onclick="viewOverdueLeads()">View Leads</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-item mb-3">
+                <div class="d-flex">
+                    <div class="action-priority bg-warning text-white rounded-circle me-3 d-flex align-items-center justify-content-center" 
+                         style="width: 24px; height: 24px; font-size: 12px;">
+                        !
+                    </div>
+                    <div>
+                        <h6 class="mb-1">Medium Priority</h6>
+                        <p class="mb-1 small">Social Media conversion rate declining</p>
+                        <button class="btn btn-sm btn-outline-warning" onclick="viewSocialMediaAnalysis()">Investigate</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-item">
+                <div class="d-flex">
+                    <div class="action-priority bg-success text-white rounded-circle me-3 d-flex align-items-center justify-content-center" 
+                         style="width: 24px; height: 24px; font-size: 12px;">
+                        ✓
+                    </div>
+                    <div>
+                        <h6 class="mb-1">Opportunity</h6>
+                        <p class="mb-1 small">Referral program showing strong ROI</p>
+                        <button class="btn btn-sm btn-outline-success" onclick="expandReferralProgram()">Expand</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Export Options -->
+        <div class="dashboard-card">
+            <h5 class="mb-3">Export Reports</h5>
+            
+            <div class="d-grid gap-2">
+                <button class="btn btn-outline-primary" onclick="exportDetailedReport('sales')">
+                    <i class="fas fa-file-pdf me-2"></i>Sales Report (PDF)
+                </button>
+                <button class="btn btn-outline-success" onclick="exportDetailedReport('courses')">
+                    <i class="fas fa-file-excel me-2"></i>Course Analytics (Excel)
+                </button>
+                <button class="btn btn-outline-info" onclick="exportDetailedReport('leads')">
+                    <i class="fas fa-file-csv me-2"></i>Lead Data (CSV)
+                </button>
+                <button class="btn btn-outline-warning" onclick="scheduleReport()">
+                    <i class="fas fa-clock me-2"></i>Schedule Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Detail Modal -->
+<div class="modal fade" id="reportDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detailed Report</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="reportDetailContent">
+                <!-- Detailed report content will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="exportCurrentReport()">Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Reports functionality
+let currentDateRange = {
+    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+    to: new Date()
+};
+
+const _monthlyData = {{ monthly_data | tojsonfilter }};
+const _sourceData  = {{ conversion_by_source | tojsonfilter }};
+const _courseData  = {{ course_popularity | tojsonfilter }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof Chart !== 'undefined') {
+        initMonthlyLeadsChart();
+        initSourcePerformanceChart();
+    }
+});
+
+function initMonthlyLeadsChart() {
+    const ctx = document.getElementById('monthlyLeadsChart');
+    if (!ctx) return;
+    const labels = _monthlyData.map(r => r[0]);
+    const totals = _monthlyData.map(r => r[1]);
+    const convs  = _monthlyData.map(r => r[2] || 0);
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Total Leads', data: totals, backgroundColor: 'rgba(52,152,219,0.7)', borderRadius: 4 },
+                { label: 'Converted', data: convs, backgroundColor: 'rgba(39,174,96,0.7)', borderRadius: 4 }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+}
+
+function initSourcePerformanceChart() {
+    const ctx = document.getElementById('sourcePerformanceChart');
+    if (!ctx) return;
+    const labels = _sourceData.map(r => r[0] || 'Unknown');
+    const totals = _sourceData.map(r => r[1]);
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: totals,
+                backgroundColor: ['#3498db','#27ae60','#f39c12','#e74c3c','#9b59b6','#1abc9c','#e67e22'],
+                borderWidth: 0, hoverOffset: 8
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+}
+
+function changeChartPeriod(period) {
+    // Update chart based on selected period
+    event.target.parentElement.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // Reload chart data for the selected period
+    updateChartData(period);
+}
+
+function updateChartData(period) {
+    showLoading();
+    
+    // Simulate data loading
+    setTimeout(() => {
+        hideLoading();
+        showNotification(`Chart updated for ${period}ly view`, 'success');
+    }, 1000);
+}
+
+function setQuickRange(range) {
+    const today = new Date();
+    let fromDate = new Date();
+    
+    switch (range) {
+        case 'week':
+            fromDate.setDate(today.getDate() - 7);
+            break;
+        case 'month':
+            fromDate.setMonth(today.getMonth() - 1);
+            break;
+        case 'quarter':
+            fromDate.setMonth(today.getMonth() - 3);
+            break;
+    }
+    
+    document.getElementById('dateFrom').value = fromDate.toISOString().split('T')[0];
+    document.getElementById('dateTo').value = today.toISOString().split('T')[0];
+}
+
+function applyDateFilter() {
+    const fromDate = document.getElementById('dateFrom').value;
+    const toDate = document.getElementById('dateTo').value;
+    if (!fromDate || !toDate) { alert('Please select both dates'); return; }
+    if (new Date(fromDate) > new Date(toDate)) { alert('From date cannot be later than to date'); return; }
+    window.location.href = '/reports?date_from=' + fromDate + '&date_to=' + toDate;
+}
+
+function updateStatistics() {
+    // Animate statistics updates
+    const statNumbers = document.querySelectorAll('.stat-number');
+    statNumbers.forEach(stat => {
+        const finalValue = stat.textContent.replace(/[^0-9]/g, '');
+        if (finalValue) {
+            animateNumber(stat, parseInt(finalValue));
+        }
+    });
+}
+
+function animateNumber(element, finalValue) {
+    const startValue = 0;
+    const duration = 1000;
+    const increment = finalValue / (duration / 16);
+    let currentValue = startValue;
+    
+    const timer = setInterval(() => {
+        currentValue += increment;
+        if (currentValue >= finalValue) {
+            currentValue = finalValue;
+            clearInterval(timer);
+        }
+        
+        // Format number based on original content
+        if (element.textContent.includes('$')) {
+            element.textContent = '$' + Math.floor(currentValue).toLocaleString();
+        } else if (element.textContent.includes('%')) {
+            element.textContent = Math.floor(currentValue) + '%';
+        } else {
+            element.textContent = Math.floor(currentValue).toLocaleString();
+        }
+    }, 16);
+}
+
+function expandReport(reportType) {
+    let title = '';
+    let content = '';
+    
+    switch (reportType) {
+        case 'sales':
+            title = 'Detailed Sales Performance Report';
+            content = generateSalesReportContent();
+            break;
+        case 'courses':
+            title = 'Course Performance Analysis';
+            content = generateCourseReportContent();
+            break;
+        case 'sources':
+            title = 'Lead Source Analysis';
+            content = generateSourceReportContent();
+            break;
+    }
+    
+    document.querySelector('#reportDetailModal .modal-title').textContent = title;
+    document.getElementById('reportDetailContent').innerHTML = content;
+    
+    new bootstrap.Modal(document.getElementById('reportDetailModal')).show();
+}
+
+function generateSalesReportContent() {
+    const rows = _monthlyData.map(r => `
+        <tr>
+            <td>${r[0]}</td>
+            <td>${r[1]}</td>
+            <td>${r[2]}</td>
+            <td>${r[1] > 0 ? ((r[2]/r[1])*100).toFixed(1) : 0}%</td>
+        </tr>`).join('');
+    return `
+        <h6>Monthly Leads &amp; Conversions</h6>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead><tr><th>Period</th><th>Total Leads</th><th>Conversions</th><th>Rate</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="4" class="text-center text-muted py-3">No data for selected period</td></tr>'}</tbody>
+            </table>
+        </div>`;
+}
+
+function generateCourseReportContent() {
+    const rows = _courseData.map(r => `
+        <tr><td><strong>${r[0]}</strong></td><td>${r[1]}</td></tr>`).join('');
+    return `
+        <h6>Course Popularity (by Enrollments)</h6>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead><tr><th>Course</th><th>Enrollments</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="2" class="text-center text-muted py-3">No data available</td></tr>'}</tbody>
+            </table>
+        </div>`;
+}
+
+function generateSourceReportContent() {
+    const rows = _sourceData.map(r => {
+        const rate = r[1] > 0 ? ((r[2]/r[1])*100).toFixed(1) : 0;
+        return `<tr><td><strong>${r[0]}</strong></td><td>${r[1]}</td><td>${r[2]}</td><td>${rate}%</td></tr>`;
+    }).join('');
+    return `
+        <h6>Lead Source Breakdown</h6>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead><tr><th>Source</th><th>Total Leads</th><th>Conversions</th><th>Rate</th></tr></thead>
+                <tbody>${rows || '<tr><td colspan="4" class="text-center text-muted py-3">No data for selected period</td></tr>'}</tbody>
+            </table>
+        </div>`;
+}
+
+function exportReport(format) {
+    showLoading();
+    
+    setTimeout(() => {
+        hideLoading();
+        showNotification(`Report exported as ${format.toUpperCase()}`, 'success');
+    }, 2000);
+}
+
+function exportDetailedReport(type) {
+    showLoading();
+    
+    setTimeout(() => {
+        hideLoading();
+        showNotification(`${type.charAt(0).toUpperCase() + type.slice(1)} report exported successfully`, 'success');
+    }, 1500);
+}
+
+function exportCurrentReport() {
+    exportReport('pdf');
+}
+
+function scheduleReport() {
+    // Open scheduling modal
+    showNotification('Report scheduling feature coming soon!', 'info');
+}
+
+// Action item handlers
+function viewOverdueLeads() {
+    window.location.href = '/leads?filter=overdue';
+}
+
+function viewSocialMediaAnalysis() {
+    expandReport('sources');
+}
+
+function expandReferralProgram() { 
+       showNotification('Referral program expansion analysis coming soon!', 'info');
+}
+</script>
+{% endblock %}

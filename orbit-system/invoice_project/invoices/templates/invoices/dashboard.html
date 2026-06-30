@@ -1,0 +1,1149 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}Invoices{% endblock %}
+{% block breadcrumb_label %}<span class="current">Invoices</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── table enhancements ── */
+.inv-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+.inv-table td { font-size: 13px; vertical-align: middle; }
+.inv-table tbody tr:hover { background: #f8faff; }
+.inv-table .inv-num { font-weight: 700; color: var(--primary); font-size: 13px; }
+.inv-table .client-name { font-weight: 600; font-size: 13px; }
+.inv-table .client-sub { font-size: 11px; color: var(--text-muted); }
+.amount-cell { font-weight: 700; font-size: 13px; }
+.amount-muted { font-size: 11px; color: var(--text-muted); }
+
+/* ── filter panel ── */
+.filter-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:20px; }
+.filter-card .form-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:4px; }
+.filter-card .form-control, .filter-card .form-select { font-size:13px; border-radius:8px; border-color:var(--border); }
+.filter-card .form-control:focus, .filter-card .form-select:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.1); }
+
+/* ── tabs ── */
+.inv-tabs { display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:0; }
+.inv-tab { padding:10px 20px; font-size:13px; font-weight:600; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s; user-select:none; }
+.inv-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+.inv-tab-content { display:none; }
+.inv-tab-content.active { display:block; }
+
+/* ── action btns ── */
+.action-btn { padding:4px 10px; font-size:12px; border-radius:6px; font-weight:500; }
+
+/* ── bulk action bar ── */
+#bulkBar { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1e293b; color:#fff; border-radius:14px; padding:14px 24px; display:flex; align-items:center; gap:12px; box-shadow:0 8px 30px rgba(0,0,0,.25); z-index:1050; transition:opacity .2s,transform .2s; opacity:0; pointer-events:none; }
+#bulkBar.show { opacity:1; pointer-events:all; }
+#bulkBar .bulk-count { font-size:13px; font-weight:700; color:#94a3b8; }
+
+/* ── payment modal ── */
+.pay-row { font-size:13px; padding:10px 0; border-bottom:1px solid var(--border); }
+.pay-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:12px; background:rgba(16,185,129,.1); color:#065f46; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <div class="page-title">Invoices</div>
+    <div class="page-subtitle">Tax invoices and purchase invoices</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'create_invoice' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Tax Invoice</a>
+    <a href="{% url 'create_purchase_invoice' %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-plus me-1"></i>Purchase Invoice</a>
+  </div>
+</div>
+
+<!-- ── KPI SUMMARY ── -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-blue"><i class="fas fa-file-invoice"></i></div>
+      <div class="kpi-value">{{ inv_paginator.count }}</div>
+      <div class="kpi-label">Tax Invoices</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-green"><i class="fas fa-check-circle"></i></div>
+      <div class="kpi-value">{{ pur_paginator.count }}</div>
+      <div class="kpi-label">Purchase Invoices</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-orange"><i class="fas fa-coins"></i></div>
+      <div class="kpi-value" id="totalCollected">—</div>
+      <div class="kpi-label">Total Collected</div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-sm-6">
+    <div class="kpi-card">
+      <div class="kpi-icon icon-red"><i class="fas fa-exclamation-circle"></i></div>
+      <div class="kpi-value" id="totalOutstanding">—</div>
+      <div class="kpi-label">Outstanding</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FILTER PANEL ── -->
+<div class="filter-card">
+  <form method="get" id="filterForm">
+    <div class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label">Invoice #</label>
+        <input type="text" name="invoice_number" class="form-control" placeholder="e.g. 26/01/001" value="{{ invoice_number }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Reg #</label>
+        <input type="text" name="registration_number" class="form-control" placeholder="Registration No." value="{{ registration_number }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Client / Name</label>
+        <input type="text" name="name" class="form-control" placeholder="Client name" value="{{ name }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Due Date</label>
+        <input type="date" name="due_date" class="form-control" value="{{ due_date }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Payment Status</label>
+        <select name="payment_status" class="form-select">
+          <option value="">All Statuses</option>
+          <option value="Full Payment" {% if payment_status == 'Full Payment' %}selected{% endif %}>Full Payment</option>
+          <option value="Term Payment" {% if payment_status == 'Term Payment' %}selected{% endif %}>Term Payment</option>
+          <option value="Tabby" {% if payment_status == 'Tabby' %}selected{% endif %}>Tabby</option>
+          <option value="Tamara" {% if payment_status == 'Tamara' %}selected{% endif %}>Tamara</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-primary flex-fill">Filter</button>
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary flex-fill">Clear</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- ── TABS ── -->
+<div class="card" style="overflow:visible;">
+  <div class="card-body p-0">
+    <div class="inv-tabs px-4 pt-3">
+      <div class="inv-tab active" onclick="switchTab('taxInvoices',this)">
+        <i class="fas fa-file-invoice me-1"></i>Tax Invoices
+        <span class="pill pill-blue ms-1" style="font-size:11px;">{{ invoices|length }}</span>
+      </div>
+      <div class="inv-tab" onclick="switchTab('purchaseInvoices',this)">
+        <i class="fas fa-shopping-cart me-1"></i>Purchase Invoices
+        <span class="pill pill-green ms-1" style="font-size:11px;">{{ purchase_invoices|length }}</span>
+      </div>
+    </div>
+
+    <!-- ══ TAX INVOICES ══ -->
+    <div id="taxInvoices" class="inv-tab-content active">
+      <div class="table-responsive">
+        <table class="table inv-table mb-0" id="invoiceTable">
+          <thead>
+            <tr>
+              <th style="width:36px;"><input type="checkbox" id="selectAll" class="form-check-input" onclick="toggleSelectAll(this)"></th>
+              <th style="width:130px;">Invoice #</th>
+              <th>Client</th>
+              <th style="width:100px;">Reg #</th>
+              <th style="width:100px;">Date</th>
+              <th style="width:100px;">Due Date</th>
+              <th style="width:120px;">Amount</th>
+              <th style="width:120px;">Paid</th>
+              <th style="width:80px;">Status</th>
+              <th style="width:80px;">Payment</th>
+              <th style="width:140px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for invoice in invoices %}
+            <tr class="inv-row"
+                data-inv-pk="{{ invoice.pk }}"
+                data-client="{{ invoice.client.name }}"
+                data-client-address="{{ invoice.client.address }}"
+                data-client-trn="{{ invoice.client.trn_number }}"
+                data-invoice-number="{{ invoice.invoice_number }}"
+                data-invoice-date="{{ invoice.date }}"
+                data-due-date="{{ invoice.due_date }}"
+                data-subtotal="{{ invoice.total_amount }}"
+                data-amountpaid="{{ invoice.amount_paid }}"
+                data-discount="{{ invoice.discount }}"
+                data-status="{{ invoice.status }}"
+                data-payment="{{ invoice.payment }}"
+                data-emirates="{{ invoice.client.emirates }}"
+                data-country="{{ invoice.client.country }}"
+                data-person="{{ invoice.number_of_person }}"
+                data-type="{{ invoice.class_type }}"
+                data-register="{{ invoice.registration.registration_number }}"
+                data-invoice-items='{{ invoice.items_json }}'
+                data-po-number="{{ invoice.po_number }}"
+                data-logo-url="{% static 'images/Orbit-Logo-1.png' %}">
+              <td style="width:36px;"><input type="checkbox" class="form-check-input inv-cb" value="{{ invoice.pk }}" onchange="onCbChange()"></td>
+              <td>
+                <span class="inv-num">{{ invoice.invoice_number }}</span>
+                <button class="btn-copy-num ms-1" title="Copy invoice number"
+                    onclick="copyInvNum(this,'{{ invoice.invoice_number }}')"
+                    style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;padding:2px 4px;">
+                    <i class="fas fa-copy"></i>
+                </button>
+              </td>
+              <td>
+                <div class="client-name">{{ invoice.client.name }}</div>
+                {% if invoice.client.trn_number %}<div class="client-sub">TRN: {{ invoice.client.trn_number }}</div>{% endif %}
+              </td>
+              <td style="font-size:12px;color:var(--text-muted);">{{ invoice.registration.registration_number|default:"—" }}</td>
+              <td style="font-size:12px;">{{ invoice.date }}</td>
+              <td style="font-size:12px;{% if invoice.due_date < today and invoice.status != 'Full Payment' %}color:var(--danger);font-weight:600;{% endif %}">{{ invoice.due_date }}</td>
+              <td>
+                <div class="amount-cell">AED {{ invoice.total_amount|floatformat:2 }}</div>
+                {% if invoice.discount %}<div class="amount-muted">{{ invoice.discount }}% disc</div>{% endif %}
+              </td>
+              <td>
+                <div class="amount-cell">AED {{ invoice.amount_paid|floatformat:2 }}</div>
+              </td>
+              <td>
+                {% if invoice.status == 'Full Payment' %}<span class="pill pill-green">Paid</span>
+                {% elif invoice.status == 'Term Payment' %}<span class="pill pill-orange">Term</span>
+                {% elif invoice.status == 'Tabby' %}<span class="pill pill-blue">Tabby</span>
+                {% else %}<span class="pill pill-purple">{{ invoice.status }}</span>{% endif %}
+              </td>
+              <td><span class="pill pill-gray" style="font-size:10px;">{{ invoice.payment }}</span></td>
+              <td>
+                <div class="d-flex gap-1 flex-wrap">
+                  <a href="{% url 'edit_invoice' invoice.pk %}" class="btn btn-outline-primary action-btn" title="Edit"><i class="fas fa-pen"></i></a>
+                  <button class="btn btn-primary action-btn" onclick="printTaxInvoice(this.closest('tr'))" title="Print Tax Invoice"><i class="fas fa-print"></i></button>
+                  <button class="btn btn-outline-info action-btn" title="Payment Installments"
+                      onclick="openPaymentsModal({{ invoice.pk }},'{{ invoice.invoice_number }}','{{ invoice.total_amount|floatformat:2 }}')">
+                      <i class="fas fa-coins"></i>
+                  </button>
+                  {% if invoice.status != 'Full Payment' %}
+                  {% if user.profile.role == 'admin' or user.profile.role == 'accounts' or user.is_superuser %}
+                  <button class="btn btn-success action-btn btn-mark-paid" title="Mark as Paid"
+                      data-pk="{{ invoice.pk }}" data-csrf="{{ csrf_token }}"
+                      onclick="markPaid(this)">
+                      <i class="fas fa-check"></i>
+                  </button>
+                  {% endif %}
+                  {% endif %}
+                  <button class="btn btn-outline-success action-btn" title="WhatsApp: Share Invoice"
+                      onclick="shareWhatsApp('{{ invoice.invoice_number }}','{{ invoice.client.name }}','{{ invoice.total_amount|floatformat:2 }}','{{ invoice.status }}','{{ invoice.due_date }}')">
+                      <i class="fab fa-whatsapp"></i>
+                  </button>
+                  {% if user.profile.role == 'admin' or user.is_superuser %}
+                  <a href="{% url 'delete_invoice' invoice.pk %}" class="btn btn-outline-danger action-btn" title="Delete"><i class="fas fa-trash"></i></a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="11" class="text-center py-5 text-muted"><i class="fas fa-file-invoice fa-3x mb-3 d-block opacity-30"></i>No invoices found</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if invoices.has_other_pages %}
+      <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top" style="background:var(--bg);border-radius:0 0 12px 12px;">
+        <small class="text-muted">Showing {{ invoices.start_index }}–{{ invoices.end_index }} of {{ inv_paginator.count }} invoices</small>
+        <nav><ul class="pagination pagination-sm mb-0 gap-1">
+          {% if invoices.has_previous %}
+          <li class="page-item"><a class="page-link" href="?{% if invoice_number %}invoice_number={{ invoice_number }}&{% endif %}{% if name %}name={{ name }}&{% endif %}{% if payment_status %}payment_status={{ payment_status }}&{% endif %}inv_page={{ invoices.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
+          {% endif %}
+          {% for num in invoices.paginator.page_range %}
+            {% if num == invoices.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num >= invoices.number|add:"-2" and num <= invoices.number|add:"2" %}<li class="page-item"><a class="page-link" href="?{% if invoice_number %}invoice_number={{ invoice_number }}&{% endif %}{% if name %}name={{ name }}&{% endif %}{% if payment_status %}payment_status={{ payment_status }}&{% endif %}inv_page={{ num }}">{{ num }}</a></li>
+            {% endif %}
+          {% endfor %}
+          {% if invoices.has_next %}
+          <li class="page-item"><a class="page-link" href="?{% if invoice_number %}invoice_number={{ invoice_number }}&{% endif %}{% if name %}name={{ name }}&{% endif %}{% if payment_status %}payment_status={{ payment_status }}&{% endif %}inv_page={{ invoices.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
+          {% endif %}
+        </ul></nav>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ══ PURCHASE INVOICES ══ -->
+    <div id="purchaseInvoices" class="inv-tab-content">
+      <div class="table-responsive">
+        <table class="table inv-table mb-0" id="invoiceTablePurchase">
+          <thead>
+            <tr>
+              <th style="width:130px;">Invoice #</th>
+              <th>Client</th>
+              <th style="width:100px;">Date</th>
+              <th style="width:100px;">Due Date</th>
+              <th style="width:120px;">Total</th>
+              <th style="width:120px;">Advance</th>
+              <th style="width:80px;">Payment</th>
+              <th style="width:110px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pi in purchase_invoices %}
+            <tr class="pinv-row"
+                data-purchase-client="{{ pi.client.name }}"
+                data-purchase-client-address="{{ pi.client.address }}"
+                data-purchase-client-trn="{{ pi.client.trn_number }}"
+                data-purchase-invoice-number="{{ pi.invoice_number }}"
+                data-purchase-invoice-date="{{ pi.date }}"
+                data-purchase-due-date="{{ pi.due_date }}"
+                data-purchase-subtotal="{{ pi.total_amount }}"
+                data-purchase-advanceamount="{{ pi.advance_amount }}"
+                data-purchase-status="{{ pi.status }}"
+                data-purchase-payment="{{ pi.payment }}"
+                data-purchase-emirates="{{ pi.client.emirates }}"
+                data-purchase-country="{{ pi.client.country }}"
+                data-purchase-person="{{ pi.number_of_person }}"
+                data-discount="{{ pi.discount }}"
+                data-po-number="{{ pi.po_number }}"
+                data-purchase-invoice-items='{{ pi.items_json }}'>
+              <td><span class="inv-num">{{ pi.invoice_number }}</span></td>
+              <td>
+                <div class="client-name">{{ pi.client.name }}</div>
+                {% if pi.client.trn_number %}<div class="client-sub">TRN: {{ pi.client.trn_number }}</div>{% endif %}
+              </td>
+              <td style="font-size:12px;">{{ pi.date }}</td>
+              <td style="font-size:12px;">{{ pi.due_date }}</td>
+              <td><div class="amount-cell">AED {{ pi.total_amount|floatformat:2 }}</div></td>
+              <td><div class="amount-cell">AED {{ pi.advance_amount|floatformat:2 }}</div></td>
+              <td><span class="pill pill-gray" style="font-size:10px;">{{ pi.payment }}</span></td>
+              <td>
+                <div class="d-flex gap-1 flex-wrap">
+                  <a href="{% url 'edit_purchase_invoice' pi.pk %}" class="btn btn-outline-primary action-btn" title="Edit"><i class="fas fa-pen"></i></a>
+                  <button class="btn btn-primary action-btn" onclick="printPurchaseInvoice(this.closest('tr'))" title="Print Purchase Invoice"><i class="fas fa-print"></i></button>
+                  {% if user.username == 'admin' or user.profile.role == 'admin' %}
+                  <a href="{% url 'delete_purchase_invoice' pi.pk %}" class="btn btn-outline-danger action-btn" title="Delete"><i class="fas fa-trash"></i></a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="text-center py-5 text-muted"><i class="fas fa-shopping-cart fa-3x mb-3 d-block opacity-30"></i>No purchase invoices found</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if purchase_invoices.has_other_pages %}
+      <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top" style="background:var(--bg);border-radius:0 0 12px 12px;">
+        <small class="text-muted">Showing {{ purchase_invoices.start_index }}–{{ purchase_invoices.end_index }} of {{ pur_paginator.count }} invoices</small>
+        <nav><ul class="pagination pagination-sm mb-0 gap-1">
+          {% if purchase_invoices.has_previous %}
+          <li class="page-item"><a class="page-link" href="?{% if invoice_number %}invoice_number={{ invoice_number }}&{% endif %}{% if name %}name={{ name }}&{% endif %}{% if payment_status %}payment_status={{ payment_status }}&{% endif %}pur_page={{ purchase_invoices.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
+          {% endif %}
+          {% for num in purchase_invoices.paginator.page_range %}
+            {% if num == purchase_invoices.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num >= purchase_invoices.number|add:"-2" and num <= purchase_invoices.number|add:"2" %}<li class="page-item"><a class="page-link" href="?{% if invoice_number %}invoice_number={{ invoice_number }}&{% endif %}{% if name %}name={{ name }}&{% endif %}{% if payment_status %}payment_status={{ payment_status }}&{% endif %}pur_page={{ num }}">{{ num }}</a></li>
+            {% endif %}
+          {% endfor %}
+          {% if purchase_invoices.has_next %}
+          <li class="page-item"><a class="page-link" href="?{% if invoice_number %}invoice_number={{ invoice_number }}&{% endif %}{% if name %}name={{ name }}&{% endif %}{% if payment_status %}payment_status={{ payment_status }}&{% endif %}pur_page={{ purchase_invoices.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
+          {% endif %}
+        </ul></nav>
+      </div>
+      {% endif %}
+    </div>
+  </div><!-- /card-body -->
+</div><!-- /card -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── COPY INVOICE NUMBER (QW12) ─────────────────────────────────────────────
+function copyInvNum(btn, num) {
+  navigator.clipboard.writeText(num).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check" style="color:var(--success);"></i>';
+    setTimeout(() => btn.innerHTML = orig, 1500);
+  });
+}
+
+// ── MARK AS PAID (QW9) ────────────────────────────────────────────────────
+function markPaid(btn) {
+  if(!confirm('Mark invoice as fully paid?')) return;
+  const pk = btn.dataset.pk;
+  const csrf = btn.dataset.csrf;
+  fetch(`/invoice/${pk}/mark-paid/`, { method:'POST', headers:{'X-CSRFToken':csrf,'Content-Type':'application/json'} })
+    .then(r => r.json())
+    .then(d => {
+      if(d.status === 'ok') {
+        const row = btn.closest('tr');
+        row.querySelector('[class*="pill-"]').className = 'pill pill-green';
+        row.querySelector('[class*="pill-"]').textContent = 'Paid';
+        btn.remove();
+        // flash row green
+        row.style.background = 'rgba(16,185,129,.1)';
+        setTimeout(() => row.style.background = '', 2000);
+      }
+    }).catch(() => alert('Error. Please refresh and try again.'));
+}
+
+// ── WHATSAPP SHARE (QW14) ─────────────────────────────────────────────────
+function shareWhatsApp(invNum, clientName, amount, status, dueDate) {
+  const isOverdue = status !== 'Full Payment' && dueDate && new Date(dueDate) < new Date();
+  let msg;
+  if(isOverdue) {
+    msg = encodeURIComponent(
+      `Dear ${clientName},\n\nThis is a gentle reminder regarding your outstanding invoice:\n` +
+      `Invoice #: ${invNum}\nAmount Due: AED ${amount}\nDue Date: ${dueDate}\n\n` +
+      `Kindly arrange for payment at your earliest convenience.\n\nThank you,\nOrbit Training`
+    );
+  } else {
+    msg = encodeURIComponent(
+      `Dear ${clientName},\n\nThank you for your business with Orbit Training.\n\n` +
+      `Invoice #: ${invNum}\nAmount: AED ${amount}\n\n` +
+      `Please don't hesitate to contact us for any queries.\n\nBest regards,\nOrbit Training`
+    );
+  }
+  window.open(`https://wa.me/?text=${msg}`, '_blank');
+}
+
+// ── TAB SWITCHING ─────────────────────────────────────────────────────────
+function switchTab(id, el) {
+  document.querySelectorAll('.inv-tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.inv-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
+}
+
+// ── INVOICE DATA FETCH ────────────────────────────────────────────────────
+function fetchInvoiceData(regNum) {
+  return fetch(`/get_invoice_details/?registration_number=${regNum}`)
+    .then(r => r.json())
+    .then(d => d.error ? null : {
+      totalAmountPaid: parseFloat(d.total_amount_paid).toFixed(2),
+      totalDueAmount:  parseFloat(d.total_due_amount).toFixed(2),
+      lastPayment:     d.last_payment || null
+    })
+    .catch(() => null);
+}
+
+// ── SHARED INVOICE CSS ────────────────────────────────────────────────────
+const INVOICE_CSS = `
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  @page { size: A4 landscape; margin: 10mm 12mm; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #1a1a2e; background:#fff; }
+  .inv-wrap { width:100%; }
+
+  /* header */
+  .inv-header { display:flex; align-items:stretch; border:2px solid #1a1a2e; margin-bottom:6px; }
+  .inv-header-left { flex:1; padding:10px 14px; border-right:2px solid #1a1a2e; }
+  .inv-header-left h2 { font-size:13pt; font-weight:800; color:#1a3d8f; margin-bottom:3px; }
+  .inv-header-left p { font-size:8pt; margin:1px 0; color:#333; }
+  .inv-header-right { width:160px; display:flex; align-items:center; justify-content:center; padding:10px; }
+  .inv-header-right img { max-width:140px; max-height:70px; object-fit:contain; }
+
+  /* title bar */
+  .inv-title-bar { background:#1a3d8f; color:#fff; text-align:center; padding:5px; font-size:14pt; font-weight:800; letter-spacing:2px; margin-bottom:6px; }
+
+  /* meta grid */
+  .inv-meta { display:flex; gap:6px; margin-bottom:6px; }
+  .inv-meta-block { border:1px solid #c8d0e0; border-radius:4px; padding:7px 10px; }
+  .inv-meta-block.client { flex:1.4; }
+  .inv-meta-block.details { flex:1; }
+  .inv-meta-block h4 { font-size:7pt; text-transform:uppercase; letter-spacing:.8px; color:#6b7a99; margin-bottom:4px; border-bottom:1px solid #e2e8f0; padding-bottom:3px; }
+  .inv-meta-block .val { font-size:9pt; font-weight:700; color:#1a1a2e; }
+  .inv-meta-block .sub { font-size:8pt; color:#555; margin:1px 0; }
+  .inv-meta-block table { width:100%; border-collapse:collapse; }
+  .inv-meta-block table td { padding:2px 4px; font-size:9pt; border:none; }
+  .inv-meta-block table td:first-child { color:#6b7a99; font-size:8pt; white-space:nowrap; width:45%; }
+  .inv-meta-block table td:last-child { font-weight:600; }
+
+  /* items table */
+  .items-table { width:100%; border-collapse:collapse; margin-bottom:6px; font-size:9pt; }
+  .items-table th { background:#1a3d8f; color:#fff; padding:5px 7px; text-align:left; font-size:8pt; font-weight:600; }
+  .items-table th.right, .items-table td.right { text-align:right; }
+  .items-table th.center, .items-table td.center { text-align:center; }
+  .items-table td { padding:5px 7px; border-bottom:1px solid #e2e8f0; }
+  .items-table tbody tr:nth-child(even) { background:#f7f9fc; }
+
+  /* totals */
+  .inv-footer { display:flex; gap:8px; margin-top:4px; }
+  .inv-terms { flex:1; }
+  .inv-terms h4 { font-size:8pt; font-weight:700; margin-bottom:4px; color:#1a3d8f; }
+  .inv-terms ol { padding-left:14px; font-size:7.5pt; color:#555; }
+  .inv-terms ol li { margin-bottom:2px; }
+  .inv-bank { flex:0 0 230px; font-size:8pt; }
+  .inv-bank h4 { font-size:8pt; font-weight:700; margin-bottom:4px; color:#1a3d8f; }
+  .inv-bank table { width:100%; border-collapse:collapse; border:1px solid #c8d0e0; }
+  .inv-bank table td { padding:3px 5px; border:1px solid #c8d0e0; font-size:7.5pt; }
+  .inv-bank table td:first-child { background:#f0f4ff; font-weight:600; width:45%; }
+  .inv-totals { flex:0 0 220px; }
+  .inv-totals table { width:100%; border-collapse:collapse; border:1px solid #c8d0e0; font-size:9pt; }
+  .inv-totals table td { padding:4px 8px; border:1px solid #e2e8f0; }
+  .inv-totals table td:first-child { color:#555; }
+  .inv-totals table td:last-child { text-align:right; font-weight:600; }
+  .inv-totals table tr.grand td { background:#1a3d8f; color:#fff; font-weight:800; font-size:10pt; }
+  .inv-totals table tr.balance td { background:#fff3e0; font-weight:800; color:#b45309; }
+
+  /* signatures */
+  .inv-sigs { display:flex; justify-content:space-between; margin-top:16px; font-size:8pt; }
+  .inv-sigs .sig { text-align:center; width:160px; }
+  .inv-sigs .sig .line { border-top:1px solid #1a1a2e; padding-top:4px; margin-top:28px; }
+  .status-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:8pt; font-weight:700; }
+  .status-paid { background:#d1fae5; color:#065f46; }
+  .status-term { background:#fef3c7; color:#92400e; }
+  .status-other { background:#e0e7ff; color:#3730a3; }
+  .trn-highlight { background:#fff7ed; border:1px solid #fed7aa; border-radius:3px; padding:2px 6px; font-size:8pt; font-weight:700; color:#9a3412; display:inline-block; margin-top:3px; }
+`;
+
+// ── FORMAT HELPERS ────────────────────────────────────────────────────────
+const fmt = n => isNaN(n) ? '0.00' : parseFloat(n).toLocaleString('en-AE', {minimumFractionDigits:2, maximumFractionDigits:2});
+const statusBadge = s => s === 'Full Payment' ? `<span class="status-badge status-paid">PAID</span>` : s === 'Term Payment' ? `<span class="status-badge status-term">TERM</span>` : `<span class="status-badge status-other">${s}</span>`;
+
+// ── PRINT TAX INVOICE ─────────────────────────────────────────────────────
+function printTaxInvoice(row) {
+  const d = row.dataset;
+  const person = parseFloat(d.person) || 1;
+  const discPct = parseFloat(d.discount) || 0;
+  const amountPaid = parseFloat(d.amountpaid) || 0;
+  const vatRate = 0.05;
+  const regNum = d.register;
+  const clientTrn = d.clientTrn || '';
+
+  let items = [];
+  try { items = JSON.parse(d.invoiceItems); } catch(e) { items = []; }
+
+  let subtotal = 0, totalVat = 0;
+  let itemsHTML = '';
+  items.forEach((item, i) => {
+    const lineSubtotal = person * item.unit_price;
+    const discAmt = lineSubtotal * discPct / 100;
+    const afterDisc = lineSubtotal - discAmt;
+    const vat = afterDisc * item.vat_rate;
+    const lineTotal = afterDisc + vat;
+    subtotal += afterDisc;
+    totalVat += vat;
+    itemsHTML += `<tr>
+      <td class="center">${i+1}</td>
+      <td>${item.course_name || '—'}</td>
+      <td class="center">${item.quantity || person}</td>
+      <td class="right">AED ${fmt(item.unit_price)}</td>
+      <td class="right">AED ${fmt(lineSubtotal)}</td>
+      <td class="center">${discPct}%</td>
+      <td class="right">AED ${fmt(afterDisc)}</td>
+      <td class="right">AED ${fmt(vat)}</td>
+      <td class="right">AED ${fmt(lineTotal)}</td>
+    </tr>`;
+  });
+
+  const grandTotal = subtotal + totalVat;
+  const balance = grandTotal - amountPaid;
+
+  fetchInvoiceData(regNum).then(inv => {
+    const totalPaid = inv ? inv.totalAmountPaid : fmt(amountPaid * 1.05);
+    const totalDue  = inv ? inv.totalDueAmount  : fmt(Math.max(0, balance));
+    const lastPmt   = inv ? inv.lastPayment : null;
+
+    // Small reference table — only when there is a previous payment
+    let prevPayRef = '';
+    if (lastPmt) {
+      const refRow = lastPmt.reference
+        ? `<tr><td style="color:#6b7a99;font-size:7.5pt;padding:2px 4px;">Ref No:</td><td style="font-size:8pt;font-weight:700;color:#9a3412;padding:2px 4px;">${lastPmt.reference}</td></tr>`
+        : '';
+      prevPayRef = `
+        <div style="margin-top:8px;border:1px solid #c8d0e0;border-radius:3px;padding:6px 8px;background:#f8faff;">
+          <div style="font-size:7pt;font-weight:700;color:#1a3d8f;margin-bottom:4px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid #e2e8f0;padding-bottom:2px;">Previous Payment Reference</div>
+          <table style="width:100%;border-collapse:collapse;">
+            <tr><td style="color:#6b7a99;font-size:7.5pt;width:40%;padding:2px 4px;">Invoice No:</td><td style="font-size:8pt;font-weight:600;padding:2px 4px;">${lastPmt.invoice_number}</td></tr>
+            <tr><td style="color:#6b7a99;font-size:7.5pt;padding:2px 4px;">Amount:</td><td style="font-size:8pt;font-weight:600;padding:2px 4px;">AED ${fmt(lastPmt.amount)}</td></tr>
+            ${refRow}
+            <tr><td style="color:#6b7a99;font-size:7.5pt;padding:2px 4px;">Date:</td><td style="font-size:8pt;padding:2px 4px;">${lastPmt.paid_at}</td></tr>
+            <tr><td style="color:#6b7a99;font-size:7.5pt;padding:2px 4px;">Method:</td><td style="font-size:8pt;padding:2px 4px;">${lastPmt.payment_method}</td></tr>
+          </table>
+        </div>`;
+    }
+
+    const html = `<!DOCTYPE html><html><head><title>Tax Invoice - ${d.invoiceNumber}</title>
+    <style>${INVOICE_CSS}</style></head><body>
+    <div class="inv-wrap">
+      <div class="inv-header">
+        <div class="inv-header-left">
+          <h2>Max Orbit Education and Training Computer Software</h2>
+          <p><b>P.O. Box: 40450 &nbsp;|&nbsp; 211, Pinnacle Sheikh Zayed Road, Al Barsha, Dubai, UAE</b></p>
+          <p><b>TRN: 104169079100003 &nbsp;|&nbsp; Email: training@orbittraining.ae &nbsp;|&nbsp; Tel: +971 4 XXX XXXX</b></p>
+        </div>
+        <div class="inv-header-right">
+          <img src="${d.logoUrl}" alt="Orbit Logo">
+        </div>
+      </div>
+
+      <div class="inv-title-bar">TAX INVOICE</div>
+
+      <div class="inv-meta">
+        <div class="inv-meta-block client">
+          <h4>Bill To</h4>
+          <div class="val">${d.client}</div>
+          <div class="sub">${d.clientAddress || ''}</div>
+          <div class="sub">${d.emirates || ''}, ${d.country || ''}</div>
+          ${clientTrn ? `<div class="trn-highlight">TRN: ${clientTrn}</div>` : ''}
+        </div>
+        <div class="inv-meta-block details">
+          <h4>Invoice Details</h4>
+          <table>
+            <tr><td>Invoice No.</td><td>${d.invoiceNumber}</td></tr>
+            <tr><td>Invoice Date</td><td>${d.invoiceDate}</td></tr>
+            <tr><td>Due Date</td><td>${d.dueDate}</td></tr>
+            <tr><td>Class Type</td><td>${d.type || '—'}</td></tr>
+            ${d.register ? `<tr><td>Reg. No.</td><td>${d.register}</td></tr>` : ''}
+            ${d.poNumber ? `<tr><td>PO Number</td><td>${d.poNumber}</td></tr>` : ''}
+            <tr><td>Status</td><td>${statusBadge(d.status)}</td></tr>
+            <tr><td>Payment</td><td>${d.payment || '—'}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <table class="items-table">
+        <thead><tr>
+          <th class="center" style="width:30px;">Sr.</th>
+          <th>Description / Course</th>
+          <th class="center" style="width:40px;">Pax</th>
+          <th class="right" style="width:80px;">Fee/Pax</th>
+          <th class="right" style="width:80px;">Subtotal</th>
+          <th class="center" style="width:60px;">Disc.%</th>
+          <th class="right" style="width:90px;">After Disc.</th>
+          <th class="right" style="width:75px;">VAT 5%</th>
+          <th class="right" style="width:95px;">Total (AED)</th>
+        </tr></thead>
+        <tbody>${itemsHTML}</tbody>
+        <tfoot><tr style="background:#f0f4ff;">
+          <td colspan="6"></td>
+          <td class="right" style="font-weight:700;">AED ${fmt(subtotal)}</td>
+          <td class="right" style="font-weight:700;">AED ${fmt(totalVat)}</td>
+          <td class="right" style="font-weight:700;">AED ${fmt(grandTotal)}</td>
+        </tr></tfoot>
+      </table>
+
+      <div class="inv-footer">
+        <div class="inv-terms">
+          <h4>Terms &amp; Conditions</h4>
+          <ol>
+            <li>Paid amount is non-refundable &amp; non-transferable.</li>
+            <li>Credit hours must be completed within 5 months from registration date.</li>
+            <li>All unpaid fees must be settled by the agreed due date.</li>
+          </ol>
+          <p style="font-size:8pt;margin-top:6px;color:#555;">
+            <b>Total Paid to Date:</b> AED ${totalPaid} &nbsp;&nbsp;
+            <b>Balance Due:</b> AED ${totalDue}
+          </p>
+          ${prevPayRef}
+        </div>
+        <div class="inv-bank">
+          <h4>Payment Details</h4>
+          <table>
+            <tr><td>Account Name</td><td>MAX ORBIT EDUCATION AND TRAINING COMPUTER SOFTWARE</td></tr>
+            <tr><td>IBAN</td><td>AE460860000009548530832</td></tr>
+            <tr><td>Bank</td><td>Wio Bank</td></tr>
+          </table>
+        </div>
+        <div class="inv-totals">
+          <table>
+            <tr><td>Subtotal</td><td>AED ${fmt(subtotal)}</td></tr>
+            <tr><td>VAT (5%)</td><td>AED ${fmt(totalVat)}</td></tr>
+            <tr class="grand"><td>Grand Total</td><td>AED ${fmt(grandTotal)}</td></tr>
+            <tr><td>Amount Paid</td><td>AED ${totalPaid}</td></tr>
+            ${parseFloat(totalDue) > 0.005
+              ? `<tr class="balance"><td>Balance Due</td><td>AED ${totalDue}</td></tr>`
+              : `<tr style="background:#d1fae5;"><td>Balance</td><td style="color:#065f46;">PAID ✓</td></tr>`}
+          </table>
+        </div>
+      </div>
+
+      <div class="inv-sigs">
+        <div class="sig"><div class="line">Authorized Signatory</div></div>
+        <div class="sig"><div class="line">Customer Signature</div></div>
+      </div>
+    </div>
+    <script>window.onload=()=>window.print();<\/script>
+    </body></html>`;
+
+    const w = window.open('','_blank','width=1200,height=850');
+    w.document.write(html);
+    w.document.close();
+  });
+}
+
+// ── PRINT PURCHASE INVOICE ────────────────────────────────────────────────
+function printPurchaseInvoice(row) {
+  const d = row.dataset;
+  const person = parseFloat(d.purchasePerson) || 1;
+  const discPct = parseFloat(d.discount) || 0;
+  const advance = parseFloat(d.purchaseAdvanceamount) || 0;
+  const vatRate = 0.05;
+  const clientTrn = d.purchaseClientTrn || '';
+  const logoUrl = '{% static "Orbit-Logo-1.png" %}';
+
+  let items = [];
+  try { items = JSON.parse(d.purchaseInvoiceItems); } catch(e) { items = []; }
+
+  function numberToWords(n) {
+    n = Math.round(n);
+    if (n === 0) return 'Zero';
+    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    function cvtH(num) {
+      let r = '';
+      if (num >= 100) { r += ones[Math.floor(num/100)] + ' Hundred'; num %= 100; if (num) r += ' '; }
+      if (num >= 20) { r += tens[Math.floor(num/10)]; if (num%10) r += '-' + ones[num%10]; }
+      else if (num > 0) r += ones[num];
+      return r;
+    }
+    let r = '';
+    if (n >= 1000000) { r += cvtH(Math.floor(n/1000000)) + ' Million'; n %= 1000000; if (n) r += ' '; }
+    if (n >= 1000) { r += cvtH(Math.floor(n/1000)) + ' Thousand'; n %= 1000; if (n) r += ' '; }
+    if (n > 0) r += cvtH(n);
+    return r;
+  }
+
+  let subtotalPreTax = 0, totalVat = 0;
+  let itemsHTML = '';
+  const firstCourse = items.length > 0 ? (items[0].course_name || '') : '';
+
+  items.forEach((item, i) => {
+    const qty = Math.max(item.quantity || 1, 1);
+    const linePreTax = item.unit_price * person * qty * (1 - discPct/100);
+    const lineVAT = linePreTax * vatRate;
+    const lineTotal = linePreTax + lineVAT;
+    subtotalPreTax += linePreTax;
+    totalVat += lineVAT;
+    itemsHTML += `<tr>
+      <td class="data-row center">${i+1}</td>
+      <td class="data-row">${item.course_name || '—'}</td>
+      <td class="data-row right">${fmt(item.unit_price)}</td>
+      <td class="data-row center">${person}</td>
+      <td class="data-row center">${discPct}</td>
+      <td class="data-row right">${fmt(lineVAT)}</td>
+      <td class="data-row right">${fmt(lineTotal)}</td>
+    </tr>`;
+  });
+
+  const grandTotal = subtotalPreTax + totalVat;
+  const balanceDue = Math.max(0, grandTotal - advance);
+  const wordsText = numberToWords(Math.round(grandTotal)) + ' Dirhams Only.';
+
+  const css = `
+@page{size:A4;margin:10mm;}
+:root{--brand:#0b4ba3;--brand-dark:#073474;--border:#d6e1ef;--text:#1f2937;--muted:#667085;--soft:#f8fbff;--highlight:#fff8e6;}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:#fff;color:var(--text);font-family:Arial,Helvetica,sans-serif;font-size:10.8px;line-height:1.33;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.page{width:100%;background:#fff;padding-bottom:16mm;}
+.no-break,thead,tfoot,tr{break-inside:avoid;page-break-inside:avoid;}
+.header{display:grid;grid-template-columns:30% 70%;gap:8px;align-items:start;padding-bottom:7px;border-bottom:3px solid var(--brand);}
+.logo{width:120px;max-height:48px;object-fit:contain;}
+.company-details{text-align:right;color:#222;font-size:9.8px;line-height:1.32;}
+.company-name{font-size:12.8px;font-weight:800;color:#111827;white-space:nowrap;}
+.doc-type{margin-top:1px;color:var(--brand);font-weight:800;font-size:11px;}
+.hero{display:grid;grid-template-columns:1.15fr 0.85fr;border:1px solid var(--border);margin-top:7px;}
+.hero-left{padding:10px;background:linear-gradient(180deg,#fff 0%,#f7fbff 100%);}
+.hero-left h1{margin:0;font-size:21px;line-height:1.05;color:var(--brand);letter-spacing:-0.3px;text-transform:uppercase;}
+.subtitle{font-size:11.2px;margin-top:4px;color:#202938;}
+.hero-right{background:linear-gradient(135deg,var(--brand),var(--brand-dark));color:#fff;padding:10px;display:grid;align-content:center;gap:6px;}
+.invoice-meta-row{display:grid;grid-template-columns:82px 1fr;gap:6px;font-size:10.8px;}
+.invoice-meta-row strong{color:#fff;}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px;}
+.info-card{border:1px solid var(--border);}
+.info-title{background:var(--brand);color:#fff;padding:5px 7px;font-weight:800;font-size:10.5px;}
+.info-body{padding:7px;min-height:78px;font-size:10.4px;}
+.line{margin-bottom:2px;}
+.lbl{font-weight:800;color:#111827;}
+.details-grid{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--border);margin-top:7px;}
+.detail-box{min-height:40px;padding:6px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:#fff;}
+.detail-box:nth-child(4n){border-right:none;}
+.detail-box:nth-child(n+5){border-bottom:none;background:#f7fbff;}
+.detail-label{color:var(--brand);font-weight:800;font-size:10.4px;margin-bottom:3px;}
+.detail-value{font-size:11.2px;}
+.section{margin-top:7px;}
+h2{margin:0 0 5px 0;font-size:13.5px;color:var(--brand);line-height:1.12;padding-bottom:3px;border-bottom:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;}
+th{background:var(--brand);color:#fff;font-weight:800;text-align:center;border:1px solid var(--brand);padding:5px 4px;font-size:10.2px;}
+td{border:1px solid var(--border);padding:5px 4px;vertical-align:top;font-size:10.4px;}
+.center{text-align:center;}.right{text-align:right;}.bold{font-weight:800;}
+.summary-row td{background:#f3f7fc;font-weight:800;font-size:10.5px;}
+.tax-row td{background:var(--highlight);font-weight:800;font-size:10.5px;}
+.grand-row td{background:var(--brand);color:#fff;font-weight:900;font-size:11.5px;}
+.amount-words{margin-top:6px;border:1px solid var(--border);padding:6px 7px;background:var(--soft);font-size:10.5px;}
+/* payment details — allow page break BEFORE this block if overflowing */
+.columns{display:grid;grid-template-columns:1.08fr 0.92fr;border:1px solid var(--border);margin-top:8px;break-before:auto;break-inside:avoid;page-break-inside:avoid;}
+.panel{padding:7px 8px;min-height:82px;}
+.panel:first-child{border-right:1px solid var(--border);}
+.panel h3{margin:0 0 4px 0;color:var(--brand);font-size:12.5px;}
+.bank-line,.term-line{margin-bottom:2px;font-size:10.2px;}
+ul{margin:0;padding-left:14px;}li{margin-bottom:2px;font-size:10.2px;}
+.approval-box{margin-top:8px;border:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;break-inside:avoid;page-break-inside:avoid;}
+.approval-left,.approval-right{padding:8px;min-height:78px;}
+.approval-left{border-right:1px solid var(--border);}
+.approval-title{color:var(--brand);font-weight:800;font-size:12px;margin-bottom:6px;}
+.sign-line-row{display:grid;grid-template-columns:88px 1fr;gap:7px;margin-top:7px;align-items:end;font-size:10.3px;}
+.sign-line{border-bottom:1px solid #7b8794;height:13px;}
+.stamp-area{height:48px;border:1px dashed #9aa8bd;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#7b8794;font-size:9.5px;text-transform:uppercase;letter-spacing:0.5px;}
+.footer{position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:5px 10mm;border-top:2px solid var(--brand);color:var(--muted);font-size:9.2px;line-height:1.28;background:#fff;}
+.footer-right{text-align:right;}
+`;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Purchase Invoice - ${d.purchaseInvoiceNumber}</title>
+<style>${css}</style></head><body>
+<main class="page">
+
+  <header class="header no-break">
+    <div><img class="logo" src="${logoUrl}" alt="Orbit Logo"></div>
+    <div class="company-details">
+      <div class="company-name">Max Orbit Education and Training Computer Software</div>
+      <div class="doc-type">Purchase Invoice</div>
+      <div style="margin-top:4px;">
+        P.O. Box: 40450 | 211, Pinnacle Sheikh Zayed Road, Al Barsha<br>
+        Emirates: Dubai | Country: United Arab Emirates<br>
+        TRN: 104169079100003 | training@orbittraining.ae
+      </div>
+    </div>
+  </header>
+
+  <section class="hero no-break">
+    <div class="hero-left">
+      <h1>Purchase Invoice</h1>
+      <div class="subtitle">Corporate Training Program Invoice</div>
+      <div style="margin-top:10px;font-size:11.7px;">
+        <strong>Client:</strong> ${d.purchaseClient || '—'}<br>
+        <strong>Course:</strong> ${firstCourse || '—'}
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="invoice-meta-row"><strong>Invoice No.</strong><span>${d.purchaseInvoiceNumber || '—'}</span></div>
+      <div class="invoice-meta-row"><strong>Invoice Date</strong><span>${d.purchaseInvoiceDate || '—'}</span></div>
+      <div class="invoice-meta-row"><strong>Status</strong><span>${d.purchaseStatus || '—'}</span></div>
+      <div class="invoice-meta-row"><strong>Mode</strong><span>${d.purchasePayment || '—'}</span></div>
+    </div>
+  </section>
+
+  <section class="info-grid no-break">
+    <div class="info-card">
+      <div class="info-title">Bill From</div>
+      <div class="info-body">
+        <div class="line"><span class="lbl">Company:</span> Max Orbit Education and Training Computer Software</div>
+        <div class="line"><span class="lbl">Address:</span> 211, Pinnacle Sheikh Zayed Road, Al Barsha</div>
+        <div class="line"><span class="lbl">Emirates:</span> Dubai</div>
+        <div class="line"><span class="lbl">Country:</span> United Arab Emirates</div>
+        <div class="line"><span class="lbl">TRN:</span> 104169079100003</div>
+      </div>
+    </div>
+    <div class="info-card">
+      <div class="info-title">Client Details</div>
+      <div class="info-body">
+        <div class="line"><span class="lbl">Client:</span> ${d.purchaseClient || '—'}</div>
+        <div class="line"><span class="lbl">Emirates:</span> ${d.purchaseEmirates || '—'}</div>
+        <div class="line"><span class="lbl">Country:</span> ${d.purchaseCountry || '—'}</div>
+        ${clientTrn ? `<div class="line"><span class="lbl">TRN:</span> ${clientTrn}</div>` : ''}
+        ${d.poNumber ? `<div class="line"><span class="lbl">Reference:</span> ${d.poNumber}</div>` : ''}
+      </div>
+    </div>
+  </section>
+
+  <section class="details-grid no-break">
+    <div class="detail-box">
+      <div class="detail-label">Invoice Number</div>
+      <div class="detail-value">${d.purchaseInvoiceNumber || '—'}</div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Invoice Date</div>
+      <div class="detail-value">${d.purchaseInvoiceDate || '—'}</div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Status</div>
+      <div class="detail-value">${d.purchaseStatus || '—'}</div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Payment Mode</div>
+      <div class="detail-value">${d.purchasePayment || '—'}</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Invoice Details</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:8%;">Sr. No.</th>
+          <th style="width:34%;">Course Name</th>
+          <th style="width:14%;">Fee/Pax</th>
+          <th style="width:8%;">Pax</th>
+          <th style="width:13%;">Discount(%)</th>
+          <th style="width:11%;">VAT</th>
+          <th style="width:12%;">Total Fee</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHTML}
+        <tr class="summary-row">
+          <td colspan="6" class="right">Subtotal (excl. VAT)</td>
+          <td class="right">AED ${fmt(subtotalPreTax)}</td>
+        </tr>
+        <tr class="tax-row">
+          <td colspan="6" class="right">VAT (5%)</td>
+          <td class="right">AED ${fmt(totalVat)}</td>
+        </tr>
+        <tr class="grand-row">
+          <td colspan="6" class="right">Grand Total (incl. VAT)</td>
+          <td class="right">AED ${fmt(grandTotal)}</td>
+        </tr>
+        <tr class="summary-row">
+          <td colspan="6" class="right">Advance Deposit</td>
+          <td class="right">AED ${fmt(advance)}</td>
+        </tr>
+        <tr class="summary-row">
+          <td colspan="6" class="right">Balance Due</td>
+          <td class="right">AED ${fmt(balanceDue)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="amount-words">
+      <strong>Amount in Words:</strong> ${wordsText}
+    </div>
+  </section>
+
+  <section class="columns no-break">
+    <div class="panel">
+      <h3>Payment Details</h3>
+      <div style="margin-bottom:6px;">Payment can be made via card in Orbit Training Center or by bank transfer to the account details below:</div>
+      <div class="bank-line"><strong>Bank Account Name:</strong> MAX ORBIT EDUCATION AND TRAINING COMPUTER SOFTWARE</div>
+      <div class="bank-line"><strong>Bank IBAN:</strong> AE460860000009548530832</div>
+      <div class="bank-line"><strong>Bank Name:</strong> Wio Bank</div>
+    </div>
+    <div class="panel">
+      <h3>Policy Terms</h3>
+      <ul>
+        <li>Paid amount in any case is non-refundable and non-transferable.</li>
+        <li>The required credit hours must be taken within five (5) months from the date of registration. Failure to comply with the said duration of time, registration will be forfeited.</li>
+        <li>All unpaid fees must be settled on the agreed date.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="approval-box no-break">
+    <div class="approval-left">
+      <div class="approval-title">Prepared / Authorized By</div>
+      <div><strong>Manager</strong></div>
+      <div>Max Orbit Education and Training Computer Software</div>
+      <div class="sign-line-row"><span>Signature</span><div class="sign-line"></div></div>
+    </div>
+    <div class="approval-right">
+      <div class="approval-title">Company Stamp</div>
+      <div class="stamp-area">Official Stamp</div>
+      <div class="sign-line-row"><span>Date</span><div class="sign-line"></div></div>
+    </div>
+  </section>
+
+  <footer class="footer no-break">
+    <div>Max Orbit Education and Training Computer Software | Dubai, United Arab Emirates</div>
+    <div class="footer-right">training@orbittraining.ae | www.orbittraining.ae</div>
+  </footer>
+
+</main>
+<script>window.onload=()=>window.print();<\/script>
+</body></html>`;
+
+  const w = window.open('','_blank','width=900,height=1100');
+  w.document.write(html);
+  w.document.close();
+}
+
+// ── COMPUTE KPI TOTALS ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  let collected = 0, outstanding = 0;
+  document.querySelectorAll('.inv-row').forEach(r => {
+    const paid = parseFloat(r.dataset.amountpaid) || 0;
+    const total = parseFloat(r.dataset.subtotal) || 0;
+    collected += paid;
+    if (r.dataset.status !== 'Full Payment') outstanding += (total - paid);
+  });
+  document.getElementById('totalCollected').textContent = 'AED ' + collected.toLocaleString('en-AE', {minimumFractionDigits:0, maximumFractionDigits:0});
+  document.getElementById('totalOutstanding').textContent = 'AED ' + Math.max(0, outstanding).toLocaleString('en-AE', {minimumFractionDigits:0, maximumFractionDigits:0});
+});
+
+// ── BULK SELECTION ────────────────────────────────────────────────────────
+function toggleSelectAll(cb) {
+  document.querySelectorAll('.inv-cb').forEach(c => c.checked = cb.checked);
+  onCbChange();
+}
+function onCbChange() {
+  const selected = [...document.querySelectorAll('.inv-cb:checked')];
+  const bar = document.getElementById('bulkBar');
+  const cnt = document.getElementById('bulkCountLabel');
+  if(selected.length > 0) {
+    bar.classList.add('show');
+    cnt.textContent = selected.length + ' invoice' + (selected.length > 1 ? 's' : '') + ' selected';
+  } else {
+    bar.classList.remove('show');
+  }
+}
+function getSelectedIds() {
+  return [...document.querySelectorAll('.inv-cb:checked')].map(c => c.value);
+}
+function bulkMarkPaid() {
+  const ids = getSelectedIds();
+  if(!ids.length) return;
+  if(!confirm(`Mark ${ids.length} invoice(s) as paid?`)) return;
+  const fd = new FormData();
+  fd.append('action', 'mark_paid');
+  ids.forEach(id => fd.append('invoice_ids', id));
+  fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+  fetch('{% url "bulk_invoice_action" %}', { method:'POST', body: fd })
+    .then(r => r.json())
+    .then(d => {
+      if(d.status === 'ok') {
+        alert(`${d.count} invoice(s) marked as paid.`);
+        location.reload();
+      } else {
+        alert(d.error || 'Error');
+      }
+    });
+}
+function bulkExportCSV() {
+  const ids = getSelectedIds();
+  if(!ids.length) return;
+  const fd = new FormData();
+  fd.append('action', 'export_csv');
+  ids.forEach(id => fd.append('invoice_ids', id));
+  fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+  fetch('{% url "bulk_invoice_action" %}', { method:'POST', body: fd })
+    .then(r => {
+      if(!r.ok) throw new Error('Failed');
+      return r.blob();
+    })
+    .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'invoices_export.csv';
+      a.click();
+    }).catch(() => alert('Export failed. Please try again.'));
+}
+
+// ── PAYMENT INSTALLMENTS MODAL ─────────────────────────────────────────────
+let _curPayInvPk = null;
+function openPaymentsModal(pk, invNum, total) {
+  _curPayInvPk = pk;
+  document.getElementById('pmInvNum').textContent = invNum;
+  document.getElementById('pmTotal').textContent = 'AED ' + total;
+  document.getElementById('pmList').innerHTML = '<div class="text-center py-3"><i class="fas fa-spinner fa-spin text-primary fa-2x"></i></div>';
+  document.getElementById('pmSummary').textContent = '';
+  new bootstrap.Modal(document.getElementById('paymentsModal')).show();
+  loadPayments(pk);
+}
+function loadPayments(pk) {
+  fetch(`/invoice/${pk}/payments/`)
+    .then(r => r.json())
+    .then(d => {
+      const list = document.getElementById('pmList');
+      if(!d.payments.length) {
+        list.innerHTML = '<div class="text-muted text-center py-3" style="font-size:13px;">No payments recorded yet.</div>';
+      } else {
+        list.innerHTML = d.payments.map(p => `
+          <div class="pay-row">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <strong>AED ${parseFloat(p.amount).toFixed(2)}</strong>
+                <span class="pay-badge ms-2">${p.method}</span>
+                ${p.reference ? `<span class="text-muted ms-2" style="font-size:11px;">Ref: ${p.reference}</span>` : ''}
+              </div>
+              <span class="text-muted" style="font-size:11px;">${p.paid_at}</span>
+            </div>
+            ${p.notes ? `<div class="text-muted" style="font-size:11px;margin-top:4px;">${p.notes}</div>` : ''}
+          </div>`).join('');
+      }
+      document.getElementById('pmSummary').innerHTML =
+        `Total Paid: <strong>AED ${d.total_recorded.toFixed(2)}</strong> &nbsp;|&nbsp; Balance: <strong style="color:${d.balance > 0 ? 'var(--danger)' : 'var(--success)'}">AED ${d.balance.toFixed(2)}</strong>`;
+    });
+}
+function addPayment() {
+  const amount = document.getElementById('pmAmount').value;
+  const method = document.getElementById('pmMethod').value;
+  const paidAt = document.getElementById('pmDate').value;
+  const ref = document.getElementById('pmRef').value;
+  const notes = document.getElementById('pmNotes').value;
+  if(!amount || !paidAt) { alert('Amount and date are required.'); return; }
+  const fd = new FormData();
+  fd.append('amount', amount);
+  fd.append('payment_method', method);
+  fd.append('paid_at', paidAt);
+  fd.append('reference', ref);
+  fd.append('notes', notes);
+  fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+  fetch(`/invoice/${_curPayInvPk}/payments/add/`, { method:'POST', body: fd })
+    .then(r => r.json())
+    .then(d => {
+      if(d.status === 'ok') {
+        document.getElementById('pmAmount').value = '';
+        document.getElementById('pmRef').value = '';
+        document.getElementById('pmNotes').value = '';
+        loadPayments(_curPayInvPk);
+      } else {
+        alert(d.error || 'Failed to record payment.');
+      }
+    });
+}
+</script>
+
+<!-- ── BULK ACTION BAR ──────────────────────────────────────────────────── -->
+<div id="bulkBar">
+  <span class="bulk-count" id="bulkCountLabel">0 selected</span>
+  {% if user.profile.role == 'admin' or user.profile.role == 'accounts' or user.is_superuser %}
+  <button class="btn btn-success btn-sm" onclick="bulkMarkPaid()"><i class="fas fa-check me-1"></i>Mark Paid</button>
+  {% endif %}
+  <button class="btn btn-outline-light btn-sm" onclick="bulkExportCSV()"><i class="fas fa-file-csv me-1"></i>Export CSV</button>
+  <button class="btn btn-outline-light btn-sm" onclick="document.querySelectorAll(\'.inv-cb\').forEach(c=>c.checked=false);document.getElementById(\'selectAll\').checked=false;onCbChange();" style="opacity:.7;">
+    <i class="fas fa-times me-1"></i>Clear
+  </button>
+</div>
+
+<!-- ── PAYMENT INSTALLMENTS MODAL ─────────────────────────────────────────── -->
+<div class="modal fade" id="paymentsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:520px;">
+    <div class="modal-content" style="border-radius:16px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#0f1b2d,#1a2d47);color:#fff;border-radius:16px 16px 0 0;border:none;">
+        <h5 class="modal-title" style="font-weight:700;font-size:15px;"><i class="fas fa-coins me-2"></i>Payment Installments — <span id="pmInvNum"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Invoice Total: <strong id="pmTotal"></strong></div>
+        <div id="pmList"></div>
+        <div id="pmSummary" style="font-size:13px;padding:10px 0;border-top:1px solid var(--border);margin-top:8px;"></div>
+        <hr>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text);">Record New Payment</div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label" style="font-size:11px;">Amount (AED)</label>
+            <input type="number" id="pmAmount" class="form-control form-control-sm" placeholder="0.00" step="any" min="0">
+          </div>
+          <div class="col-6">
+            <label class="form-label" style="font-size:11px;">Payment Date</label>
+            <input type="date" id="pmDate" class="form-control form-control-sm">
+          </div>
+          <div class="col-6">
+            <label class="form-label" style="font-size:11px;">Method</label>
+            <select id="pmMethod" class="form-select form-select-sm">
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="cheque">Cheque</option>
+              <option value="payment_link">Payment Link</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label" style="font-size:11px;">Reference #</label>
+            <input type="text" id="pmRef" class="form-control form-control-sm" placeholder="Optional">
+          </div>
+          <div class="col-12">
+            <label class="form-label" style="font-size:11px;">Notes</label>
+            <input type="text" id="pmNotes" class="form-control form-control-sm" placeholder="Optional note">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="border:none;padding:12px 24px 20px;">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        <button class="btn btn-primary btn-sm" onclick="addPayment()"><i class="fas fa-plus me-1"></i>Record Payment</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
