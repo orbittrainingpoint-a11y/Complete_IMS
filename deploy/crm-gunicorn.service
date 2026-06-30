@@ -5,9 +5,9 @@ After=network.target mysql.service
 [Service]
 User=www-data
 Group=www-data
-WorkingDirectory=/var/www/orbit/leads-management
-EnvironmentFile=/var/www/orbit/.env.crm
-ExecStart=/var/www/orbit/venv_crm/bin/gunicorn \
+WorkingDirectory=/var/www/html/orbit/leads-management
+EnvironmentFile=/var/www/html/orbit/.env.crm
+ExecStart=/var/www/html/orbit/venv_crm/bin/gunicorn \
     --workers 3 \
     --bind 127.0.0.1:5001 \
     --timeout 120 \

@@ -6,7 +6,7 @@
 # =============================================================================
 set -e
 
-APP_DIR="/var/www/orbit"
+APP_DIR="/var/www/html/orbit"
 REPO="https://github.com/orbittrainingpoint-a11y/Complete_IMS.git"
 DB_USER="orbituser"
 DB_PASS="OrbitDB2024Secure!"   # CHANGE THIS
