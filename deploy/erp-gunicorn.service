@@ -5,9 +5,9 @@ After=network.target mysql.service
 [Service]
 User=www-data
 Group=www-data
-WorkingDirectory=/var/www/orbit/orbit-system/invoice_project
-EnvironmentFile=/var/www/orbit/.env.erp
-ExecStart=/var/www/orbit/venv_erp/bin/gunicorn \
+WorkingDirectory=/var/www/html/orbit/orbit-system/invoice_project
+EnvironmentFile=/var/www/html/orbit/.env.erp
+ExecStart=/var/www/html/orbit/venv_erp/bin/gunicorn \
     --workers 3 \
     --bind 127.0.0.1:8001 \
     --timeout 120 \
