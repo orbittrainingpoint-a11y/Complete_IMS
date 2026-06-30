@@ -51,6 +51,12 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 _default_hosts = 'localhost,127.0.0.1,orbittraining.online,www.orbittraining.online'
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', _default_hosts).split(',')
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    'CSRF_TRUSTED_ORIGINS',
+    'https://orbittraining.online,https://www.orbittraining.online'
+).split(',')
+
 
 # Application definition
 
