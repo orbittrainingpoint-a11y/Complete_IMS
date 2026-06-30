@@ -22,11 +22,11 @@ LOGGING = {
         'file': {
             'level': 'ERROR',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'debug.log'),  # Creates debug.log in your project root
+            'filename': os.environ.get('DJANGO_LOG_FILE', os.path.join(BASE_DIR, 'debug.log')),
         },
     },
     'loggers': {
-        '': {  # Root logger
+        '': {
             'handlers': ['file'],
             'level': 'ERROR',
             'propagate': True,

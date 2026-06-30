@@ -108,6 +108,7 @@ CRM_DB_HOST=localhost
 CRM_DB_USER=${DB_USER}
 CRM_DB_PASSWORD=${DB_PASS}
 CRM_DB_NAME=leads
+DJANGO_LOG_FILE=/var/log/orbit/erp.log
 EOF
 
 cat > ${APP_DIR}/.env.crm <<EOF
