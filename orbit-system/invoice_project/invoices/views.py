@@ -976,13 +976,20 @@ def edit_quotation(request, pk):
             formset_valid = False
 
         if quotation_form.is_valid() and formset_valid:
-            import traceback as _tb, sys as _sys
             try:
                 with transaction.atomic():
                     quotation = quotation_form.save()
 
                     from django.db import connection
                     with connection.cursor() as cur:
+                        # Delete overrides first — DB FK is RESTRICT so items can't be
+                        # deleted while override rows still reference them.
+                        cur.execute(
+                            "DELETE o FROM invoices_quotationitemoverride o "
+                            "INNER JOIN invoices_quotationitem i ON i.id = o.item_id "
+                            "WHERE i.quotation_id = %s",
+                            [quotation.id]
+                        )
                         cur.execute(
                             "DELETE FROM invoices_quotationitem WHERE quotation_id = %s",
                             [quotation.id]
@@ -1004,10 +1011,10 @@ def edit_quotation(request, pk):
 
                 return redirect('quotation_dashboard')
             except Exception as exc:
-                err_text = _tb.format_exc()
-                logger.error("edit_quotation POST error pk=%s: %s", pk, err_text)
-                print(f"ORBIT_ERP edit_quotation ERROR pk={pk}:\n{err_text}", file=_sys.stderr, flush=True)
-                messages.error(request, f"[DEBUG] Save failed — {type(exc).__name__}: {exc}")
+                import traceback as _tb, sys as _sys
+                logger.error("edit_quotation POST error pk=%s: %s", pk, _tb.format_exc())
+                print(f"ORBIT_ERP edit_quotation ERROR pk={pk}:\n{_tb.format_exc()}", file=_sys.stderr, flush=True)
+                messages.error(request, f"Update failed: {type(exc).__name__}: {exc}")
     else:
         existing_items = list(quotation.items.select_related('course'))
         initial_custom = {}
