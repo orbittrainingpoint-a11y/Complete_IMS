@@ -495,6 +495,7 @@
         </div>
 
         <!-- ── REPORTS & ADMIN ─────────────────── -->
+        {% if current_user.is_authenticated and not current_user.is_sales_manager() %}
         <div class="nav-section">
             <div class="nav-section-label">Reports & Admin</div>
             <div class="nav-item">
@@ -503,7 +504,7 @@
                     <span class="nav-icon"><i class="fas fa-chart-bar"></i></span> Reports
                 </a>
             </div>
-            {% if current_user.is_authenticated and (current_user.is_admin() or current_user.can_manage_users) %}
+            {% if current_user.is_admin() or current_user.can_manage_users %}
             <div class="nav-item">
                 <a class="nav-link {% if request.endpoint == 'main.users' %}active{% endif %}"
                    href="{{ url_for('main.users') }}">
@@ -511,7 +512,7 @@
                 </a>
             </div>
             {% endif %}
-            {% if current_user.is_authenticated and current_user.is_admin() %}
+            {% if current_user.is_admin() %}
             <div class="nav-item">
                 <a class="nav-link {% if request.endpoint == 'main.admin_login_logs' %}active{% endif %}"
                    href="{{ url_for('main.admin_login_logs') }}">
@@ -526,6 +527,7 @@
                 </a>
             </div>
         </div>
+        {% endif %}
 
         <!-- ── ORBIT ERP ──────────────────────── -->
         <div class="nav-section">

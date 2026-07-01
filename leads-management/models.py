@@ -39,7 +39,10 @@ class User(UserMixin, db.Model):
         return f'<User {self.username}>'
     
     def is_admin(self):
-        return self.role in ['admin', 'super_admin', 'sales_manager']
+        return self.role in ['admin', 'super_admin']
+
+    def is_sales_manager(self):
+        return self.role == 'sales_manager'
     
     def is_super_admin(self):
         return self.role == 'super_admin'

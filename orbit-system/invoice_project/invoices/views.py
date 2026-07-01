@@ -102,6 +102,9 @@ def sync_user_to_crm(user, password=None, role=None):
     crm_role = role_map.get(role)
     if not crm_role:
         return
+    # sales_manager sees all leads but cannot manage users/settings
+    can_view_all = 1 if crm_role in ('admin', 'sales_manager') else 0
+    can_manage   = 1 if crm_role == 'admin' else 0
     try:
         import pymysql
         cfg = getattr(settings, 'CRM_DB', {})
@@ -109,11 +112,10 @@ def sync_user_to_crm(user, password=None, role=None):
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM user WHERE username=%s", (user.username,))
             existing = cur.fetchone()
-            is_admin_crm = (crm_role == 'admin')
             if existing:
                 cur.execute(
                     "UPDATE user SET role=%s, active=1, can_view_all_leads=%s, can_manage_users=%s WHERE username=%s",
-                    (crm_role, int(is_admin_crm), int(is_admin_crm), user.username)
+                    (crm_role, can_view_all, can_manage, user.username)
                 )
             else:
                 pwd_hash = _make_werkzeug_hash(password) if password else _make_werkzeug_hash(user.username)
@@ -123,7 +125,7 @@ def sync_user_to_crm(user, password=None, role=None):
                        (username, email, password_hash, role, active, created_at,
                         can_view_all_leads, can_manage_users, can_view_reports, can_manage_courses, can_manage_settings)
                        VALUES (%s,%s,%s,%s,1,NOW(),%s,%s,0,0,0)""",
-                    (user.username, email, pwd_hash, crm_role, int(is_admin_crm), int(is_admin_crm))
+                    (user.username, email, pwd_hash, crm_role, can_view_all, can_manage)
                 )
         conn.commit()
         conn.close()

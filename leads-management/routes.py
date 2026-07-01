@@ -1553,6 +1553,9 @@ def get_template(id):
 @main.route('/reports')
 @login_required
 def reports():
+    if current_user.role == 'sales_manager':
+        flash('Access denied. Reports are not available for your role.', 'error')
+        return redirect(url_for('main.dashboard'))
     default_date_from = (date.today() - timedelta(days=30)).strftime('%Y-%m-%d')
     date_from = request.args.get('date_from', default_date_from)
     date_to = request.args.get('date_to', date.today().strftime('%Y-%m-%d'))
@@ -1624,7 +1627,9 @@ def reports():
 @login_required
 def settings():
     """Comprehensive settings management"""
-    
+    if current_user.role == 'sales_manager':
+        flash('Access denied. Settings are not available for your role.', 'error')
+        return redirect(url_for('main.dashboard'))
     # Get all settings categories
     lead_sources = Setting.get_by_key('lead_source')
     lead_statuses = Setting.get_by_key('lead_status') 
