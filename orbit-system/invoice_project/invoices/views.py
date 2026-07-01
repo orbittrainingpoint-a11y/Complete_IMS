@@ -970,8 +970,15 @@ def edit_quotation(request, pk):
         if quotation_form.is_valid() and item_formset.is_valid():
             quotation = quotation_form.save()
 
-            # Delete existing items (cascades QuotationItemOverride)
-            quotation.items.all().delete()
+            # Use raw SQL to delete items so Django's cascade collector doesn't
+            # query invoices_quotationitemoverride (which may not exist on VPS yet).
+            # DB-level ON DELETE CASCADE handles overrides automatically when migration is applied.
+            from django.db import connection
+            with connection.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM invoices_quotationitem WHERE quotation_id = %s",
+                    [quotation.id]
+                )
 
             # Add new items
             for i, form in enumerate(item_formset):
