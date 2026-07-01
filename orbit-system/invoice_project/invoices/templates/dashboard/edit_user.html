@@ -1,0 +1,120 @@
+{% extends "base_generic.html" %}
+{% block title %}Edit User — {{ u.username }}{% endblock %}
+{% block breadcrumb_label %}
+    <span>Administration</span>
+    <span style="color:var(--border);margin:0 6px;">/</span>
+    <a href="{% url 'manage_users' %}" style="color:var(--text-muted);text-decoration:none;">User Management</a>
+    <span style="color:var(--border);margin:0 6px;">/</span>
+    <span class="current">Edit — {{ u.username }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+        <div class="page-title">Edit User</div>
+        <div class="page-subtitle">@{{ u.username }}</div>
+    </div>
+    <a href="{% url 'manage_users' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back to Users</a>
+</div>
+
+<div class="row g-4">
+    <!-- Profile Details -->
+    <div class="col-lg-8">
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-user-edit"></i></div>
+                <div>
+                    <div class="form-section-title">Account Details</div>
+                    <div style="font-size:11px;opacity:.7;">Name, email, phone, role, and status</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <form method="post" action="{% url 'edit_user' u.id %}">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control" value="{{ u.username }}" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" name="email" class="form-control" value="{{ u.email }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">First Name</label>
+                            <input type="text" name="first_name" class="form-control" value="{{ u.first_name }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Last Name</label>
+                            <input type="text" name="last_name" class="form-control" value="{{ u.last_name }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone</label>
+                            <input type="text" name="phone" class="form-control" value="{{ profile.phone|default:'' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Role</label>
+                            <select name="role" class="form-select">
+                                <option value="admin"           {% if profile.role == 'admin' %}selected{% endif %}>Admin</option>
+                                <option value="sales_manager"   {% if profile.role == 'sales_manager' %}selected{% endif %}>Sales Manager</option>
+                                <option value="accounts"        {% if profile.role == 'accounts' %}selected{% endif %}>Accounts</option>
+                                <option value="sales_executive" {% if profile.role == 'sales_executive' %}selected{% endif %}>Sales Executive</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Account Status</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="is_active" value="1" id="activeYes" {% if u.is_active %}checked{% endif %}>
+                                    <label class="form-check-label text-success" for="activeYes"><i class="fas fa-check-circle me-1"></i>Active</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="is_active" value="0" id="activeNo" {% if not u.is_active %}checked{% endif %}>
+                                    <label class="form-check-label text-danger" for="activeNo"><i class="fas fa-ban me-1"></i>Inactive (blocked from login)</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Save Changes</button>
+                        <a href="{% url 'manage_users' %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password -->
+    <div class="col-lg-4">
+        <div class="form-section">
+            <div class="form-section-header">
+                <div class="form-section-icon"><i class="fas fa-key"></i></div>
+                <div>
+                    <div class="form-section-title">Change Password</div>
+                    <div style="font-size:11px;opacity:.7;">Set a new login password</div>
+                </div>
+            </div>
+            <div class="form-section-body">
+                <form method="post" action="{% url 'change_user_password' u.id %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">New Password</label>
+                        <input type="password" name="new_password" class="form-control" placeholder="Min 6 characters" minlength="6" required>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary w-100"><i class="fas fa-key me-1"></i>Update Password</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Info card -->
+        <div class="card mt-3" style="background:#f8faff;border:1px solid var(--border);border-radius:12px;padding:16px;">
+            <div style="font-size:12px;color:var(--text-muted);">
+                <div class="fw-600 mb-2" style="color:var(--text);font-size:13px;"><i class="fas fa-info-circle text-primary me-1"></i>Account Info</div>
+                <div class="mb-1"><span class="fw-600">Joined:</span> {{ u.date_joined|date:"d M Y" }}</div>
+                <div class="mb-1"><span class="fw-600">Last login:</span> {{ u.last_login|date:"d M Y H:i"|default:"Never" }}</div>
+                <div class="mb-1"><span class="fw-600">Superuser:</span> {{ u.is_superuser|yesno:"Yes,No" }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

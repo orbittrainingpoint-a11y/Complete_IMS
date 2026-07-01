@@ -18,7 +18,7 @@ main = Blueprint('main', __name__)
 
 # ── SSO Bridge shared secret (must match Django settings.CRM_SSO_SECRET) ──
 _SSO_SECRET = 'orbit-erp-crm-sso-bridge-2024-x9q3mz'
-_ERP_URL    = 'http://localhost:8000'
+_ERP_URL    = os.environ.get('ERP_URL', 'https://orbittraining.online')
 
 def _make_sso_token(username):
     payload = base64.urlsafe_b64encode(json.dumps({'u': username, 't': int(time.time())}).encode()).decode()
@@ -1353,7 +1353,7 @@ def add_student():
 def view_student(id):
     from models import ImsStudent
     student = ImsStudent.query.get_or_404(id)
-    erp_url = f'http://localhost:8000/edit-registration/{student.ims_registration_id}/'
+    erp_url = f'{_ERP_URL}/edit-registration/{student.ims_registration_id}/'
     return render_template('student_detail.html', student=student,
                            is_ims_source=True, erp_url=erp_url)
 
@@ -1362,7 +1362,7 @@ def view_student(id):
 def view_ims_student(id):
     from models import ImsStudent
     student = ImsStudent.query.get_or_404(id)
-    erp_url = f'http://localhost:8000/edit-registration/{student.ims_registration_id}/'
+    erp_url = f'{_ERP_URL}/edit-registration/{student.ims_registration_id}/'
     return render_template('student_detail.html', student=student,
                            is_ims_source=True, erp_url=erp_url)
 
@@ -2920,7 +2920,7 @@ def erp_lead_data(id):
         'course_id': lead.course_interest_id,
         'course_name': lead.course_interest.name if lead.course_interest else '',
         'status': lead.status,
-        'erp_url': f'http://localhost:8000/register/?crm_id={lead.id}'
+        'erp_url': f'{_ERP_URL}/register/?crm_id={lead.id}'
                    f'&fn={first_name}&ln={last_name}'
                    f'&ph={lead.phone or ""}'
                    f'&em={lead.email or ""}'

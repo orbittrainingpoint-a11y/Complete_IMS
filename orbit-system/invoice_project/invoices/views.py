@@ -2141,6 +2141,65 @@ def update_user_role(request, user_id):
     return redirect('manage_users')
 
 
+@login_required
+def edit_user(request, user_id):
+    if not is_admin_user(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
+    from django.contrib.auth.models import User
+    u = get_object_or_404(User, pk=user_id)
+    profile, _ = UserProfile.objects.get_or_create(user=u)
+    if request.method == 'POST':
+        u.first_name = request.POST.get('first_name', '').strip()
+        u.last_name  = request.POST.get('last_name', '').strip()
+        u.email      = request.POST.get('email', '').strip()
+        u.is_active  = request.POST.get('is_active') == '1'
+        u.save()
+        profile.role  = request.POST.get('role', 'sales_executive')
+        profile.phone = request.POST.get('phone', '').strip()
+        profile.save()
+        if profile.role in ('sales_manager', 'sales_executive'):
+            sync_user_to_crm(u, role=profile.role)
+        messages.success(request, f"User '{u.username}' updated.")
+        return redirect('manage_users')
+    return render(request, 'dashboard/edit_user.html', {'u': u, 'profile': profile})
+
+
+@login_required
+def delete_user(request, user_id):
+    if not is_admin_user(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
+    from django.contrib.auth.models import User
+    if request.method == 'POST':
+        u = get_object_or_404(User, pk=user_id)
+        if u.pk == request.user.pk:
+            messages.error(request, "You cannot delete your own account.")
+            return redirect('manage_users')
+        username = u.username
+        u.delete()
+        messages.success(request, f"User '{username}' deleted.")
+    return redirect('manage_users')
+
+
+@login_required
+def change_user_password(request, user_id):
+    if not is_admin_user(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
+    from django.contrib.auth.models import User
+    if request.method == 'POST':
+        u = get_object_or_404(User, pk=user_id)
+        new_pw = request.POST.get('new_password', '').strip()
+        if len(new_pw) >= 6:
+            u.set_password(new_pw)
+            u.save()
+            messages.success(request, f"Password changed for '{u.username}'.")
+        else:
+            messages.error(request, "Password must be at least 6 characters.")
+    return redirect('manage_users')
+
+
 # ─── SET TARGETS ────────────────────────────────────────────────────────────
 
 @login_required
