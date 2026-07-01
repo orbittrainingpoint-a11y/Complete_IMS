@@ -1,12 +1,65 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.utils.text import slugify
 import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from django.utils.crypto import get_random_string
 from django.core.exceptions import ValidationError
 import os
 from django.conf import settings
+
+
+def _slug(text, fallback='unknown'):
+    return slugify(text or fallback) or fallback
+
+
+def khda_cert_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    name = _slug(instance.student_name)
+    ref = _slug(instance.certificate_number or instance.register_number)
+    return f'khda_certificates/{name}_{ref}{ext}'
+
+
+def student_cert_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    try:
+        reg = instance.registration
+        name = _slug(f'{reg.first_name} {reg.last_name}')
+        return f'certificates/{name}_{reg.registration_number}{ext}'
+    except Exception:
+        return f'certificates/{filename}'
+
+
+def student_form_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    try:
+        reg = instance.registration
+        name = _slug(f'{reg.first_name} {reg.last_name}')
+        return f'registration_forms/{name}_{reg.registration_number}{ext}'
+    except Exception:
+        return f'registration_forms/{filename}'
+
+
+def trainer_profile_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f'trainer_profiles/{_slug(instance.name)}{ext}'
+
+
+def company_profile_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f'company_profiles/{_slug(instance.name)}{ext}'
+
+
+def portal_trade_license_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f'portal/trade_license/{_slug(instance.company_name)}_trade_license{ext}'
+
+
+def portal_vat_cert_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f'portal/vat/{_slug(instance.company_name)}_vat{ext}'
+
 
 class Client(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -413,7 +466,7 @@ class Certificate(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     certificate_number = models.CharField(max_length=50, unique=True, blank=True)
     certificate_type = models.CharField(max_length=20, choices=[('regular', 'Regular'), ('khda', 'KHDA')], default='regular')
-    uploaded_certificate = models.FileField(upload_to='khda_certificates/', null=True, blank=True)
+    uploaded_certificate = models.FileField(upload_to=khda_cert_upload_path, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.certificate_number:
@@ -448,7 +501,7 @@ class Certificate(models.Model):
 
 class CertificateUpload(models.Model):
     registration = models.OneToOneField(Registration, on_delete=models.CASCADE, related_name='certificate_upload')
-    certificate_file = models.FileField(upload_to='certificates/')
+    certificate_file = models.FileField(upload_to=student_cert_upload_path)
     upload_date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -456,7 +509,7 @@ class CertificateUpload(models.Model):
 
 class FormUpload(models.Model):
     registration = models.OneToOneField(Registration, on_delete=models.CASCADE, related_name='form_upload')
-    form_file = models.FileField(upload_to='registration_forms/')
+    form_file = models.FileField(upload_to=student_form_upload_path)
     upload_date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -468,7 +521,7 @@ def validate_png(value):
 class TrainerProfile(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=255, unique=True)
-    profile_pdf = models.FileField(upload_to='trainer_profiles/')
+    profile_pdf = models.FileField(upload_to=trainer_profile_upload_path)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -477,7 +530,7 @@ class TrainerProfile(models.Model):
 class CompanyProfile(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
-    company_pdf = models.FileField(upload_to='company_profiles/')
+    company_pdf = models.FileField(upload_to=company_profile_upload_path)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -714,9 +767,9 @@ class CompanyPortalRequest(models.Model):
     # Company details
     company_name = models.CharField(max_length=255)
     trade_license_number = models.CharField(max_length=100, blank=True)
-    trade_license_doc = models.FileField(upload_to='portal/trade_license/', blank=True, null=True)
+    trade_license_doc = models.FileField(upload_to=portal_trade_license_path, blank=True, null=True)
     vat_number = models.CharField(max_length=50, blank=True)
-    vat_certificate = models.FileField(upload_to='portal/vat/', blank=True, null=True)
+    vat_certificate = models.FileField(upload_to=portal_vat_cert_path, blank=True, null=True)
     contact_person = models.CharField(max_length=150)
     designation = models.CharField(max_length=100, blank=True)
     email = models.EmailField()
