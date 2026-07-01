@@ -71,10 +71,14 @@
                         <div class="d-flex gap-1">
                             <a href="{% url 'edit_user' u.id %}" class="action-btn btn-edit" title="Edit user"><i class="fas fa-pen"></i></a>
                             <button class="action-btn btn-pw" title="Change password"
-                                    onclick="openPwModal({{ u.id }}, '{{ u.username|escapejs }}')"><i class="fas fa-key"></i></button>
+                                    data-url="{% url 'change_user_password' u.id %}"
+                                    data-uname="{{ u.username|escapejs }}"
+                                    onclick="openPwModal(this)"><i class="fas fa-key"></i></button>
                             {% if u.id != request.user.id %}
                             <button class="action-btn btn-del" title="Delete user"
-                                    onclick="openDelModal({{ u.id }}, '{{ u.username|escapejs }}')"><i class="fas fa-trash"></i></button>
+                                    data-url="{% url 'delete_user' u.id %}"
+                                    data-uname="{{ u.username|escapejs }}"
+                                    onclick="openDelModal(this)"><i class="fas fa-trash"></i></button>
                             {% endif %}
                         </div>
                     </td>
@@ -138,14 +142,14 @@
 
 {% block extra_js %}
 <script>
-function openPwModal(uid, uname) {
-    document.getElementById('pwUsername').textContent = uname;
-    document.getElementById('pwForm').action = '/admin/manage-users/' + uid + '/change-password/';
+function openPwModal(btn) {
+    document.getElementById('pwUsername').textContent = btn.dataset.uname;
+    document.getElementById('pwForm').action = btn.dataset.url;
     new bootstrap.Modal(document.getElementById('pwModal')).show();
 }
-function openDelModal(uid, uname) {
-    document.getElementById('delUsername').textContent = uname;
-    document.getElementById('delForm').action = '/admin/manage-users/' + uid + '/delete/';
+function openDelModal(btn) {
+    document.getElementById('delUsername').textContent = btn.dataset.uname;
+    document.getElementById('delForm').action = btn.dataset.url;
     new bootstrap.Modal(document.getElementById('delModal')).show();
 }
 </script>

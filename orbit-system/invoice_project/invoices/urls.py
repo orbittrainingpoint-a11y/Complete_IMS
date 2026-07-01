@@ -5,12 +5,12 @@ from . import views
 
 urlpatterns = [
     path('', views.orbit_dashboard, name='orbit_dashboard'),
-    path('admin/manage-users/', views.manage_users, name='manage_users'),
-    path('admin/manage-users/<int:user_id>/role/', views.update_user_role, name='update_user_role'),
-    path('admin/manage-users/<int:user_id>/edit/', views.edit_user, name='edit_user'),
-    path('admin/manage-users/<int:user_id>/delete/', views.delete_user, name='delete_user'),
-    path('admin/manage-users/<int:user_id>/change-password/', views.change_user_password, name='change_user_password'),
-    path('admin/set-targets/', views.set_targets, name='set_targets'),
+    path('manage/users/', views.manage_users, name='manage_users'),
+    path('manage/users/<int:user_id>/role/', views.update_user_role, name='update_user_role'),
+    path('manage/users/<int:user_id>/edit/', views.edit_user, name='edit_user'),
+    path('manage/users/<int:user_id>/delete/', views.delete_user, name='delete_user'),
+    path('manage/users/<int:user_id>/change-password/', views.change_user_password, name='change_user_password'),
+    path('manage/set-targets/', views.set_targets, name='set_targets'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('create_invoice/', views.create_invoice, name='create_invoice'),
     path('create_purchase_invoice/', views.create_purchase_invoice, name='create_purchase_invoice'),
