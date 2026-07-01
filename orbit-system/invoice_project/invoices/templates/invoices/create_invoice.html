@@ -34,6 +34,37 @@
 .lookup-info .inf-val { font-weight:600; color:var(--text); }
 .status-found { background:rgba(16,185,129,.1); border-color:rgba(16,185,129,.3); }
 
+/* ── VAT Back-Calculator ─────────────────────────────────────── */
+.vat-calc { background:var(--card-bg); border:1.5px solid var(--border); border-radius:16px; overflow:hidden; }
+.vc-header { display:flex; align-items:center; gap:12px; padding:14px 18px; cursor:pointer; user-select:none; border-bottom:1px solid var(--border); }
+.vc-header-icon { width:34px; height:34px; border-radius:9px; background:rgba(37,99,235,.1); color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+.vc-header-text { flex:1; }
+.vc-title { font-size:13px; font-weight:700; color:var(--text); }
+.vc-sub { font-size:11px; color:var(--text-muted); margin-top:1px; }
+.vc-chevron { color:var(--text-muted); font-size:12px; transition:transform .2s; }
+.vc-chevron.open { transform:rotate(180deg); }
+.vc-body { padding:16px 18px; }
+.vc-tabs { display:flex; border:1.5px solid var(--primary); border-radius:9px; overflow:hidden; margin-bottom:14px; }
+.vc-tab { flex:1; padding:7px 6px; font-size:11px; font-weight:700; border:none; background:transparent; color:var(--primary); cursor:pointer; text-transform:uppercase; letter-spacing:.4px; transition:all .15s; }
+.vc-tab.active { background:var(--primary); color:#fff; }
+.vc-note { font-size:11px; color:var(--text-muted); background:rgba(37,99,235,.06); border-radius:7px; padding:7px 10px; margin-bottom:12px; line-height:1.5; }
+.vc-field { margin-bottom:11px; }
+.vc-field label { display:block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:5px; }
+.vc-inp-wrap { display:flex; align-items:center; border:1.5px solid var(--border); border-radius:9px; overflow:hidden; background:var(--bg); transition:border-color .15s; }
+.vc-inp-wrap:focus-within { border-color:var(--primary); }
+.vc-prefix,.vc-suffix { padding:8px 10px; font-size:12px; font-weight:700; color:var(--text-muted); background:rgba(0,0,0,.04); white-space:nowrap; }
+.vc-inp-wrap input { border:none; background:transparent; color:var(--text); font-size:14px; font-weight:700; padding:8px 10px; width:100%; outline:none; }
+.vc-inp-wrap input::placeholder { font-weight:400; color:var(--text-muted); }
+.vc-breakdown { background:var(--bg); border-radius:10px; padding:11px 13px; margin-top:11px; }
+.vc-brow { display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:5px 0; border-bottom:1px solid var(--border); color:var(--text); }
+.vc-brow:last-child { border-bottom:none; }
+.vc-brow.vc-key { font-size:13px; font-weight:800; color:var(--primary); }
+.vc-brow.vc-total { font-size:13px; font-weight:700; }
+.vc-apply { width:100%; margin-top:11px; padding:9px; font-size:12px; font-weight:700; border-radius:9px; }
+.vc-warn { font-size:11px; color:#d97706; background:rgba(245,158,11,.1); border-radius:8px; padding:8px 11px; margin-top:10px; line-height:1.5; }
+.vc-err { font-size:11px; color:#ef4444; background:rgba(239,68,68,.1); border-radius:8px; padding:8px 11px; margin-top:10px; line-height:1.5; }
+.vc-placeholder { font-size:12px; color:var(--text-muted); text-align:center; padding:14px 0; }
+
 /* ── Validation ────────────────────────────────────────────── */
 .field-invalid .form-control,
 .field-invalid .form-select,
@@ -225,9 +256,81 @@
 
     </div><!-- /col-xl-8 -->
 
-    <!-- RIGHT: Summary -->
-    <div class="col-xl-4">
-        <div class="inv-summary" style="position:sticky;top:80px;">
+    <!-- RIGHT: Calculator + Summary -->
+    <div class="col-xl-4" style="position:sticky;top:80px;align-self:flex-start;">
+
+        <!-- VAT Back-Calculator -->
+        <div class="vat-calc mb-4">
+            <div class="vc-header" id="vcHeader">
+                <div class="vc-header-icon"><i class="fas fa-calculator"></i></div>
+                <div class="vc-header-text">
+                    <div class="vc-title">VAT Back-Calculator</div>
+                    <div class="vc-sub">Work backwards from the total you want to charge</div>
+                </div>
+                <i class="fas fa-chevron-down vc-chevron open" id="vcChevron"></i>
+            </div>
+            <div class="vc-body" id="vcBody">
+
+                <!-- Mode tabs -->
+                <div class="vc-tabs">
+                    <button type="button" class="vc-tab active" data-mode="A">
+                        <i class="fas fa-percent me-1"></i>Find Discount
+                    </button>
+                    <button type="button" class="vc-tab" data-mode="B">
+                        <i class="fas fa-tag me-1"></i>Find Rate / Pax
+                    </button>
+                </div>
+
+                <!-- Mode A: Enter total → get required discount % -->
+                <div id="vcModeA">
+                    <div class="vc-note">
+                        <i class="fas fa-lightbulb me-1"></i>
+                        Enter the <strong>total the client will pay</strong>. The calculator uses the course subtotal already loaded in the form to find the discount % you need to enter.
+                    </div>
+                    <div class="vc-field">
+                        <label>Target Grand Total (incl. VAT)</label>
+                        <div class="vc-inp-wrap">
+                            <span class="vc-prefix">AED</span>
+                            <input type="number" id="vcTargetA" placeholder="e.g. 5 250.00" step="0.01" min="0">
+                        </div>
+                    </div>
+                    <div id="vcResultA"><div class="vc-placeholder"><i class="fas fa-arrow-up me-1"></i>Enter a target total above</div></div>
+                </div>
+
+                <!-- Mode B: Enter total + discount + persons → get rate per pax -->
+                <div id="vcModeB" style="display:none;">
+                    <div class="vc-note">
+                        <i class="fas fa-lightbulb me-1"></i>
+                        Enter the total, discount %, and number of persons to find the <strong>course rate per person</strong> needed.
+                    </div>
+                    <div class="vc-field">
+                        <label>Target Grand Total (incl. VAT)</label>
+                        <div class="vc-inp-wrap">
+                            <span class="vc-prefix">AED</span>
+                            <input type="number" id="vcTargetB" placeholder="e.g. 5 250.00" step="0.01" min="0">
+                        </div>
+                    </div>
+                    <div class="vc-field">
+                        <label>Discount %</label>
+                        <div class="vc-inp-wrap">
+                            <input type="number" id="vcDiscB" placeholder="0" step="0.01" min="0" max="99.99" value="0">
+                            <span class="vc-suffix">%</span>
+                        </div>
+                    </div>
+                    <div class="vc-field">
+                        <label>Number of Persons</label>
+                        <div class="vc-inp-wrap">
+                            <input type="number" id="vcPersonsB" placeholder="1" min="1" value="1">
+                            <span class="vc-suffix">pax</span>
+                        </div>
+                    </div>
+                    <div id="vcResultB"><div class="vc-placeholder"><i class="fas fa-arrow-up me-1"></i>Enter values above</div></div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="inv-summary">
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:16px;">Invoice Summary</div>
             <div class="is-row"><span style="color:rgba(255,255,255,.7);">Subtotal</span><span id="isSubtotal">AED 0.00</span></div>
             <div class="is-row"><span style="color:rgba(255,255,255,.7);">Discount</span><span id="isDiscount" style="color:#fca5a5;">— AED 0.00</span></div>
@@ -529,5 +632,175 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 150);
     }
 });
+
+/* ════════════════════════════════════════════════════════
+   VAT BACK-CALCULATOR
+   ════════════════════════════════════════════════════════ */
+(function () {
+    const aed = n => 'AED ' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const pct = n => parseFloat(n || 0).toFixed(2) + '%';
+
+    function getFormSubtotal() {
+        let s = 0;
+        document.querySelectorAll('#courseFields .course-pill').forEach(pill => {
+            const rate = parseFloat(pill.dataset.rate || 0);
+            const qtyEl = pill.querySelector('.qty-inp');
+            const qty = parseInt(qtyEl ? qtyEl.value : 1) || 1;
+            const persons = parseInt(document.getElementById('id_number_of_person')?.value || 1) || 1;
+            s += rate * qty * persons;
+        });
+        return s;
+    }
+
+    // ── Mode A: target total → required discount % ──────────────
+    function calcModeA() {
+        const target = parseFloat(document.getElementById('vcTargetA')?.value) || 0;
+        const box = document.getElementById('vcResultA');
+        if (!box) return;
+
+        if (target <= 0) {
+            box.innerHTML = '<div class="vc-placeholder"><i class="fas fa-arrow-up me-1"></i>Enter a target total above</div>';
+            return;
+        }
+
+        const subtotal = getFormSubtotal();
+        const preVat = target / 1.05;  // after-discount subtotal needed
+        const vatAmt = target - preVat;
+
+        if (subtotal <= 0) {
+            // No courses loaded — still show the VAT split
+            box.innerHTML = `
+                <div class="vc-breakdown">
+                    <div class="vc-brow"><span style="color:var(--text-muted);">Pre-VAT Amount</span><span>${aed(preVat)}</span></div>
+                    <div class="vc-brow"><span style="color:var(--text-muted);">VAT (5%)</span><span style="color:#93c5fd;">${aed(vatAmt)}</span></div>
+                    <div class="vc-brow vc-total"><span>Grand Total</span><span>${aed(target)}</span></div>
+                </div>
+                <div class="vc-note mt-2"><i class="fas fa-info-circle me-1"></i>Load a registration to calculate the exact discount needed.</div>`;
+            return;
+        }
+
+        const discAmt = subtotal - preVat;
+        const discPct = (discAmt / subtotal) * 100;
+
+        if (discPct < -0.005) {
+            const maxPossible = subtotal * 1.05;
+            box.innerHTML = `<div class="vc-err"><i class="fas fa-exclamation-triangle me-1"></i>
+                Target <strong>${aed(target)}</strong> is higher than the full-price invoice total of <strong>${aed(maxPossible)}</strong>.
+                You cannot reach this total via discount — reduce the target or increase course rates.</div>`;
+            return;
+        }
+        if (discPct > 100) {
+            box.innerHTML = '<div class="vc-err"><i class="fas fa-exclamation-triangle me-1"></i>Target requires more than 100% discount — not achievable.</div>';
+            return;
+        }
+
+        const appliedPct = Math.max(0, discPct);
+
+        box.innerHTML = `
+            <div class="vc-breakdown">
+                <div class="vc-brow"><span style="color:var(--text-muted);">Course Subtotal</span><span>${aed(subtotal)}</span></div>
+                <div class="vc-brow vc-key"><span><i class="fas fa-percent me-1"></i>Discount to Apply</span><span>${pct(appliedPct)}</span></div>
+                <div class="vc-brow"><span style="color:var(--text-muted);">Discount Amount</span><span style="color:#fca5a5;">— ${aed(Math.max(0, discAmt))}</span></div>
+                <div class="vc-brow"><span style="color:var(--text-muted);">After Discount</span><span>${aed(preVat)}</span></div>
+                <div class="vc-brow"><span style="color:var(--text-muted);">VAT (5%)</span><span style="color:#93c5fd;">${aed(vatAmt)}</span></div>
+                <div class="vc-brow vc-total"><span>Grand Total</span><span>${aed(target)}</span></div>
+            </div>
+            <button type="button" class="btn btn-primary vc-apply" id="vcApplyA">
+                <i class="fas fa-check me-2"></i>Apply ${pct(appliedPct)} Discount to Invoice
+            </button>`;
+
+        document.getElementById('vcApplyA')?.addEventListener('click', () => {
+            const disc = document.getElementById('id_discount');
+            if (disc) {
+                disc.value = appliedPct.toFixed(2);
+                disc.dispatchEvent(new Event('input'));
+                if (typeof calcTotals === 'function') calcTotals();
+            }
+        });
+    }
+
+    // ── Mode B: target + discount + persons → rate per pax ──────
+    function calcModeB() {
+        const target  = parseFloat(document.getElementById('vcTargetB')?.value)  || 0;
+        const discPct = parseFloat(document.getElementById('vcDiscB')?.value)     || 0;
+        const persons = parseInt(document.getElementById('vcPersonsB')?.value)    || 1;
+        const box = document.getElementById('vcResultB');
+        if (!box) return;
+
+        if (target <= 0) {
+            box.innerHTML = '<div class="vc-placeholder"><i class="fas fa-arrow-up me-1"></i>Enter values above</div>';
+            return;
+        }
+        if (discPct >= 100) {
+            box.innerHTML = '<div class="vc-err">Discount cannot be 100% or more.</div>';
+            return;
+        }
+
+        const preVat       = target / 1.05;
+        const ratePerpax   = preVat / (persons * (1 - discPct / 100));
+        const courseTotal  = ratePerpax * persons;
+        const discAmt      = courseTotal * (discPct / 100);
+        const afterDisc    = courseTotal - discAmt;
+        const vatAmt       = afterDisc * 0.05;
+        const grandTotal   = afterDisc + vatAmt;
+
+        box.innerHTML = `
+            <div class="vc-breakdown">
+                <div class="vc-brow vc-key"><span><i class="fas fa-tag me-1"></i>Rate per Person</span><span>${aed(ratePerpax)}</span></div>
+                <div class="vc-brow"><span style="color:var(--text-muted);">Course Total (${persons} pax)</span><span>${aed(courseTotal)}</span></div>
+                <div class="vc-brow"><span style="color:var(--text-muted);">Discount (${pct(discPct)})</span><span style="color:#fca5a5;">— ${aed(discAmt)}</span></div>
+                <div class="vc-brow"><span style="color:var(--text-muted);">After Discount</span><span>${aed(afterDisc)}</span></div>
+                <div class="vc-brow"><span style="color:var(--text-muted);">VAT (5%)</span><span style="color:#93c5fd;">${aed(vatAmt)}</span></div>
+                <div class="vc-brow vc-total"><span>Grand Total</span><span>${aed(grandTotal)}</span></div>
+            </div>`;
+    }
+
+    // ── Tab switching ────────────────────────────────────────────
+    document.querySelectorAll('.vc-tab').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const mode = this.dataset.mode;
+            document.querySelectorAll('.vc-tab').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+            document.getElementById('vcModeA').style.display = mode === 'A' ? 'block' : 'none';
+            document.getElementById('vcModeB').style.display = mode === 'B' ? 'block' : 'none';
+        });
+    });
+
+    // ── Collapse / expand ────────────────────────────────────────
+    document.getElementById('vcHeader')?.addEventListener('click', function () {
+        const body = document.getElementById('vcBody');
+        const chev = document.getElementById('vcChevron');
+        const collapsed = body.style.display === 'none';
+        body.style.display = collapsed ? 'block' : 'none';
+        chev?.classList.toggle('open', collapsed);
+    });
+
+    // ── Input listeners ──────────────────────────────────────────
+    document.getElementById('vcTargetA')?.addEventListener('input', calcModeA);
+    document.getElementById('vcTargetB')?.addEventListener('input', calcModeB);
+    document.getElementById('vcDiscB')?.addEventListener('input', calcModeB);
+    document.getElementById('vcPersonsB')?.addEventListener('input', calcModeB);
+
+    // Sync persons from invoice form → Mode B
+    document.getElementById('id_number_of_person')?.addEventListener('input', function () {
+        const p = document.getElementById('vcPersonsB');
+        if (p && !p.dataset.manuallySet) p.value = this.value;
+        calcModeB();
+        calcModeA();
+    });
+    document.getElementById('vcPersonsB')?.addEventListener('input', function () {
+        this.dataset.manuallySet = '1';
+    });
+
+    // Re-run Mode A whenever courses are added/changed in the form
+    const courseFields = document.getElementById('courseFields');
+    if (courseFields) {
+        new MutationObserver(calcModeA).observe(courseFields, { childList: true, subtree: true });
+        courseFields.addEventListener('input', calcModeA);
+    }
+
+    // Initial run
+    calcModeA();
+    calcModeB();
+})();
 </script>
 {% endblock %}
