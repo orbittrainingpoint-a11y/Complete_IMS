@@ -39,17 +39,20 @@
 </div>
 
 <!-- Search -->
+<form method="get" action="">
 <div class="filter-card">
   <div class="d-flex gap-3 align-items-center">
     <div style="flex:1;max-width:420px;">
       <div class="input-group">
         <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted" style="font-size:12px;"></i></span>
-        <input type="text" id="courseSearch" class="form-control border-start-0 ps-0" placeholder="Search by course name…" style="font-size:13px;">
+        <input type="text" name="q" id="courseSearch" value="{{ query }}" class="form-control border-start-0 ps-0" placeholder="Search all courses by name or code…" style="font-size:13px;">
       </div>
     </div>
-    <button onclick="document.getElementById('courseSearch').value='';filterCourses()" class="btn btn-outline-secondary btn-sm px-3">Clear</button>
+    <button type="submit" class="btn btn-primary btn-sm px-3">Search</button>
+    {% if query %}<a href="{% url 'course_list' %}" class="btn btn-outline-secondary btn-sm px-3">Clear</a>{% endif %}
   </div>
 </div>
+</form>
 
 <!-- Table -->
 <div class="card">
@@ -109,7 +112,7 @@
   <small class="text-muted">Showing {{ courses.start_index }}–{{ courses.end_index }} of {{ courses.paginator.count }} courses</small>
   <ul class="pagination pagination-sm mb-0">
     {% if courses.has_previous %}
-    <li class="page-item"><a class="page-link" href="?page={{ courses.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
+    <li class="page-item"><a class="page-link" href="?q={{ query }}&page={{ courses.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
     {% else %}
     <li class="page-item disabled"><span class="page-link"><i class="fas fa-chevron-left"></i></span></li>
     {% endif %}
@@ -118,12 +121,12 @@
       {% if courses.number == num %}
       <li class="page-item active"><span class="page-link">{{ num }}</span></li>
       {% elif num > courses.number|add:'-3' and num < courses.number|add:'3' %}
-      <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+      <li class="page-item"><a class="page-link" href="?q={{ query }}&page={{ num }}">{{ num }}</a></li>
       {% endif %}
     {% endfor %}
 
     {% if courses.has_next %}
-    <li class="page-item"><a class="page-link" href="?page={{ courses.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
+    <li class="page-item"><a class="page-link" href="?q={{ query }}&page={{ courses.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
     {% else %}
     <li class="page-item disabled"><span class="page-link"><i class="fas fa-chevron-right"></i></span></li>
     {% endif %}
@@ -132,16 +135,4 @@
 {% endif %}
 {% endblock %}
 
-{% block extra_js %}
-<script>
-function filterCourses() {
-  const q = document.getElementById('courseSearch').value.toLowerCase();
-  document.querySelectorAll('.course-row').forEach(r => {
-    r.style.display = r.dataset.name.includes(q) ? '' : 'none';
-  });
-  const visible = document.querySelectorAll('.course-row:not([style*="display: none"])').length;
-  document.getElementById('visibleCount') && (document.getElementById('visibleCount').textContent = visible);
-}
-document.getElementById('courseSearch').addEventListener('input', filterCourses);
-</script>
 {% endblock %}

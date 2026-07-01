@@ -1586,13 +1586,16 @@ def edit_corporate_registration(request, pk):
 
 @login_required
 def course_list(request):
-    from django.db.models import Count as CourseCount
+    from django.db.models import Count as CourseCount, Q
+    q = request.GET.get('q', '').strip()
     all_courses = Course.objects.annotate(
         reg_count=CourseCount('registrationcourse')
     ).order_by('name')
+    if q:
+        all_courses = all_courses.filter(Q(name__icontains=q) | Q(code__icontains=q))
     paginator = Paginator(all_courses, 25)
     courses = paginator.get_page(request.GET.get('page', 1))
-    return render(request, 'courses/course_list.html', {'courses': courses})
+    return render(request, 'courses/course_list.html', {'courses': courses, 'query': q})
 
 @login_required
 def course_detail(request, course_id):
