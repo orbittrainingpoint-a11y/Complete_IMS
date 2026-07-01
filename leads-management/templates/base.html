@@ -495,7 +495,7 @@
         </div>
 
         <!-- ── REPORTS & ADMIN ─────────────────── -->
-        {% if current_user.is_authenticated and not current_user.is_sales_manager() %}
+        {% if current_user.is_authenticated and current_user.role != 'sales_manager' %}
         <div class="nav-section">
             <div class="nav-section-label">Reports & Admin</div>
             <div class="nav-item">

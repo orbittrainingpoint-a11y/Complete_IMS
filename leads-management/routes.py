@@ -2674,7 +2674,7 @@ def generate_tamara_payment_url(payment_link, provider):
 @login_required
 def users():
     """View all users - only for admins and users with user management permission"""
-    if not (current_user.is_admin() or current_user.can_manage_users):
+    if current_user.role == 'sales_manager' or not (current_user.is_admin() or current_user.can_manage_users):
         flash('Access denied. You do not have permission to manage users.', 'error')
         return redirect(url_for('main.dashboard'))
 
