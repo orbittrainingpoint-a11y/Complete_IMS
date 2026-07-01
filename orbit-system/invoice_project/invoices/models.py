@@ -378,8 +378,12 @@ class QuotationItem(models.Model):
     number_of_persons = models.PositiveIntegerField()
 
 
+class QuotationItemOverride(models.Model):
+    """Custom price per pax set by admin/sales_manager — overrides course rate on the PDF."""
+    item = models.OneToOneField(QuotationItem, on_delete=models.CASCADE, related_name='price_override')
+    custom_price = models.DecimalField(max_digits=10, decimal_places=2)
 
-    
+
 class RegistrationCourse(models.Model):
     registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name='registration_courses')
     course = models.ForeignKey(Course, on_delete=models.CASCADE)

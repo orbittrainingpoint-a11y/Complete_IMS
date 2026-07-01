@@ -25,9 +25,21 @@
 .btn-add-item { border:1.5px dashed var(--primary); background:rgba(37,99,235,.05); color:var(--primary); border-radius:10px; padding:12px; font-size:14px; font-weight:600; width:100%; cursor:pointer; transition:all .2s; }
 .btn-add-item:hover { background:var(--primary); color:#fff; }
 
-.quot-summary { background:linear-gradient(135deg,#0f1b2d,#1a2d47); border-radius:16px; padding:22px; color:#fff; position:sticky; top:80px; }
+.quot-summary { background:linear-gradient(135deg,#0f1b2d,#1a2d47); border-radius:16px; padding:22px; color:#fff; }
 .qs-row { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(255,255,255,.09); font-size:14px; }
 .qs-row:last-child { border-bottom:none; }
+
+/* Mode toggle */
+.mode-toggle { display:flex; gap:0; border:2px solid var(--primary); border-radius:10px; overflow:hidden; margin-bottom:18px; width:fit-content; }
+.mode-toggle label { padding:9px 22px; font-size:13px; font-weight:600; cursor:pointer; color:var(--primary); transition:all .2s; user-select:none; }
+.mode-toggle input[type=radio] { display:none; }
+.mode-toggle input[type=radio]:checked + label { background:var(--primary); color:#fff; }
+
+.custom-price-field { display:none; }
+.custom-mode .custom-price-field { display:block; }
+.custom-price-input { background:var(--card-bg); border:1.5px solid #f59e0b; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; color:var(--text); width:100%; }
+.custom-price-input:focus { outline:none; border-color:#d97706; box-shadow:0 0 0 3px rgba(245,158,11,.15); }
+.custom-price-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#f59e0b; margin-bottom:4px; }
 </style>
 {% endblock %}
 
@@ -43,6 +55,8 @@
 <form method="post" id="quotForm" novalidate>
 {% csrf_token %}
 {{ item_formset.management_form }}
+<input type="hidden" name="is_custom_quotation" id="isCustomQuotation" value="0">
+
 <div class="row g-4">
     <div class="col-xl-8">
 
@@ -84,9 +98,24 @@
                 </div>
             </div>
             <div class="form-section-body">
+
+                {% if is_admin or user_role == 'sales_manager' %}
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="mode-toggle" id="modeToggle">
+                        <input type="radio" name="quotMode" id="modeStandard" value="standard" checked>
+                        <label for="modeStandard"><i class="fas fa-tag me-1"></i>Standard</label>
+                        <input type="radio" name="quotMode" id="modeCustom" value="custom">
+                        <label for="modeCustom"><i class="fas fa-pen me-1"></i>Custom Quotation</label>
+                    </div>
+                    <span id="customBadge" style="display:none;" class="badge" style="background:#f59e0b;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;background-color:#f59e0b;">
+                        <i class="fas fa-pencil-alt me-1"></i>Custom pricing active
+                    </span>
+                </div>
+                {% endif %}
+
                 <div id="itemFormset" style="padding-left:14px;">
                     {% for iform in item_formset %}
-                    <div class="item-entry">
+                    <div class="item-entry" data-idx="{{ forloop.counter0 }}">
                         <div class="item-num">{{ forloop.counter }}</div>
                         <div class="row g-3 align-items-end">
                             <div class="col-md-5">
@@ -97,10 +126,16 @@
                                 <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">Duration</label>
                                 {{ iform.duration }}
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-{% if is_admin or user_role == 'sales_manager' %}2{% else %}3{% endif %}">
                                 <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">Persons</label>
                                 {{ iform.number_of_persons }}
                             </div>
+                            {% if is_admin or user_role == 'sales_manager' %}
+                            <div class="col-md-2 custom-price-field">
+                                <div class="custom-price-label">Price/Pax (RM)</div>
+                                <input type="number" step="0.01" min="0" class="custom-price-input" name="custom_price_{{ forloop.counter0 }}" placeholder="0.00">
+                            </div>
+                            {% endif %}
                             <div class="col-md-1 d-flex align-items-end pb-1">
                                 {% if forloop.counter > 1 %}
                                 <button type="button" class="btn-del-item" style="position:static;" title="Remove"><i class="fas fa-times"></i></button>
@@ -119,11 +154,12 @@
     </div><!-- /col-xl-8 -->
 
     <!-- RIGHT: Submit Panel -->
-    <div class="col-xl-4">
+    <div class="col-xl-4" style="position:sticky;top:80px;align-self:flex-start;">
         <div class="quot-summary">
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:16px;">Summary</div>
             <div class="qs-row"><span style="color:rgba(255,255,255,.7);">Items</span><span id="itemCount" style="font-weight:700;">0</span></div>
             <div class="qs-row"><span style="color:rgba(255,255,255,.7);">Total Persons</span><span id="totalPersons" style="font-weight:700;">0</span></div>
+            <div class="qs-row" id="estTotalRow" style="display:none;"><span style="color:rgba(255,255,255,.7);">Est. Total (RM)</span><span id="estTotal" style="font-weight:700;color:#fbbf24;">0.00</span></div>
             <button type="submit" class="btn btn-primary w-100 mt-4" style="padding:14px;font-size:15px;font-weight:700;border-radius:12px;">
                 <i class="fas fa-file-alt me-2"></i>Create Quotation
             </button>
@@ -136,6 +172,9 @@
                 <div><i class="fas fa-info-circle text-info me-2"></i>Quotations can be converted to invoices</div>
                 <div class="mt-2"><i class="fas fa-print text-primary me-2"></i>Auto-generates a professional PDF</div>
                 <div class="mt-2"><i class="fas fa-plus text-success me-2"></i>Add multiple courses per quotation</div>
+                {% if is_admin or user_role == 'sales_manager' %}
+                <div class="mt-2"><i class="fas fa-pen text-warning me-2"></i>Custom mode: set price per pax manually</div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -145,30 +184,108 @@
 
 {% block extra_js %}
 <script>
+const COURSES_MAP = {};
+(function(){
+    const data = {{ courses_json|safe }};
+    data.forEach(c => { COURSES_MAP[c.id] = c; });
+})();
+
+let isCustomMode = false;
+
+function getVenueKey() {
+    const vf = document.querySelector('select[name="training_venue"]');
+    if (!vf) return 'standard';
+    const v = vf.value;
+    if (v === 'online') return 'online';
+    if (v === 'Company Premises (External)') return 'private';
+    return 'standard';
+}
+
+function getCourseRate(courseId) {
+    const c = COURSES_MAP[courseId];
+    if (!c) return 0;
+    const vk = getVenueKey();
+    if (vk === 'online') return parseFloat(c.online_rate) || 0;
+    if (vk === 'private') return parseFloat(c.private_rate) || 0;
+    return parseFloat(c.rate) || 0;
+}
+
+function autoFillCustomPrice(entry) {
+    const sel = entry.querySelector('select[name*="-course"]');
+    const pi = entry.querySelector('.custom-price-input');
+    if (!sel || !pi) return;
+    const rate = getCourseRate(sel.value);
+    if (rate > 0 && (!pi.value || pi.value === '0' || pi.value === '0.00')) {
+        pi.value = rate.toFixed(2);
+    }
+}
+
 function updateSummary() {
     const entries = document.querySelectorAll('.item-entry');
     document.getElementById('itemCount').textContent = entries.length;
     let persons = 0;
+    let estTotal = 0;
     entries.forEach(e => {
-        const p = e.querySelector('input[name*="number_of_persons"],input[name*="persons"]');
-        if(p) persons += parseInt(p.value)||0;
+        const p = e.querySelector('input[name*="number_of_persons"]');
+        const pax = parseInt(p?.value) || 0;
+        persons += pax;
+        if (isCustomMode) {
+            const pi = e.querySelector('.custom-price-input');
+            const price = parseFloat(pi?.value) || 0;
+            estTotal += price * pax;
+        }
     });
     document.getElementById('totalPersons').textContent = persons;
+    const estRow = document.getElementById('estTotalRow');
+    if (isCustomMode) {
+        estRow.style.display = 'flex';
+        document.getElementById('estTotal').textContent = estTotal.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
+    } else {
+        estRow.style.display = 'none';
+    }
+}
+
+function setCustomMode(on) {
+    isCustomMode = on;
+    document.getElementById('isCustomQuotation').value = on ? '1' : '0';
+    document.getElementById('itemFormset').classList.toggle('custom-mode', on);
+    const badge = document.getElementById('customBadge');
+    if (badge) badge.style.display = on ? 'inline-flex' : 'none';
+    if (on) {
+        document.querySelectorAll('.item-entry').forEach(e => autoFillCustomPrice(e));
+    }
+    updateSummary();
 }
 
 function attachItem(e) {
     e.querySelectorAll('input,select').forEach(el => el.addEventListener('input', updateSummary));
+    const courseSelect = e.querySelector('select[name*="-course"]');
+    if (courseSelect) {
+        courseSelect.addEventListener('change', () => {
+            if (isCustomMode) {
+                const pi = e.querySelector('.custom-price-input');
+                if (pi) { pi.value = ''; }
+                autoFillCustomPrice(e);
+            }
+            updateSummary();
+        });
+    }
+    const customInput = e.querySelector('.custom-price-input');
+    if (customInput) customInput.addEventListener('input', updateSummary);
     const del = e.querySelector('.btn-del-item');
-    if(del) del.addEventListener('click', () => { e.remove(); reNumItems(); updateSummary(); });
+    if (del) del.addEventListener('click', () => { e.remove(); reNumItems(); updateSummary(); });
 }
 
 function reNumItems() {
-    document.querySelectorAll('.item-entry').forEach((e,i) => {
+    document.querySelectorAll('.item-entry').forEach((e, i) => {
         const n = e.querySelector('.item-num');
-        if(n) n.textContent = i+1;
+        if (n) n.textContent = i + 1;
+        e.dataset.idx = i;
+        const cp = e.querySelector('.custom-price-input');
+        if (cp) cp.name = `custom_price_${i}`;
     });
     const tf = document.getElementById('id_form-TOTAL_FORMS');
-    if(tf) tf.value = document.querySelectorAll('.item-entry').length;
+    if (tf) tf.value = document.querySelectorAll('.item-entry').length;
 }
 
 document.getElementById('addItem')?.addEventListener('click', () => {
@@ -179,33 +296,62 @@ document.getElementById('addItem')?.addEventListener('click', () => {
     const clone = first.cloneNode(true);
     const re = /form-(\d+)-/g;
     clone.innerHTML = clone.innerHTML.replace(re, `form-${idx}-`);
-    clone.querySelectorAll('input,select').forEach(el => {
-        el.value=''; el.name=el.name.replace(re,`form-${idx}-`); el.id=el.id.replace(re,`form-${idx}-`);
+    clone.querySelectorAll('input[name^="form-"],select[name^="form-"]').forEach(el => {
+        el.value = '';
     });
-    // ensure delete button
-    if(!clone.querySelector('.btn-del-item')) {
-        const b = document.createElement('button'); b.type='button'; b.className='btn-del-item'; b.style.position='static'; b.title='Remove'; b.innerHTML='<i class="fas fa-times"></i>';
+    const cp = clone.querySelector('.custom-price-input');
+    if (cp) { cp.value = ''; cp.name = `custom_price_${idx}`; }
+    if (!clone.querySelector('.btn-del-item')) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn-del-item'; b.style.position = 'static';
+        b.title = 'Remove'; b.innerHTML = '<i class="fas fa-times"></i>';
         clone.querySelector('.col-md-1').appendChild(b);
     }
-    fs.appendChild(clone); tf.value = idx+1; reNumItems(); attachItem(clone); updateSummary();
-    clone.scrollIntoView({behavior:'smooth',block:'nearest'});
+    fs.appendChild(clone);
+    tf.value = idx + 1;
+    reNumItems();
+    attachItem(clone);
+    updateSummary();
+    clone.scrollIntoView({behavior:'smooth', block:'nearest'});
 });
+
+// Mode toggle
+document.querySelectorAll('input[name="quotMode"]').forEach(r => {
+    r.addEventListener('change', () => setCustomMode(r.value === 'custom'));
+});
+
+// Venue change: re-fill custom prices
+const venueField = document.querySelector('select[name="training_venue"]');
+if (venueField) {
+    venueField.addEventListener('change', () => {
+        if (isCustomMode) {
+            document.querySelectorAll('.item-entry').forEach(e => {
+                const pi = e.querySelector('.custom-price-input');
+                if (pi) pi.value = '';
+                autoFillCustomPrice(e);
+            });
+            updateSummary();
+        }
+    });
+}
 
 // style formset inputs
 document.querySelectorAll('.item-entry select,.item-entry input').forEach(el => {
-    if(!el.classList.contains('form-select')&&!el.classList.contains('form-control')) {
-        el.classList.add(el.tagName==='SELECT'?'form-select':'form-control');
+    if (!el.classList.contains('form-select') && !el.classList.contains('form-control') && !el.classList.contains('custom-price-input')) {
+        el.classList.add(el.tagName === 'SELECT' ? 'form-select' : 'form-control');
     }
 });
 
 document.querySelectorAll('.item-entry').forEach(e => attachItem(e));
-// Floating label: activate for any filled input/select
+
+// Floating label activation
 document.querySelectorAll('.floating-group input,.floating-group select,.floating-group textarea').forEach(el => {
     const activate = () => el.closest('.floating-group').classList.toggle('active', !!(el.value));
     el.addEventListener('input', activate);
     el.addEventListener('change', activate);
     activate();
 });
+
 updateSummary();
 </script>
 {% endblock %}

@@ -51,7 +51,7 @@ import datetime
 
 logger = logging.getLogger(__name__)
 
-from .models import UserProfile, SalesTarget
+from .models import UserProfile, SalesTarget, QuotationItemOverride
 from django.contrib.auth.models import User
 import calendar
 
@@ -795,33 +795,56 @@ def delete_purchase_invoice(request, pk):
     return render(request, 'invoices/delete_purchase_invoice.html', {'invoice': invoice})
 
 
+def _can_custom_quote(user):
+    try:
+        role = user.profile.role
+        return role in ('admin', 'sales_manager') or user.is_superuser
+    except Exception:
+        return user.is_superuser
+
+
 @login_required
 def create_quotation(request):
+    from decimal import Decimal, InvalidOperation
     QuotationItemFormSet = formset_factory(QuotationItemForm, extra=1)
-    
+    courses_json = json.dumps(
+        list(Course.objects.values('id', 'name', 'rate', 'online_rate', 'private_rate', 'batch_rate')),
+        default=float
+    )
+
     if request.method == 'POST':
         quotation_form = QuotationForm(request.POST)
         item_formset = QuotationItemFormSet(request.POST)
-        
+        is_custom = request.POST.get('is_custom_quotation') == '1' and _can_custom_quote(request.user)
+
         if quotation_form.is_valid() and item_formset.is_valid():
             quotation = quotation_form.save(commit=False)
             quotation.user = request.user
             quotation.save()
-            
-            for form in item_formset:
-                if form.cleaned_data:
+
+            for i, form in enumerate(item_formset):
+                if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
                     item = form.save(commit=False)
                     item.quotation = quotation
                     item.save()
-            
+                    if is_custom:
+                        raw = request.POST.get(f'custom_price_{i}', '').strip()
+                        try:
+                            price = Decimal(raw)
+                            if price > 0:
+                                QuotationItemOverride.objects.create(item=item, custom_price=price)
+                        except (InvalidOperation, ValueError):
+                            pass
+
             return redirect('quotation_dashboard')
     else:
         quotation_form = QuotationForm()
         item_formset = QuotationItemFormSet()
-    
+
     return render(request, 'quotation/create_quotation.html', {
         'quotation_form': quotation_form,
         'item_formset': item_formset,
+        'courses_json': courses_json,
     })
 
 
@@ -838,14 +861,17 @@ def quotation_detail(request, pk):
     subtotal = _Dec('0')
     pax_set = set()
 
-    for item in quotation.items.all():
+    for item in quotation.items.select_related('course').prefetch_related('price_override'):
         course = item.course
-        if venue == 'online':
-            rate = course.online_rate
-        elif venue == 'Company Premises (External)':
-            rate = course.private_rate
-        else:
-            rate = course.rate
+        try:
+            rate = item.price_override.custom_price
+        except QuotationItemOverride.DoesNotExist:
+            if venue == 'online':
+                rate = course.online_rate
+            elif venue == 'Company Premises (External)':
+                rate = course.private_rate
+            else:
+                rate = course.rate
 
         line_total = rate * item.number_of_persons
         subtotal += line_total
@@ -923,37 +949,65 @@ def quotation_dashboard(request):
 
 @login_required
 def edit_quotation(request, pk):
+    from decimal import Decimal, InvalidOperation
     quotation = get_object_or_404(Quotation, pk=pk)
     QuotationItemFormSet = formset_factory(QuotationItemForm, extra=0)
-    
+    courses_json = json.dumps(
+        list(Course.objects.values('id', 'name', 'rate', 'online_rate', 'private_rate', 'batch_rate')),
+        default=float
+    )
+    initial_custom = {}
+    has_custom = False
+
     if request.method == 'POST':
         quotation_form = QuotationForm(request.POST, instance=quotation)
         item_formset = QuotationItemFormSet(request.POST, prefix='items')
-        
+        is_custom = request.POST.get('is_custom_quotation') == '1' and _can_custom_quote(request.user)
+
         if quotation_form.is_valid() and item_formset.is_valid():
             quotation = quotation_form.save()
-            
-            # Delete existing items
+
+            # Delete existing items (cascades QuotationItemOverride)
             quotation.items.all().delete()
-            
+
             # Add new items
-            for form in item_formset:
-                if form.cleaned_data:
+            for i, form in enumerate(item_formset):
+                if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
                     item = form.save(commit=False)
                     item.quotation = quotation
                     item.save()
-            
+                    if is_custom:
+                        raw = request.POST.get(f'custom_price_{i}', '').strip()
+                        try:
+                            price = Decimal(raw)
+                            if price > 0:
+                                QuotationItemOverride.objects.create(item=item, custom_price=price)
+                        except (InvalidOperation, ValueError):
+                            pass
+
             return redirect('quotation_dashboard')
     else:
+        existing_items = list(quotation.items.select_related('course').prefetch_related('price_override'))
+        initial_custom = {}
+        for i, item in enumerate(existing_items):
+            try:
+                initial_custom[i] = float(item.price_override.custom_price)
+            except QuotationItemOverride.DoesNotExist:
+                pass
+        has_custom = bool(initial_custom)
+
         quotation_form = QuotationForm(instance=quotation)
         item_formset = QuotationItemFormSet(prefix='items', initial=[
             {'course': item.course, 'duration': item.duration, 'number_of_persons': item.number_of_persons}
-            for item in quotation.items.all()
+            for item in existing_items
         ])
-    
+
     return render(request, 'quotation/edit_quotation.html', {
         'quotation_form': quotation_form,
         'item_formset': item_formset,
+        'courses_json': courses_json,
+        'initial_custom': json.dumps({str(k): v for k, v in initial_custom.items()}),
+        'initial_is_custom': has_custom,
     })
 
 
