@@ -990,12 +990,12 @@ def edit_quotation(request, pk):
 
             return redirect('quotation_dashboard')
     else:
-        existing_items = list(quotation.items.select_related('course').prefetch_related('price_override'))
+        existing_items = list(quotation.items.select_related('course'))
         initial_custom = {}
         for i, item in enumerate(existing_items):
             try:
                 initial_custom[i] = float(item.price_override.custom_price)
-            except QuotationItemOverride.DoesNotExist:
+            except Exception:
                 pass
         has_custom = bool(initial_custom)
 
