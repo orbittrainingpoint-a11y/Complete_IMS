@@ -976,39 +976,38 @@ def edit_quotation(request, pk):
             formset_valid = False
 
         if quotation_form.is_valid() and formset_valid:
+            import traceback as _tb, sys as _sys
             try:
-                quotation = quotation_form.save()
+                with transaction.atomic():
+                    quotation = quotation_form.save()
 
-                # Raw SQL delete bypasses Django cascade collector (avoids OperationalError
-                # if invoices_quotationitemoverride table not yet migrated on server).
-                from django.db import connection
-                with connection.cursor() as cur:
-                    cur.execute(
-                        "DELETE FROM invoices_quotationitem WHERE quotation_id = %s",
-                        [quotation.id]
-                    )
+                    from django.db import connection
+                    with connection.cursor() as cur:
+                        cur.execute(
+                            "DELETE FROM invoices_quotationitem WHERE quotation_id = %s",
+                            [quotation.id]
+                        )
 
-                for i, form in enumerate(item_formset):
-                    if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
-                        item = form.save(commit=False)
-                        item.quotation = quotation
-                        item.save()
-                        if is_custom:
-                            raw = request.POST.get(f'custom_price_{i}', '').strip()
-                            try:
-                                price = Decimal(raw)
-                                if price > 0:
-                                    QuotationItemOverride.objects.create(item=item, custom_price=price)
-                            except Exception:
-                                pass
+                    for i, form in enumerate(item_formset):
+                        if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
+                            item = form.save(commit=False)
+                            item.quotation = quotation
+                            item.save()
+                            if is_custom:
+                                raw = request.POST.get(f'custom_price_{i}', '').strip()
+                                try:
+                                    price = Decimal(raw)
+                                    if price > 0:
+                                        QuotationItemOverride.objects.create(item=item, custom_price=price)
+                                except Exception:
+                                    pass
 
                 return redirect('quotation_dashboard')
             except Exception as exc:
-                import traceback, sys
-                tb = traceback.format_exc()
-                logger.error("edit_quotation POST error pk=%s: %s", pk, tb)
-                print(f"ORBIT_ERP edit_quotation ERROR pk={pk}:\n{tb}", file=sys.stderr, flush=True)
-                raise
+                err_text = _tb.format_exc()
+                logger.error("edit_quotation POST error pk=%s: %s", pk, err_text)
+                print(f"ORBIT_ERP edit_quotation ERROR pk={pk}:\n{err_text}", file=_sys.stderr, flush=True)
+                messages.error(request, f"[DEBUG] Save failed — {type(exc).__name__}: {exc}")
     else:
         existing_items = list(quotation.items.select_related('course'))
         initial_custom = {}
