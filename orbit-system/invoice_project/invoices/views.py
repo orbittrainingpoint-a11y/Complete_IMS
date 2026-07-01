@@ -833,7 +833,7 @@ def create_quotation(request):
                             price = Decimal(raw)
                             if price > 0:
                                 QuotationItemOverride.objects.create(item=item, custom_price=price)
-                        except (InvalidOperation, ValueError):
+                        except Exception:
                             pass
 
             return redirect('quotation_dashboard')
@@ -861,11 +861,14 @@ def quotation_detail(request, pk):
     subtotal = _Dec('0')
     pax_set = set()
 
-    for item in quotation.items.select_related('course').prefetch_related('price_override'):
+    for item in quotation.items.select_related('course'):
         course = item.course
+        rate = None
         try:
             rate = item.price_override.custom_price
-        except QuotationItemOverride.DoesNotExist:
+        except Exception:
+            pass
+        if rate is None:
             if venue == 'online':
                 rate = course.online_rate
             elif venue == 'Company Premises (External)':
@@ -982,7 +985,7 @@ def edit_quotation(request, pk):
                             price = Decimal(raw)
                             if price > 0:
                                 QuotationItemOverride.objects.create(item=item, custom_price=price)
-                        except (InvalidOperation, ValueError):
+                        except Exception:
                             pass
 
             return redirect('quotation_dashboard')
