@@ -499,9 +499,9 @@
         <div class="user-avatar">{{ user.username|slice:":2"|upper }}</div>
         <div>
             <div class="user-name">{{ user.get_full_name|default:user.username }}</div>
-            {% if user.profile %}
+            {% if user_role %}
             <div class="user-role">
-                <span class="role-badge role-{{ user.profile.role }}">{{ user.profile.get_role_display }}</span>
+                <span class="role-badge role-{{ user_role }}">{{ user_role_display }}</span>
             </div>
             {% endif %}
         </div>
@@ -532,7 +532,7 @@
     </div>
 
     <!-- ── FINANCE ───────────────────────────── -->
-    {% if user.profile.role != 'sales_executive' or user.is_superuser %}
+    {% if user_role != 'sales_executive' or is_admin %}
     <div class="nav-section">
         <div class="nav-section-label">Finance</div>
         <div class="nav-item">
@@ -559,7 +559,7 @@
     </div>
     {% endif %}
 
-    {% if user.profile.role == 'sales_executive' and not user.is_superuser %}
+    {% if user_role == 'sales_executive' and not is_admin %}
     <div class="nav-section">
         <div class="nav-section-label">Finance</div>
         <div class="nav-item">
@@ -631,7 +631,7 @@
     </div>
 
     <!-- ── ADMIN ─────────────────────────────── -->
-    {% if user.profile.role == 'admin' or user.is_superuser %}
+    {% if is_admin %}
     <div class="nav-section">
         <div class="nav-section-label">Administration</div>
         <div class="nav-item">
