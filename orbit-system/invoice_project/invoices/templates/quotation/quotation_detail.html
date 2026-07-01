@@ -35,10 +35,11 @@ html, body {
 
 /* ── Page wrapper ── */
 .page {
-  width: 210mm;
+  width: 100%;
+  max-width: 190mm;
   margin: 0 auto;
   background: #ffffff;
-  padding: 8mm 10mm 16mm 10mm; /* extra bottom for fixed footer */
+  padding: 4mm 6mm 16mm 6mm;
 }
 
 .no-break, thead, tfoot { break-inside: avoid; page-break-inside: avoid; }
@@ -71,7 +72,6 @@ tr { break-inside: avoid; page-break-inside: avoid; }
   font-size: 12.8px;
   font-weight: 800;
   color: #111827;
-  white-space: nowrap;
 }
 
 .doc-type {
