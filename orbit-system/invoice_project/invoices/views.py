@@ -964,15 +964,22 @@ def edit_quotation(request, pk):
 
     if request.method == 'POST':
         quotation_form = QuotationForm(request.POST, instance=quotation)
-        item_formset = QuotationItemFormSet(request.POST, prefix='items')
         is_custom = request.POST.get('is_custom_quotation') == '1' and _can_custom_quote(request.user)
+        try:
+            item_formset = QuotationItemFormSet(request.POST, prefix='items')
+            formset_valid = item_formset.is_valid()
+        except Exception:
+            item_formset = QuotationItemFormSet(prefix='items', initial=[
+                {'course': it.course, 'duration': it.duration, 'number_of_persons': it.number_of_persons}
+                for it in quotation.items.select_related('course')
+            ])
+            formset_valid = False
 
-        if quotation_form.is_valid() and item_formset.is_valid():
+        if quotation_form.is_valid() and formset_valid:
             quotation = quotation_form.save()
 
-            # Use raw SQL to delete items so Django's cascade collector doesn't
-            # query invoices_quotationitemoverride (which may not exist on VPS yet).
-            # DB-level ON DELETE CASCADE handles overrides automatically when migration is applied.
+            # Raw SQL delete bypasses Django cascade collector (avoids OperationalError
+            # if invoices_quotationitemoverride table not yet migrated on server).
             from django.db import connection
             with connection.cursor() as cur:
                 cur.execute(
@@ -980,7 +987,6 @@ def edit_quotation(request, pk):
                     [quotation.id]
                 )
 
-            # Add new items
             for i, form in enumerate(item_formset):
                 if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
                     item = form.save(commit=False)
