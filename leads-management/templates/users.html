@@ -35,8 +35,8 @@
                                     <td>{{ user.username }}</td>
                                     <td>{{ user.email }}</td>
                                     <td>
-                                        <span class="badge badge-{% if user.role == 'admin' %}danger{% elif user.role == 'superadmin' %}warning{% else %}info{% endif %}">
-                                            {{ user.role.title() }}
+                                        <span class="badge badge-{% if user.role == 'super_admin' or user.role == 'superadmin' %}warning{% elif user.role == 'admin' %}danger{% elif user.role == 'sales_manager' %}purple{% else %}info{% endif %}">
+                                            {% if user.role == 'sales_manager' %}Sales Manager{% elif user.role == 'super_admin' or user.role == 'superadmin' %}Super Admin{% elif user.role == 'admin' %}Admin{% else %}Consultant{% endif %}
                                         </span>
                                     </td>
                                     <td>

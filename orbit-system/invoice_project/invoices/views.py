@@ -98,7 +98,7 @@ def _make_werkzeug_hash(password, iterations=260000):
 
 def sync_user_to_crm(user, password=None, role=None):
     """Insert or update user in Flask CRM (leads DB). Only for sales roles."""
-    role_map = {'sales_manager': 'admin', 'sales_executive': 'consultant'}
+    role_map = {'sales_manager': 'sales_manager', 'sales_executive': 'consultant'}
     crm_role = role_map.get(role)
     if not crm_role:
         return

@@ -247,7 +247,8 @@ class UserForm(FlaskForm):
     confirm_password = PasswordField('Confirm Password', validators=[Optional()])
     role = SelectField('Role', choices=[
         ('consultant', 'Consultant'),
-        ('admin', 'Admin'), 
+        ('sales_manager', 'Sales Manager'),
+        ('admin', 'Admin'),
         ('super_admin', 'Super Admin')
     ], validators=[DataRequired()])
     active = BooleanField('Active', default=True)
@@ -408,8 +409,9 @@ class EditUserForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
     role = SelectField('Role', choices=[
         ('consultant', 'Consultant'),
-        ('superadmin', 'Super Admin'),
-        ('admin', 'Admin')
+        ('sales_manager', 'Sales Manager'),
+        ('admin', 'Admin'),
+        ('superadmin', 'Super Admin')
     ], validators=[DataRequired()])
     active = BooleanField('Active', default=True)
     
