@@ -24,7 +24,7 @@
     <div class="page-title">Courses</div>
     <div class="page-subtitle">Training courses and rate cards</div>
   </div>
-  <a href="{% url 'course_create' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Course</a>
+  {% if user_role != 'sales_executive' %}<a href="{% url 'course_create' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Course</a>{% endif %}
 </div>
 
 <!-- KPIs -->
@@ -94,13 +94,15 @@
           <td>
             <div class="d-flex gap-1">
               <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-primary btn-sm" title="View"><i class="fas fa-eye"></i></a>
+              {% if user_role != 'sales_executive' %}
               <a href="{% url 'course_update' course.id %}" class="btn btn-outline-secondary btn-sm" title="Edit"><i class="fas fa-pen"></i></a>
               <a href="{% url 'course_delete' course.id %}" class="btn btn-outline-danger btn-sm" title="Delete"><i class="fas fa-trash"></i></a>
+              {% endif %}
             </div>
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="9"><div class="empty-state"><i class="fas fa-book d-block"></i>No courses found. <a href="{% url 'course_create' %}">Add the first one.</a></div></td></tr>
+        <tr><td colspan="9"><div class="empty-state"><i class="fas fa-book d-block"></i>No courses found.{% if user_role != 'sales_executive' %} <a href="{% url 'course_create' %}">Add the first one.</a>{% endif %}</div></td></tr>
         {% endfor %}
       </tbody>
     </table>

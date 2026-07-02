@@ -52,7 +52,7 @@ class InvoiceForm(forms.ModelForm):
 
     class Meta:
         model = Invoice
-        fields = ['registration_number', 'class_type', 'date', 'due_date', 'discount', 'amount_paid', 'number_of_person', 'status', 'payment', 'po_number']
+        fields = ['registration_number', 'class_type', 'level', 'date', 'due_date', 'discount', 'amount_paid', 'number_of_person', 'status', 'payment', 'po_number']
         widgets = {
             'class_type': forms.Select(attrs={'class': 'form-control', 'id': 'id_class_type', 'readonly': 'readonly'}),
             'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
@@ -128,17 +128,7 @@ class InvoiceForm(forms.ModelForm):
             if registration_number:
                 registration_courses = RegistrationCourse.objects.filter(registration__registration_number=registration_number)
                 for reg_course in registration_courses:
-                    # Set unit_price based on class_type
-                    if instance.class_type == 'online':
-                        unit_price = reg_course.course.online_rate
-                    elif instance.class_type == 'offline':
-                        unit_price = reg_course.course.rate  # Assuming 'rate' is used for offline
-                    elif instance.class_type == 'batch':
-                        unit_price = reg_course.course.batch_rate
-                    elif instance.class_type == 'private':
-                        unit_price = reg_course.course.private_rate
-                    else:
-                        unit_price = reg_course.course.online_rate  # Default to regular rate if class_type is not recognized
+                    unit_price = reg_course.course.get_rate(instance.class_type, getattr(instance, 'level', 'intermediate'))
 
                     InvoiceItem.objects.create(
                         invoice=instance,
@@ -286,6 +276,7 @@ class RegistrationForm(forms.ModelForm):
         widgets = {
             'registration_type': forms.Select(attrs={'class': 'form-select'}),
             'class_type': forms.Select(attrs={'class': 'form-select'}),
+            'level': forms.Select(attrs={'class': 'form-select'}),
             'student_status': forms.Select(attrs={'class': 'form-select'}),
             'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control', 'placeholder': _p}),
             'date_of_birth': forms.DateInput(attrs={'type': 'date', 'class': 'form-control', 'placeholder': _p}),
@@ -394,14 +385,36 @@ RegistrationCourseFormSet.form.base_fields['discount'].required = True
 class CourseForm(forms.ModelForm):
     class Meta:
         model = Course
-        fields = ['name', 'code', 'batch_rate', 'online_rate', 'private_rate', 'rate']
+        fields = [
+            'name', 'code',
+            'oo_intermediate', 'oo_professional', 'oo_advanced',
+            'priv_intermediate', 'priv_professional', 'priv_advanced',
+            # legacy fields hidden so existing data is preserved on save
+            'batch_rate', 'online_rate', 'private_rate', 'rate',
+        ]
         labels = {
-            'rate': 'One to One Rate (Offline)',
-            'code': 'Course Code (2-3 letters, unique)'
+            'code': 'Course Code (2-3 letters, unique)',
+            'oo_intermediate':   'Intermediate',
+            'oo_professional':   'Professional',
+            'oo_advanced':       'Advanced',
+            'priv_intermediate': 'Intermediate',
+            'priv_professional': 'Professional',
+            'priv_advanced':     'Advanced',
         }
         widgets = {
-            'code': forms.TextInput(attrs={'class': 'form-control', 'maxlength': '10', 'placeholder': 'e.g., REV, ACD, PY'}),
+            'code':         forms.TextInput(attrs={'class': 'form-control', 'maxlength': '10', 'placeholder': 'e.g., REV, ACD, PY'}),
+            'batch_rate':   forms.HiddenInput(),
+            'online_rate':  forms.HiddenInput(),
+            'private_rate': forms.HiddenInput(),
+            'rate':         forms.HiddenInput(),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # For new courses set legacy fields to 0 so DB NOT NULL constraint is satisfied
+        if not self.instance.pk:
+            for f in ('batch_rate', 'online_rate', 'private_rate', 'rate'):
+                self.fields[f].initial = 0
     
     def clean_code(self):
         code = self.cleaned_data.get('code', '').strip().upper()

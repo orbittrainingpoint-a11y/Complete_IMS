@@ -356,6 +356,12 @@
                 </div>
                 <div class="col-md-6">
                     <div class="form-floating">
+                        {{ form.level }}
+                        <label for="{{ form.level.id_for_label }}">Level</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-floating">
                         {{ form.registration_type }}
                         <label for="{{ form.registration_type.id_for_label }}">Registration Type</label>
                     </div>
@@ -470,10 +476,12 @@
                                 <option value="">— Select course —</option>
                                 {% for c in courses %}
                                 <option value="{{ c.id }}"
-                                    data-online="{{ c.online_rate }}"
-                                    data-offline="{{ c.rate }}"
-                                    data-private="{{ c.private_rate }}"
-                                    data-batch="{{ c.batch_rate }}">
+                                    data-oo-intermediate="{{ c.oo_intermediate }}"
+                                    data-oo-professional="{{ c.oo_professional }}"
+                                    data-oo-advanced="{{ c.oo_advanced }}"
+                                    data-priv-intermediate="{{ c.priv_intermediate }}"
+                                    data-priv-professional="{{ c.priv_professional }}"
+                                    data-priv-advanced="{{ c.priv_advanced }}">
                                     {{ c.name }}{% if c.code %} ({{ c.code }}){% endif %}
                                 </option>
                                 {% endfor %}
@@ -771,7 +779,8 @@ const ctSel = document.getElementById('id_class_type');
 const fmt = n => 'AED ' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 function updatePrices() {
-    const t = ctSel ? ctSel.value : '';
+    const t     = ctSel ? ctSel.value : '';
+    const level = (document.getElementById('id_level') || {value: 'intermediate'}).value || 'intermediate';
     document.getElementById('ctDisplay').textContent = t ? t.charAt(0).toUpperCase() + t.slice(1) : '—';
     let sub = 0, disc = 0;
     document.querySelectorAll('.course-entry').forEach(e => {
@@ -781,13 +790,14 @@ function updatePrices() {
         const pd  = e.querySelector('.course-price-display');
         if (!sel || !sel.value) { if (pd) pd.textContent = 'AED 0'; return; }
         const opt = sel.options[sel.selectedIndex];
-        const pm = {
-            online:  parseFloat(opt.dataset.online  || 0),
-            offline: parseFloat(opt.dataset.offline || 0),
-            private: parseFloat(opt.dataset.private || 0),
-            batch:   parseFloat(opt.dataset.batch   || 0)
-        };
-        const price = pm[t] || 0;
+        let price;
+        if (t === 'private') {
+            price = parseFloat(opt.dataset['priv' + level.charAt(0).toUpperCase() + level.slice(1)] ||
+                               opt.dataset.privIntermediate || 0);
+        } else {
+            price = parseFloat(opt.dataset['oo' + level.charAt(0).toUpperCase() + level.slice(1)] ||
+                               opt.dataset.ooIntermediate || 0);
+        }
         const dv = di ? di.value.trim() : '0';
         let dp = 0;
         if (!isNaN(dv) && dv !== '')
@@ -806,6 +816,7 @@ function updatePrices() {
 }
 
 ctSel?.addEventListener('change', updatePrices);
+document.getElementById('id_level')?.addEventListener('change', updatePrices);
 
 function attachEntry(e) {
     e.querySelector('.course-select')?.addEventListener('change', updatePrices);

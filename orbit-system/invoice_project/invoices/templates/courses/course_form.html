@@ -4,14 +4,17 @@
 
 {% block extra_css %}
 <style>
-.rate-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-@media(max-width:576px){.rate-grid{grid-template-columns:1fr;}}
-.rate-card { background: var(--bg); border: 1.5px solid var(--border); border-radius: 12px; padding: 16px; transition: all .2s; }
-.rate-card:hover { border-color: var(--primary); background: rgba(37,99,235,.03); }
-.rate-card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.price-group { border: 1.5px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
+.price-group-header { background: linear-gradient(135deg,#0f1b2d,#1a2d47); color:#fff; padding: 12px 18px; display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 13px; }
+.price-group-header i { opacity: .75; }
+.price-level-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+@media(max-width:600px){ .price-level-grid { grid-template-columns: 1fr; } }
+.price-level-cell { padding: 16px 18px; border-right: 1px solid var(--border); border-top: 1px solid var(--border); }
+.price-level-cell:last-child { border-right: none; }
+.price-level-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 10px; display: flex; align-items: center; gap: 7px; }
 .rate-input-wrap { position: relative; }
-.rate-currency { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; font-weight: 600; color: var(--text-muted); }
-.rate-input-wrap input { padding-left: 44px; font-size: 18px; font-weight: 700; color: var(--text); border: none; border-bottom: 2px solid var(--border); border-radius: 0; background: transparent; outline: none; width: 100%; transition: border-color .2s; }
+.rate-currency { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.rate-input-wrap input { padding-left: 38px; font-size: 17px; font-weight: 700; color: var(--text); border: none; border-bottom: 2px solid var(--border); border-radius: 0; background: transparent; outline: none; width: 100%; transition: border-color .2s; }
 .rate-input-wrap input:focus { border-color: var(--primary); }
 
 .field-row { margin-bottom: 18px; }
@@ -98,34 +101,54 @@
                     <div style="font-size:12px;opacity:.7">Set rates for each delivery method (AED, excl. VAT)</div>
                 </div>
             </div>
-            <div class="form-section-body">
-                <div class="rate-grid">
-                    <div class="rate-card">
-                        <div class="rate-card-label"><i class="fas fa-desktop text-primary"></i> Online</div>
-                        <div class="rate-input-wrap">
-                            <span class="rate-currency">AED</span>
-                            {{ form.online_rate }}
+            <div class="form-section-body" style="padding:0;">
+                {# Hidden legacy fields — values preserved, not shown #}
+                {{ form.batch_rate }} {{ form.online_rate }} {{ form.private_rate }} {{ form.rate }}
+
+                {# ── Online / Offline ─────────────────────── #}
+                <div class="price-group">
+                    <div class="price-group-header">
+                        <i class="fas fa-desktop"></i> Online / Offline &nbsp;<span style="font-weight:400;opacity:.65;font-size:12px;">rate per person (excl. VAT)</span>
+                    </div>
+                    <div class="price-level-grid">
+                        <div class="price-level-cell">
+                            <div class="price-level-label"><i class="fas fa-seedling" style="color:#10b981;"></i> Intermediate</div>
+                            <div class="rate-input-wrap"><span class="rate-currency">AED</span>{{ form.oo_intermediate }}</div>
+                            {% if form.oo_intermediate.errors %}<div class="text-danger" style="font-size:11px;">{{ form.oo_intermediate.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="price-level-cell">
+                            <div class="price-level-label"><i class="fas fa-star-half-alt" style="color:#f59e0b;"></i> Professional</div>
+                            <div class="rate-input-wrap"><span class="rate-currency">AED</span>{{ form.oo_professional }}</div>
+                            {% if form.oo_professional.errors %}<div class="text-danger" style="font-size:11px;">{{ form.oo_professional.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="price-level-cell">
+                            <div class="price-level-label"><i class="fas fa-star" style="color:#8b5cf6;"></i> Advanced</div>
+                            <div class="rate-input-wrap"><span class="rate-currency">AED</span>{{ form.oo_advanced }}</div>
+                            {% if form.oo_advanced.errors %}<div class="text-danger" style="font-size:11px;">{{ form.oo_advanced.errors.0 }}</div>{% endif %}
                         </div>
                     </div>
-                    <div class="rate-card">
-                        <div class="rate-card-label"><i class="fas fa-chalkboard text-success"></i> Classroom (Offline)</div>
-                        <div class="rate-input-wrap">
-                            <span class="rate-currency">AED</span>
-                            {{ form.rate }}
-                        </div>
+                </div>
+
+                {# ── Private ──────────────────────────────── #}
+                <div class="price-group" style="margin-bottom:0;">
+                    <div class="price-group-header">
+                        <i class="fas fa-user-tie"></i> Private (1-on-1) &nbsp;<span style="font-weight:400;opacity:.65;font-size:12px;">rate per person (excl. VAT)</span>
                     </div>
-                    <div class="rate-card">
-                        <div class="rate-card-label"><i class="fas fa-user-tie text-warning"></i> Private (1-on-1)</div>
-                        <div class="rate-input-wrap">
-                            <span class="rate-currency">AED</span>
-                            {{ form.private_rate }}
+                    <div class="price-level-grid">
+                        <div class="price-level-cell">
+                            <div class="price-level-label"><i class="fas fa-seedling" style="color:#10b981;"></i> Intermediate</div>
+                            <div class="rate-input-wrap"><span class="rate-currency">AED</span>{{ form.priv_intermediate }}</div>
+                            {% if form.priv_intermediate.errors %}<div class="text-danger" style="font-size:11px;">{{ form.priv_intermediate.errors.0 }}</div>{% endif %}
                         </div>
-                    </div>
-                    <div class="rate-card">
-                        <div class="rate-card-label"><i class="fas fa-users text-info"></i> Batch / Group</div>
-                        <div class="rate-input-wrap">
-                            <span class="rate-currency">AED</span>
-                            {{ form.batch_rate }}
+                        <div class="price-level-cell">
+                            <div class="price-level-label"><i class="fas fa-star-half-alt" style="color:#f59e0b;"></i> Professional</div>
+                            <div class="rate-input-wrap"><span class="rate-currency">AED</span>{{ form.priv_professional }}</div>
+                            {% if form.priv_professional.errors %}<div class="text-danger" style="font-size:11px;">{{ form.priv_professional.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="price-level-cell">
+                            <div class="price-level-label"><i class="fas fa-star" style="color:#8b5cf6;"></i> Advanced</div>
+                            <div class="rate-input-wrap"><span class="rate-currency">AED</span>{{ form.priv_advanced }}</div>
+                            {% if form.priv_advanced.errors %}<div class="text-danger" style="font-size:11px;">{{ form.priv_advanced.errors.0 }}</div>{% endif %}
                         </div>
                     </div>
                 </div>

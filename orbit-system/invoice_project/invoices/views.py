@@ -478,17 +478,7 @@ def create_invoice(request):
                     
                     course = Course.objects.get(id=course_id)
                     
-                    # Set unit_price based on class_type
-                    if invoice.class_type == 'online':
-                        unit_price = course.online_rate
-                    elif invoice.class_type == 'offline':
-                        unit_price = course.rate  # Assuming 'rate' is used for offline
-                    elif invoice.class_type == 'batch':
-                        unit_price = course.batch_rate
-                    elif invoice.class_type == 'private':
-                        unit_price = course.private_rate
-                    else:
-                        unit_price = course.rate  # Default to regular rate if class_type is not recognized
+                    unit_price = course.get_rate(invoice.class_type, request.POST.get('level', 'intermediate'))
                     
                     InvoiceItem.objects.create(
                         invoice=invoice,
@@ -651,13 +641,7 @@ def edit_invoice(request, invoice_id):
                     try:
                         course = Course.objects.get(id=int(value))
                         quantity = max(1, int(request.POST.get(f'quantity_{value}', 1)))
-                        ct = invoice.class_type
-                        unit_price = (
-                            course.online_rate  if ct == 'online'  else
-                            course.batch_rate   if ct == 'batch'   else
-                            course.private_rate if ct == 'private' else
-                            course.rate
-                        )
+                        unit_price = course.get_rate(invoice.class_type, request.POST.get('level', 'intermediate'))
                         InvoiceItem.objects.create(
                             invoice=invoice, course=course,
                             quantity=quantity, unit_price=unit_price,
@@ -795,6 +779,23 @@ def delete_purchase_invoice(request, pk):
     return render(request, 'invoices/delete_purchase_invoice.html', {'invoice': invoice})
 
 
+def _resolve_coupon(code):
+    """Return (Coupon|None, discount_percentage) for a coupon code string."""
+    from django.utils import timezone as tz
+    code = (code or '').strip().upper()
+    if not code:
+        return None, Decimal('0.00')
+    try:
+        c = Coupon.objects.get(code=code, is_active=True)
+        if c.expiry_date and c.expiry_date < tz.now().date():
+            return None, Decimal('0.00')
+        if c.max_uses and c.used_count >= c.max_uses:
+            return None, Decimal('0.00')
+        return c, c.discount_percentage
+    except Coupon.DoesNotExist:
+        return None, Decimal('0.00')
+
+
 def _can_custom_quote(user):
     try:
         role = user.profile.role
@@ -808,7 +809,12 @@ def create_quotation(request):
     from decimal import Decimal, InvalidOperation
     QuotationItemFormSet = formset_factory(QuotationItemForm, extra=1)
     courses_json = json.dumps(
-        list(Course.objects.values('id', 'name', 'rate', 'online_rate', 'private_rate', 'batch_rate')),
+        list(Course.objects.values(
+            'id', 'name',
+            'oo_intermediate', 'oo_professional', 'oo_advanced',
+            'priv_intermediate', 'priv_professional', 'priv_advanced',
+            'rate', 'online_rate', 'private_rate', 'batch_rate',
+        )),
         default=float
     )
 
@@ -820,6 +826,27 @@ def create_quotation(request):
         if quotation_form.is_valid() and item_formset.is_valid():
             quotation = quotation_form.save(commit=False)
             quotation.user = request.user
+
+            # Discount cap enforcement for sales executives
+            role = get_user_role(request.user)
+            if role == 'sales_executive':
+                item_count = sum(
+                    1 for f in item_formset
+                    if f.cleaned_data and not f.cleaned_data.get('DELETE', False)
+                )
+                base_cap = Decimal('30.00') if item_count >= 2 else Decimal('20.00')
+                coupon_obj, coupon_extra = _resolve_coupon(request.POST.get('coupon_code', ''))
+                max_allowed = min(base_cap + coupon_extra, Decimal('100.00'))
+                if quotation.discount > max_allowed:
+                    quotation.discount = max_allowed
+                quotation.coupon = coupon_obj
+                if coupon_obj:
+                    coupon_obj.used_count += 1
+                    coupon_obj.save(update_fields=['used_count'])
+            else:
+                coupon_obj, _ = _resolve_coupon(request.POST.get('coupon_code', ''))
+                quotation.coupon = coupon_obj
+
             quotation.save()
 
             for i, form in enumerate(item_formset):
@@ -957,7 +984,12 @@ def edit_quotation(request, pk):
     quotation = get_object_or_404(Quotation, pk=pk)
     QuotationItemFormSet = formset_factory(QuotationItemForm, extra=0)
     courses_json = json.dumps(
-        list(Course.objects.values('id', 'name', 'rate', 'online_rate', 'private_rate', 'batch_rate')),
+        list(Course.objects.values(
+            'id', 'name',
+            'oo_intermediate', 'oo_professional', 'oo_advanced',
+            'priv_intermediate', 'priv_professional', 'priv_advanced',
+            'rate', 'online_rate', 'private_rate', 'batch_rate',
+        )),
         default=float
     )
     initial_custom = {}
@@ -979,7 +1011,31 @@ def edit_quotation(request, pk):
         if quotation_form.is_valid() and formset_valid:
             try:
                 with transaction.atomic():
-                    quotation = quotation_form.save()
+                    quotation = quotation_form.save(commit=False)
+
+                    # Discount cap enforcement for sales executives
+                    role = get_user_role(request.user)
+                    if role == 'sales_executive':
+                        item_count = sum(
+                            1 for f in item_formset
+                            if f.cleaned_data and not f.cleaned_data.get('DELETE', False)
+                        )
+                        base_cap = Decimal('30.00') if item_count >= 2 else Decimal('20.00')
+                        coupon_obj, coupon_extra = _resolve_coupon(request.POST.get('coupon_code', ''))
+                        max_allowed = min(base_cap + coupon_extra, Decimal('100.00'))
+                        if quotation.discount > max_allowed:
+                            quotation.discount = max_allowed
+                        # Release previous coupon FK before re-assigning
+                        old_coupon = quotation.coupon
+                        quotation.coupon = coupon_obj
+                        if coupon_obj and coupon_obj != old_coupon:
+                            coupon_obj.used_count += 1
+                            coupon_obj.save(update_fields=['used_count'])
+                    else:
+                        coupon_obj, _ = _resolve_coupon(request.POST.get('coupon_code', ''))
+                        quotation.coupon = coupon_obj
+
+                    quotation.save()
 
                     from django.db import connection
                     with connection.cursor() as cur:
@@ -1038,6 +1094,7 @@ def edit_quotation(request, pk):
         'courses_json': courses_json,
         'initial_custom': json.dumps({str(k): v for k, v in initial_custom.items()}),
         'initial_is_custom': has_custom,
+        'quotation': quotation,
     })
 
 
@@ -1347,11 +1404,18 @@ def get_registration_details(request):
         courses = []
         discount = 0  # Initialize discount
         for rc in registration_courses:
+            c = rc.course
             courses.append({
-                'id': rc.course.id,
-                'name': rc.course.name,
-                'rate': float(rc.course.rate),
-                'discount': float(rc.discount)
+                'id': c.id,
+                'name': c.name,
+                'rate': float(c.oo_intermediate),  # default display rate
+                'oo_intermediate':   float(c.oo_intermediate),
+                'oo_professional':   float(c.oo_professional),
+                'oo_advanced':       float(c.oo_advanced),
+                'priv_intermediate': float(c.priv_intermediate),
+                'priv_professional': float(c.priv_professional),
+                'priv_advanced':     float(c.priv_advanced),
+                'discount': float(rc.discount),
             })
             if rc.discount > discount:
                 discount = rc.discount  # Set the highest discount
@@ -1699,6 +1763,9 @@ def course_detail(request, course_id):
 
 @login_required
 def course_create(request):
+    if get_user_role(request.user) == 'sales_executive':
+        messages.error(request, 'Sales executives cannot create or edit courses.')
+        return redirect('course_list')
     if request.method == 'POST':
         form = CourseForm(request.POST)
         if form.is_valid():
@@ -1710,6 +1777,9 @@ def course_create(request):
 
 @login_required
 def course_update(request, course_id):
+    if get_user_role(request.user) == 'sales_executive':
+        messages.error(request, 'Sales executives cannot create or edit courses.')
+        return redirect('course_list')
     course = get_object_or_404(Course, id=course_id)
     if request.method == 'POST':
         form = CourseForm(request.POST, instance=course)
@@ -2817,8 +2887,17 @@ def remove_logo(request, proposal_id):
 def payment_link(request):
     return render(request, 'payment/payment_link.html')
 
-@user_passes_test(is_admin_user)
+def _can_manage_coupons(user):
+    try:
+        return user.profile.role in ('admin', 'sales_manager') or user.is_superuser
+    except Exception:
+        return user.is_superuser
+
+@login_required
 def coupon_list(request):
+    if not _can_manage_coupons(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
     qs = Coupon.objects.all().order_by('-created_at')
     search = request.GET.get('q', '')
     if search:
@@ -2831,8 +2910,11 @@ def coupon_list(request):
         'search': search,
     })
 
-@user_passes_test(is_admin_user)
+@login_required
 def create_coupon(request):
+    if not _can_manage_coupons(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
     if request.method == 'POST':
         form = CouponForm(request.POST)
         if form.is_valid():
@@ -2845,8 +2927,11 @@ def create_coupon(request):
         form = CouponForm()
     return render(request, 'coupons/create_coupon.html', {'form': form})
 
-@user_passes_test(is_admin_user)
+@login_required
 def edit_coupon(request, pk):
+    if not _can_manage_coupons(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
     coupon = get_object_or_404(Coupon, pk=pk)
     if request.method == 'POST':
         form = CouponForm(request.POST, instance=coupon)
@@ -2858,8 +2943,11 @@ def edit_coupon(request, pk):
         form = CouponForm(instance=coupon)
     return render(request, 'coupons/edit_coupon.html', {'form': form, 'coupon': coupon})
 
-@user_passes_test(is_admin_user)
+@login_required
 def delete_coupon(request, pk):
+    if not _can_manage_coupons(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
     coupon = get_object_or_404(Coupon, pk=pk)
     if request.method == 'POST':
         coupon.delete()
@@ -2869,17 +2957,19 @@ def delete_coupon(request, pk):
 
 @login_required
 def validate_coupon(request):
-    code = request.GET.get('code', '').strip()
-    if code:
-        try:
-            coupon = Coupon.objects.get(code=code, is_active=True)
-            return JsonResponse({
-                'valid': True,
-                'discount': float(coupon.discount_percentage)
-            })
-        except Coupon.DoesNotExist:
-            return JsonResponse({'valid': False})
-    return JsonResponse({'valid': False})
+    from django.utils import timezone as tz
+    code = request.GET.get('code', '').strip().upper()
+    if not code:
+        return JsonResponse({'valid': False, 'error': 'No code provided'})
+    try:
+        coupon = Coupon.objects.get(code=code, is_active=True)
+    except Coupon.DoesNotExist:
+        return JsonResponse({'valid': False, 'error': 'Invalid or inactive coupon'})
+    if coupon.expiry_date and coupon.expiry_date < tz.now().date():
+        return JsonResponse({'valid': False, 'error': 'Coupon has expired'})
+    if coupon.max_uses and coupon.used_count >= coupon.max_uses:
+        return JsonResponse({'valid': False, 'error': 'Coupon usage limit reached'})
+    return JsonResponse({'valid': True, 'discount': float(coupon.discount_percentage), 'code': coupon.code})
 
 
 # ── Revenue Report (F18) ────────────────────────────────────────────────────

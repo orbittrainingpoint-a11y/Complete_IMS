@@ -74,14 +74,38 @@ class Client(models.Model):
     def __str__(self):
         return self.name
 
+LEVEL_CHOICES = [
+    ('intermediate', 'Intermediate'),
+    ('professional', 'Professional'),
+    ('advanced', 'Advanced'),
+]
+
 class Course(models.Model):
     name = models.CharField(max_length=255)
-    batch_rate = models.DecimalField(max_digits=10, decimal_places=2)
-    online_rate = models.DecimalField(max_digits=10, decimal_places=2)
-    private_rate = models.DecimalField(max_digits=10, decimal_places=2)
-    rate = models.DecimalField(max_digits=10, decimal_places=2)
-    code = models.CharField(max_length=10, unique=True)
+    # Legacy rate fields — kept so existing invoices/quotations remain valid
+    batch_rate   = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    online_rate  = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    private_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    rate         = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    code         = models.CharField(max_length=10, unique=True)
+    # Structured pricing: Online/Offline × level and Private × level
+    oo_intermediate  = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Online/Offline – Intermediate')
+    oo_professional  = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Online/Offline – Professional')
+    oo_advanced      = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Online/Offline – Advanced')
+    priv_intermediate = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Private – Intermediate')
+    priv_professional = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Private – Professional')
+    priv_advanced     = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Private – Advanced')
 
+    def get_rate(self, class_type, level='intermediate'):
+        level = level or 'intermediate'
+        if class_type == 'private':
+            return {'intermediate': self.priv_intermediate,
+                    'professional': self.priv_professional,
+                    'advanced':     self.priv_advanced}.get(level, self.priv_intermediate)
+        else:  # online, offline, batch
+            return {'intermediate': self.oo_intermediate,
+                    'professional': self.oo_professional,
+                    'advanced':     self.oo_advanced}.get(level, self.oo_intermediate)
 
     def __str__(self):
         return self.name
@@ -127,6 +151,7 @@ class Registration(models.Model):
     address = models.TextField(blank=True)  # Made optional
     company_or_university_name = models.CharField(max_length=100, blank=True)  # Made optional
     consultant_name = models.CharField(max_length=100)
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='intermediate', blank=True)
     courses = models.ManyToManyField(Course, through='RegistrationCourse')
 
     STUDENT_STATUS_CHOICES = [
@@ -215,22 +240,16 @@ class Invoice(models.Model):
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
     discount = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     number_of_person = models.IntegerField()
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='intermediate', blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
     payment = models.CharField(max_length=20, choices=CARD_CHOICES)
     po_number = models.CharField(max_length=100, blank=True, default='')
 
     def calculate_total_amount(self):
         total = Decimal('0.00')
-        if self.pk:  # Only calculate if the invoice has been saved
+        if self.pk:
             for item in self.items.all():
-                if self.class_type == 'online':
-                    course_total = item.course.online_rate * item.quantity * self.number_of_person
-                elif self.class_type == 'offline':
-                    course_total = item.course.rate * item.quantity * self.number_of_person
-                elif self.class_type == 'private':
-                    course_total = item.course.private_rate * item.quantity * self.number_of_person
-                elif self.class_type == 'batch':
-                    course_total = item.course.batch_rate * item.quantity * self.number_of_person
+                course_total = item.course.get_rate(self.class_type, self.level) * item.quantity * self.number_of_person
                 discounted_total = course_total * (1 - Decimal(self.discount) / 100)
                 vat_amount = discounted_total * Decimal('0.05')
                 total += discounted_total + vat_amount
@@ -392,6 +411,7 @@ class Quotation(models.Model):
     schedule = models.CharField(max_length=255)
     training_venue = models.CharField(max_length=50, choices=VENUE_CHOICES)
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    coupon = models.ForeignKey('Coupon', null=True, blank=True, on_delete=models.SET_NULL, related_name='quotations')
     consultant_position = models.CharField(max_length=255)
     consultant_name = models.CharField(max_length=20)
     consultant_number = models.CharField(max_length=20)

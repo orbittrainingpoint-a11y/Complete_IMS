@@ -84,6 +84,16 @@
                         </div>
                     </div>
                     {% endfor %}
+                    <div class="col-md-6">
+                        <div class="floating-group active">
+                            <select id="id_quot_level" name="quot_level" class="form-select">
+                                <option value="intermediate">Intermediate</option>
+                                <option value="professional">Professional</option>
+                                <option value="advanced">Advanced</option>
+                            </select>
+                            <label for="id_quot_level">Level</label>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -160,6 +170,20 @@
             <div class="qs-row"><span style="color:rgba(255,255,255,.7);">Items</span><span id="itemCount" style="font-weight:700;">0</span></div>
             <div class="qs-row"><span style="color:rgba(255,255,255,.7);">Total Persons</span><span id="totalPersons" style="font-weight:700;">0</span></div>
             <div class="qs-row" id="estTotalRow" style="display:none;"><span style="color:rgba(255,255,255,.7);">Est. Total (RM)</span><span id="estTotal" style="font-weight:700;color:#fbbf24;">0.00</span></div>
+
+            {% if user_role == 'sales_executive' %}
+            <!-- Discount cap panel for sales executive -->
+            <div class="qs-row mt-1"><span style="color:rgba(255,255,255,.7);">Max Discount</span><span id="discountCapBadge" style="font-weight:700;color:#fbbf24;">20%</span></div>
+            <div style="margin-top:14px;">
+                <label style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.6);font-weight:700;">Coupon Code</label>
+                <div class="d-flex gap-2 mt-1">
+                    <input type="text" id="couponInput" name="coupon_code" class="form-control" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:13px;border-radius:8px;padding:8px 12px;flex:1;" placeholder="Enter code…" autocomplete="off">
+                    <button type="button" id="couponApplyBtn" class="btn" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;">Apply</button>
+                </div>
+                <div id="couponMsg" style="font-size:12px;margin-top:6px;min-height:18px;"></div>
+            </div>
+            {% endif %}
+
             <button type="submit" class="btn btn-primary w-100 mt-4" style="padding:14px;font-size:15px;font-weight:700;border-radius:12px;">
                 <i class="fas fa-file-alt me-2"></i>Create Quotation
             </button>
@@ -174,6 +198,10 @@
                 <div class="mt-2"><i class="fas fa-plus text-success me-2"></i>Add multiple courses per quotation</div>
                 {% if is_admin or user_role == 'sales_manager' %}
                 <div class="mt-2"><i class="fas fa-pen text-warning me-2"></i>Custom mode: set price per pax manually</div>
+                {% endif %}
+                {% if user_role == 'sales_executive' %}
+                <div class="mt-2"><i class="fas fa-percent text-warning me-2"></i>Discount cap: 20% (1 course) · 30% (2–4 courses)</div>
+                <div class="mt-2"><i class="fas fa-ticket-alt text-success me-2"></i>Use a coupon code for additional discount</div>
                 {% endif %}
             </div>
         </div>
@@ -201,13 +229,19 @@ function getVenueKey() {
     return 'standard';
 }
 
+function getQuotLevel() {
+    const lf = document.getElementById('id_quot_level');
+    return lf ? lf.value || 'intermediate' : 'intermediate';
+}
+
 function getCourseRate(courseId) {
     const c = COURSES_MAP[courseId];
     if (!c) return 0;
-    const vk = getVenueKey();
-    if (vk === 'online') return parseFloat(c.online_rate) || 0;
-    if (vk === 'private') return parseFloat(c.private_rate) || 0;
-    return parseFloat(c.rate) || 0;
+    const vk    = getVenueKey();
+    const level = getQuotLevel();
+    if (vk === 'private') return parseFloat(c['priv_' + level] || c.priv_intermediate) || 0;
+    // online or standard (in-house offline) → Online/Offline rates
+    return parseFloat(c['oo_' + level] || c.oo_intermediate) || 0;
 }
 
 function autoFillCustomPrice(entry) {
@@ -335,6 +369,21 @@ if (venueField) {
     });
 }
 
+// Level change: re-fill custom prices
+const levelField = document.getElementById('id_quot_level');
+if (levelField) {
+    levelField.addEventListener('change', () => {
+        if (isCustomMode) {
+            document.querySelectorAll('.item-entry').forEach(e => {
+                const pi = e.querySelector('.custom-price-input');
+                if (pi) pi.value = '';
+                autoFillCustomPrice(e);
+            });
+        }
+        updateSummary();
+    });
+}
+
 // style formset inputs
 document.querySelectorAll('.item-entry select,.item-entry input').forEach(el => {
     if (!el.classList.contains('form-select') && !el.classList.contains('form-control') && !el.classList.contains('custom-price-input')) {
@@ -353,5 +402,82 @@ document.querySelectorAll('.floating-group input,.floating-group select,.floatin
 });
 
 updateSummary();
+
+{% if user_role == 'sales_executive' %}
+// ── Discount cap logic for sales executive ─────────────────────────────────
+const IS_SALES_EXEC = true;
+let couponExtraDiscount = 0;
+
+function getDiscountCap() {
+    const count = document.querySelectorAll('.item-entry').length;
+    return count >= 2 ? 30 : 20;
+}
+
+function updateDiscountCap() {
+    const cap = getDiscountCap() + couponExtraDiscount;
+    const badge = document.getElementById('discountCapBadge');
+    if (badge) badge.textContent = cap + '%';
+    const discountField = document.getElementById('id_discount');
+    if (discountField) {
+        discountField.max = cap;
+        if (parseFloat(discountField.value) > cap) discountField.value = cap;
+    }
+}
+
+// Override updateSummary to also update cap
+const _origUpdateSummary = updateSummary;
+function updateSummary() {
+    _origUpdateSummary();
+    updateDiscountCap();
+}
+
+// Coupon AJAX validation
+const couponApplyBtn = document.getElementById('couponApplyBtn');
+const couponInput    = document.getElementById('couponInput');
+const couponMsg      = document.getElementById('couponMsg');
+
+if (couponApplyBtn) {
+    couponApplyBtn.addEventListener('click', () => {
+        const code = couponInput.value.trim().toUpperCase();
+        if (!code) { couponMsg.innerHTML = '<span style="color:#fca5a5;">Please enter a coupon code.</span>'; return; }
+        couponApplyBtn.disabled = true;
+        couponMsg.innerHTML = '<span style="color:rgba(255,255,255,.6);">Validating…</span>';
+        fetch(`{% url 'validate_coupon' %}?code=${encodeURIComponent(code)}`)
+            .then(r => r.json())
+            .then(data => {
+                couponApplyBtn.disabled = false;
+                if (data.valid) {
+                    couponExtraDiscount = data.discount;
+                    couponInput.value = data.code;
+                    couponMsg.innerHTML = `<span style="color:#86efac;"><i class="fas fa-check-circle me-1"></i>Coupon applied! +${data.discount}% extra discount unlocked.</span>`;
+                    updateDiscountCap();
+                } else {
+                    couponExtraDiscount = 0;
+                    couponMsg.innerHTML = `<span style="color:#fca5a5;"><i class="fas fa-times-circle me-1"></i>${data.error || 'Invalid coupon'}</span>`;
+                    updateDiscountCap();
+                }
+            })
+            .catch(() => {
+                couponApplyBtn.disabled = false;
+                couponMsg.innerHTML = '<span style="color:#fca5a5;">Network error. Try again.</span>';
+            });
+    });
+    couponInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); couponApplyBtn.click(); }});
+    couponInput.addEventListener('input', () => {
+        if (!couponInput.value.trim()) { couponExtraDiscount = 0; couponMsg.innerHTML = ''; updateDiscountCap(); }
+    });
+}
+
+// Enforce cap on the discount input directly
+const discountInput = document.getElementById('id_discount');
+if (discountInput) {
+    discountInput.addEventListener('input', () => {
+        const cap = getDiscountCap() + couponExtraDiscount;
+        if (parseFloat(discountInput.value) > cap) discountInput.value = cap;
+    });
+}
+
+updateDiscountCap();
+{% endif %}
 </script>
 {% endblock %}

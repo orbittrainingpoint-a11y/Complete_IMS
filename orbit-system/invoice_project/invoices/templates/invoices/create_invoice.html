@@ -159,6 +159,12 @@
                     </div>
                     <div class="col-md-6">
                         <div class="field-row">
+                            <label>Level</label>
+                            {{ form.level }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field-row">
                             <label>Invoice Date</label>
                             {{ form.date }}
                         </div>
@@ -361,7 +367,63 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 const fmt = n => 'AED ' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
-let _alreadyPaid = 0; // cumulative from previous invoices on same registration
+let _alreadyPaid = 0;
+window._invoiceCourses = window._invoiceCourses || [];
+
+function getInvoiceRate(c) {
+    const ct    = $('#id_class_type').val() || 'offline';
+    const level = $('#id_level').val() || 'intermediate';
+    if (ct === 'private') {
+        return parseFloat(c['priv_' + level] || c.priv_intermediate || 0);
+    }
+    return parseFloat(c['oo_' + level] || c.oo_intermediate || 0);
+}
+
+function rebuildCoursePills() {
+    $('#courseFields').empty();
+    window._invoiceCourses.forEach(c => {
+        const rate = getInvoiceRate(c);
+        $('#courseFields').append(`
+            <div class="course-pill"
+                 data-oo-intermediate="${c.oo_intermediate||0}"
+                 data-oo-professional="${c.oo_professional||0}"
+                 data-oo-advanced="${c.oo_advanced||0}"
+                 data-priv-intermediate="${c.priv_intermediate||0}"
+                 data-priv-professional="${c.priv_professional||0}"
+                 data-priv-advanced="${c.priv_advanced||0}"
+                 data-id="${c.id}">
+                <div>
+                    <div class="course-pill-name">${c.name}</div>
+                    <div class="course-pill-rate-display" style="font-size:12px;color:var(--text-muted);">AED ${rate.toFixed(2)} / person</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <label style="font-size:12px;color:var(--text-muted);">Qty</label>
+                    <input type="number" name="quantity_${c.id}" value="1" min="1" class="form-control qty-inp" style="width:70px;">
+                    <input type="hidden" name="course_${c.id}" value="${c.id}">
+                </div>
+            </div>`);
+    });
+    $('#courseFields .qty-inp').on('input', calcTotals);
+}
+
+function refreshPillRates() {
+    $('#courseFields .course-pill').each(function() {
+        const ct    = $('#id_class_type').val() || 'offline';
+        const level = $('#id_level').val() || 'intermediate';
+        let rate;
+        if (ct === 'private') {
+            rate = parseFloat($(this).data('priv-' + level) || $(this).data('priv-intermediate') || 0);
+        } else {
+            rate = parseFloat($(this).data('oo-' + level) || $(this).data('oo-intermediate') || 0);
+        }
+        $(this).data('rate', rate);
+        $(this).find('.course-pill-rate-display').text('AED ' + rate.toFixed(2) + ' / person');
+    });
+    calcTotals();
+}
+
+// Refresh pill rates whenever class_type or level changes
+$(document).on('change', '#id_class_type, #id_level', refreshPillRates);
 
 function calcTotals() {
     let subtotal = 0;
@@ -428,25 +490,9 @@ function doLookup(regNum) {
                 $('#company_name_group').hide();
             }
 
-            // Build course pills
-            $('#courseFields').empty();
-            if(data.courses && data.courses.length) {
-                data.courses.forEach((c,i) => {
-                    $('#courseFields').append(`
-                        <div class="course-pill" data-rate="${c.rate}" data-id="${c.id}">
-                            <div>
-                                <div class="course-pill-name">${c.name}</div>
-                                <div style="font-size:12px;color:var(--text-muted);">AED ${parseFloat(c.rate||0).toFixed(2)} / person</div>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <label style="font-size:12px;color:var(--text-muted);">Qty</label>
-                                <input type="number" name="quantity_${c.id}" value="1" min="1" class="form-control qty-inp" style="width:70px;">
-                                <input type="hidden" name="course_${c.id}" value="${c.id}">
-                            </div>
-                        </div>`);
-                });
-                $('#courseFields .qty-inp').on('input', calcTotals);
-            }
+            // Build course pills — store all 6 rates as data attrs
+            window._invoiceCourses = data.courses || [];
+            rebuildCoursePills();
             calcTotals();
         },
         error: function() {
