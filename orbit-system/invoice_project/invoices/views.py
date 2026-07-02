@@ -918,6 +918,7 @@ def quotation_detail(request, pk):
     })
 
 
+@login_required
 def quotation_dashboard(request):
     qs = Quotation.objects.prefetch_related('items__course').order_by('-id')
     q_number    = request.GET.get('q_number', '')

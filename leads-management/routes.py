@@ -155,7 +155,7 @@ def get_lead(id):
     lead = Lead.query.get_or_404(id)
     
     # ROLE-BASED ACCESS CONTROL
-    if not (current_user.is_admin() or lead.assigned_to == current_user.id):
+    if not (current_user.is_admin() or current_user.can_view_all_leads or lead.assigned_to == current_user.id):
         return jsonify({
             'success': False,
             'message': 'You can only view leads assigned to you!'
@@ -185,7 +185,7 @@ def lead_detail(lead_id):
     lead = Lead.query.get_or_404(lead_id)
     
     # ROLE-BASED ACCESS CONTROL
-    if not (current_user.is_admin() or lead.assigned_to == current_user.id):
+    if not (current_user.is_admin() or current_user.can_view_all_leads or lead.assigned_to == current_user.id):
         flash('You can only view leads assigned to you!', 'error')
         return redirect(url_for('main.leads'))
     
@@ -275,7 +275,7 @@ def update_quote_amount(id):
     quote = LeadQuote.query.get_or_404(id)
     
     # ROLE-BASED ACCESS CONTROL
-    if not (current_user.is_admin() or quote.lead.assigned_to == current_user.id):
+    if not (current_user.is_admin() or current_user.can_view_all_leads or quote.lead.assigned_to == current_user.id):
         return jsonify({
             'success': False,
             'message': 'You can only edit quotes for leads assigned to you!'
@@ -566,7 +566,7 @@ def edit_lead(id):
     lead = Lead.query.get_or_404(id)
     
     # ROLE-BASED ACCESS CONTROL
-    if not (current_user.is_admin() or lead.assigned_to == current_user.id):
+    if not (current_user.is_admin() or current_user.can_view_all_leads or lead.assigned_to == current_user.id):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 'success': False,
