@@ -2193,6 +2193,27 @@ def _accounts_dashboard(request):
 # ─── MANAGE USERS ───────────────────────────────────────────────────────────
 
 @login_required
+def sync_all_crm_users(request):
+    """Re-push every sales_manager / sales_executive to the CRM DB so flags are current."""
+    if not is_admin_user(request.user):
+        messages.error(request, 'Access denied.')
+        return redirect('orbit_dashboard')
+    from django.contrib.auth.models import User
+    sales_users = User.objects.select_related('profile').filter(
+        profile__role__in=('sales_manager', 'sales_executive'), is_active=True
+    )
+    ok = fail = 0
+    for u in sales_users:
+        try:
+            sync_user_to_crm(u, role=u.profile.role)
+            ok += 1
+        except Exception:
+            fail += 1
+    messages.success(request, f"CRM sync done — {ok} user(s) updated, {fail} failed.")
+    return redirect('manage_users')
+
+
+@login_required
 def manage_users(request):
     if not is_admin_user(request.user):
         messages.error(request, 'Access denied.')

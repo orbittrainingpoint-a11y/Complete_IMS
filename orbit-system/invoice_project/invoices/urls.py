@@ -6,6 +6,7 @@ from . import views
 urlpatterns = [
     path('', views.orbit_dashboard, name='orbit_dashboard'),
     path('manage/users/', views.manage_users, name='manage_users'),
+    path('manage/sync-crm/', views.sync_all_crm_users, name='sync_all_crm_users'),
     path('manage/users/<int:user_id>/role/', views.update_user_role, name='update_user_role'),
     path('manage/users/<int:user_id>/edit/', views.edit_user, name='edit_user'),
     path('manage/users/<int:user_id>/delete/', views.delete_user, name='delete_user'),
