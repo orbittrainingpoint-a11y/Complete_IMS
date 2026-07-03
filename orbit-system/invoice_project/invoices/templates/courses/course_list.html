@@ -11,10 +11,10 @@
 .c-table tbody tr:hover { background:#f8faff; }
 .rate-val { font-weight:700;font-size:13px; }
 .rate-sub { font-size:10px;color:var(--text-muted); }
-.level-rates { display:flex;flex-direction:column;gap:2px; }
-.level-row { display:flex;justify-content:space-between;gap:8px;font-size:11px; }
-.level-lbl { color:var(--text-muted);font-weight:500;min-width:28px; }
-.level-amt { font-weight:700;color:var(--text);white-space:nowrap; }
+.level-rates { display:flex;flex-direction:column;gap:3px; }
+.level-row { font-size:11px;display:flex;align-items:center;gap:5px;white-space:nowrap; }
+.level-lbl { color:var(--text-muted);font-weight:500;width:26px;flex-shrink:0; }
+.level-amt { font-weight:700;color:var(--text); }
 .filter-card { background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px; }
 .filter-card .form-control { font-size:13px;border-radius:8px;border-color:var(--border); }
 .empty-state { text-align:center;padding:60px 20px;color:var(--text-muted); }
@@ -61,16 +61,16 @@
 <!-- Table -->
 <div class="card">
   <div class="table-responsive">
-    <table class="table c-table mb-0" data-sortable>
+    <table class="table c-table mb-0" data-sortable style="min-width:720px;">
       <thead>
         <tr>
-          <th style="width:36px;">#</th>
-          <th data-sort="1">Course Name</th>
-          <th style="width:80px;" data-sort="2">Code</th>
-          <th style="width:170px;" data-sort="3">Online / Offline (AED)</th>
-          <th style="width:170px;" data-sort="4">Private 1-on-1 (AED)</th>
-          <th style="width:70px;" data-sort="5" title="Total enrollments">Enrolled</th>
-          <th style="width:110px;">Actions</th>
+          <th style="width:32px;">#</th>
+          <th>Course Name</th>
+          <th style="width:70px;">Code</th>
+          <th style="width:140px;">Online / Offline</th>
+          <th style="width:140px;">Private 1-on-1</th>
+          <th style="width:64px;" title="Total enrollments">Enrolled</th>
+          <th style="width:100px;">Actions</th>
         </tr>
       </thead>
       <tbody id="courseTableBody">
