@@ -11,6 +11,10 @@
 .c-table tbody tr:hover { background:#f8faff; }
 .rate-val { font-weight:700;font-size:13px; }
 .rate-sub { font-size:10px;color:var(--text-muted); }
+.level-rates { display:flex;flex-direction:column;gap:2px; }
+.level-row { display:flex;justify-content:space-between;gap:8px;font-size:11px; }
+.level-lbl { color:var(--text-muted);font-weight:500;min-width:28px; }
+.level-amt { font-weight:700;color:var(--text);white-space:nowrap; }
 .filter-card { background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px; }
 .filter-card .form-control { font-size:13px;border-radius:8px;border-color:var(--border); }
 .empty-state { text-align:center;padding:60px 20px;color:var(--text-muted); }
@@ -62,13 +66,11 @@
         <tr>
           <th style="width:36px;">#</th>
           <th data-sort="1">Course Name</th>
-          <th style="width:90px;" data-sort="2">Code</th>
-          <th style="width:120px;" data-sort="3">Offline / 1-1</th>
-          <th style="width:100px;" data-sort="4">Online</th>
-          <th style="width:100px;" data-sort="5">Batch</th>
-          <th style="width:100px;" data-sort="6">Private</th>
-          <th style="width:80px;" data-sort="7" title="Total enrollments">Enrolled</th>
-          <th style="width:120px;">Actions</th>
+          <th style="width:80px;" data-sort="2">Code</th>
+          <th style="width:170px;" data-sort="3">Online / Offline (AED)</th>
+          <th style="width:170px;" data-sort="4">Private 1-on-1 (AED)</th>
+          <th style="width:70px;" data-sort="5" title="Total enrollments">Enrolled</th>
+          <th style="width:110px;">Actions</th>
         </tr>
       </thead>
       <tbody id="courseTableBody">
@@ -78,12 +80,19 @@
           <td style="font-weight:600;">{{ course.name }}</td>
           <td><span class="pill pill-blue" style="font-size:10px;">{{ course.code }}</span></td>
           <td>
-            <div class="rate-val">AED {{ course.rate|floatformat:0 }}</div>
-            <div class="rate-sub">per person</div>
+            <div class="level-rates">
+              <div class="level-row"><span class="level-lbl">Int</span><span class="level-amt">{{ course.oo_intermediate|floatformat:0 }}</span></div>
+              <div class="level-row"><span class="level-lbl">Pro</span><span class="level-amt">{{ course.oo_professional|floatformat:0 }}</span></div>
+              <div class="level-row"><span class="level-lbl">Adv</span><span class="level-amt">{{ course.oo_advanced|floatformat:0 }}</span></div>
+            </div>
           </td>
-          <td><div class="rate-val">AED {{ course.online_rate|floatformat:0 }}</div></td>
-          <td><div class="rate-val">AED {{ course.batch_rate|floatformat:0 }}</div></td>
-          <td><div class="rate-val">AED {{ course.private_rate|floatformat:0 }}</div></td>
+          <td>
+            <div class="level-rates">
+              <div class="level-row"><span class="level-lbl">Int</span><span class="level-amt">{{ course.priv_intermediate|floatformat:0 }}</span></div>
+              <div class="level-row"><span class="level-lbl">Pro</span><span class="level-amt">{{ course.priv_professional|floatformat:0 }}</span></div>
+              <div class="level-row"><span class="level-lbl">Adv</span><span class="level-amt">{{ course.priv_advanced|floatformat:0 }}</span></div>
+            </div>
+          </td>
           <td>
             {% if course.reg_count %}
             <span class="pill pill-blue" style="font-size:11px;">{{ course.reg_count }}</span>
@@ -102,7 +111,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="9"><div class="empty-state"><i class="fas fa-book d-block"></i>No courses found.{% if user_role != 'sales_executive' %} <a href="{% url 'course_create' %}">Add the first one.</a>{% endif %}</div></td></tr>
+        <tr><td colspan="7"><div class="empty-state"><i class="fas fa-book d-block"></i>No courses found.{% if user_role != 'sales_executive' %} <a href="{% url 'course_create' %}">Add the first one.</a>{% endif %}</div></td></tr>
         {% endfor %}
       </tbody>
     </table>
