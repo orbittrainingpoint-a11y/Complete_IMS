@@ -6,15 +6,13 @@
 
 {% block extra_css %}
 <style>
-.c-table th { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600; }
+.c-table th { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;white-space:nowrap; }
 .c-table td { font-size:13px;vertical-align:middle; }
 .c-table tbody tr:hover { background:#f8faff; }
-.rate-val { font-weight:700;font-size:13px; }
-.rate-sub { font-size:10px;color:var(--text-muted); }
-.level-rates { display:flex;flex-direction:column;gap:3px; }
-.level-row { font-size:11px;display:flex;align-items:center;gap:5px;white-space:nowrap; }
-.level-lbl { color:var(--text-muted);font-weight:500;width:26px;flex-shrink:0; }
-.level-amt { font-weight:700;color:var(--text); }
+.level-rates { display:flex;flex-direction:column;gap:4px; }
+.level-row { font-size:12px;display:flex;align-items:center;gap:8px;white-space:nowrap; }
+.level-lbl { color:var(--text-muted);font-weight:600;width:30px;flex-shrink:0;font-size:11px;text-transform:uppercase; }
+.level-amt { font-weight:700;color:var(--text);font-size:13px; }
 .filter-card { background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px; }
 .filter-card .form-control { font-size:13px;border-radius:8px;border-color:var(--border); }
 .empty-state { text-align:center;padding:60px 20px;color:var(--text-muted); }
@@ -61,16 +59,16 @@
 <!-- Table -->
 <div class="card">
   <div class="table-responsive">
-    <table class="table c-table mb-0" data-sortable style="min-width:720px;">
+    <table class="table c-table mb-0" data-sortable style="min-width:900px;">
       <thead>
         <tr>
           <th style="width:32px;">#</th>
-          <th>Course Name</th>
-          <th style="width:70px;">Code</th>
-          <th style="width:140px;">Online / Offline</th>
-          <th style="width:140px;">Private 1-on-1</th>
-          <th style="width:64px;" title="Total enrollments">Enrolled</th>
-          <th style="width:100px;">Actions</th>
+          <th style="min-width:180px;">Course Name</th>
+          <th style="width:72px;">Code</th>
+          <th style="width:200px;">Online / Offline (AED)</th>
+          <th style="width:200px;">Private 1-on-1 (AED)</th>
+          <th style="width:72px;" title="Total enrollments">Enrolled</th>
+          <th style="width:110px;">Actions</th>
         </tr>
       </thead>
       <tbody id="courseTableBody">
