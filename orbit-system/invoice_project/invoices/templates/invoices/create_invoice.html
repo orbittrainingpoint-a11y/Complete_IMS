@@ -436,8 +436,10 @@ function calcTotals() {
     const disc      = parseFloat($('#id_discount').val() || 0);
     const discAmt   = subtotal * disc / 100;
     const afterDisc = subtotal - discAmt;
-    const vat       = afterDisc * 0.05;
-    const total     = afterDisc + vat;
+    // Prices are VAT-inclusive — back-calculate ex-VAT
+    const exVat     = afterDisc / 1.05;
+    const vat       = afterDisc - exVat;
+    const total     = afterDisc;
     const thisPaid  = parseFloat($('#id_amount_paid').val() || 0);
     const due       = total - _alreadyPaid - thisPaid;
 
@@ -493,7 +495,7 @@ function doLookup(regNum) {
             // Build course pills — store all 6 rates as data attrs
             window._invoiceCourses = data.courses || [];
             rebuildCoursePills();
-            calcTotals();
+            refreshPillRates(); // sets data-rate on each pill, then calls calcTotals
         },
         error: function() {
             $('#lookupResult').html('<div class="alert alert-danger" style="font-size:13px;"><i class="fas fa-exclamation-circle me-2"></i>Registration not found. Please check the number.</div>');

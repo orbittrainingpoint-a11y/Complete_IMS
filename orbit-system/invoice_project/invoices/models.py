@@ -250,9 +250,9 @@ class Invoice(models.Model):
         if self.pk:
             for item in self.items.all():
                 course_total = item.course.get_rate(self.class_type, self.level) * item.quantity * self.number_of_person
+                # Prices are VAT-inclusive; back-calculate ex-VAT separately — total stays as-is
                 discounted_total = course_total * (1 - Decimal(self.discount) / 100)
-                vat_amount = discounted_total * Decimal('0.05')
-                total += discounted_total + vat_amount
+                total += discounted_total
         return total.quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
     def save(self, *args, **kwargs):
         if not self.invoice_number:

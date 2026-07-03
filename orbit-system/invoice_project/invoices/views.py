@@ -171,10 +171,18 @@ def crm_auth(request):
         erp_user = User.objects.get(username=username, is_active=True)
         erp_user.backend = 'django.contrib.auth.backends.ModelBackend'
         login(request, erp_user)
-        # If coming from a "Register in ERP" button on a CRM lead, go straight to the form
+        # If coming from a "Register in ERP" button on a CRM lead, go straight to the form.
+        # The CRM encodes params as separate URL args (fn, ln, ph, em, ci, crm_id) because the
+        # next= value isn't URL-encoded by the Flask side — rebuild the full register URL here.
         crm_id = request.GET.get('crm_id', '').strip()
         if crm_id and crm_id.isdigit():
-            return redirect(f'/register/?crm_id={crm_id}')
+            from urllib.parse import urlencode
+            reg_params = {'crm_id': crm_id}
+            for key in ('fn', 'ln', 'ph', 'em', 'ci'):
+                val = request.GET.get(key, '').strip()
+                if val:
+                    reg_params[key] = val
+            return redirect(f'/register/?{urlencode(reg_params)}')
         next_url = request.GET.get('next', '')
         if next_url and next_url.startswith('/'):
             return redirect(next_url)

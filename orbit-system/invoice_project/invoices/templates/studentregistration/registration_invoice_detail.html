@@ -125,7 +125,7 @@
           <td style="font-weight:700;color:var(--primary);">{{ invoice.invoice_number }}</td>
           <td style="font-size:12px;color:var(--text-muted);">{{ invoice.date }}</td>
           <td style="font-weight:600;">AED {{ invoice.total_amount|floatformat:2 }}</td>
-          <td style="font-weight:600;">AED {% with adj=invoice.amount_paid|multiply:0.05 %}{% with tot=invoice.amount_paid|add:adj %}{{ tot|floatformat:2 }}{% endwith %}{% endwith %}</td>
+          <td style="font-weight:600;">AED {{ invoice.amount_paid|floatformat:2 }}</td>
           <td>
             {% if invoice.status == 'paid' %}
               <span class="pill pill-green">Paid</span>
@@ -283,8 +283,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const fmt = v => 'AED ' + v.toLocaleString('en-AE', {minimumFractionDigits:2, maximumFractionDigits:2});
   const el = id => document.getElementById(id);
   if (el('sumTotal')) el('sumTotal').textContent = fmt(tot);
-  if (el('sumPaid'))  el('sumPaid').textContent  = fmt(paid * 1.05);
-  if (el('sumDue'))   el('sumDue').textContent   = fmt(Math.max(0, tot - paid * 1.05));
+  if (el('sumPaid'))  el('sumPaid').textContent  = fmt(paid);
+  if (el('sumDue'))   el('sumDue').textContent   = fmt(Math.max(0, tot - paid));
 });
 </script>
 {% endblock %}
