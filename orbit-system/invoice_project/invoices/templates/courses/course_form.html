@@ -68,24 +68,7 @@
                         <div class="field-row">
                             <label>Course Code</label>
                             {{ form.code }}
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="field-row">
-                            <label>Description</label>
-                            {{ form.description }}
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="field-row">
-                            <label>Duration</label>
-                            {{ form.duration }}
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="field-row">
-                            <label>Category</label>
-                            {{ form.category }}
+                            {% if form.code.errors %}<div class="text-danger" style="font-size:12px;margin-top:4px;">{{ form.code.errors.0 }}</div>{% endif %}
                         </div>
                     </div>
                 </div>
@@ -155,33 +138,6 @@
             </div>
         </div>
 
-        <!-- Additional Fields -->
-        {% with remaining=form %}
-        <div class="form-section">
-            <div class="form-section-header">
-                <div class="form-section-icon"><i class="fas fa-cog"></i></div>
-                <div>
-                    <div class="form-section-title">Additional Settings</div>
-                    <div style="font-size:12px;opacity:.7">Extra configuration for this course</div>
-                </div>
-            </div>
-            <div class="form-section-body">
-                <div class="row g-3">
-                    {% for field in form %}
-                    {% if field.name not in 'name,code,description,duration,category,rate,online_rate,private_rate,batch_rate' %}
-                    <div class="col-md-6">
-                        <div class="field-row">
-                            <label>{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.errors %}<div class="text-danger" style="font-size:12px;margin-top:4px;">{{ field.errors.0 }}</div>{% endif %}
-                        </div>
-                    </div>
-                    {% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        {% endwith %}
 
     </div><!-- /col-xl-8 -->
 
@@ -189,22 +145,34 @@
     <div class="col-xl-4">
         <div class="price-summary-card" style="background:linear-gradient(135deg,#0f1b2d,#1a2d47);border-radius:16px;padding:24px;color:#fff;position:sticky;top:80px;">
             <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:20px;">Rate Summary</div>
-            <div class="d-flex flex-column gap-3">
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
-                    <span style="color:rgba(255,255,255,.7);font-size:13px;"><i class="fas fa-desktop me-2"></i>Online</span>
-                    <span style="font-size:16px;font-weight:700;" id="preview-online">AED 0</span>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.5);margin-bottom:6px;">Online / Offline</div>
+            <div class="d-flex flex-column gap-2 mb-3">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+                    <span style="color:rgba(255,255,255,.6);font-size:12px;"><i class="fas fa-seedling me-1" style="color:#10b981;"></i>Intermediate</span>
+                    <span style="font-size:14px;font-weight:700;" id="preview-oo-int">AED 0</span>
                 </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
-                    <span style="color:rgba(255,255,255,.7);font-size:13px;"><i class="fas fa-chalkboard me-2"></i>Classroom</span>
-                    <span style="font-size:16px;font-weight:700;" id="preview-offline">AED 0</span>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+                    <span style="color:rgba(255,255,255,.6);font-size:12px;"><i class="fas fa-star-half-alt me-1" style="color:#f59e0b;"></i>Professional</span>
+                    <span style="font-size:14px;font-weight:700;" id="preview-oo-pro">AED 0</span>
                 </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
-                    <span style="color:rgba(255,255,255,.7);font-size:13px;"><i class="fas fa-user-tie me-2"></i>Private</span>
-                    <span style="font-size:16px;font-weight:700;" id="preview-private">AED 0</span>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;">
+                    <span style="color:rgba(255,255,255,.6);font-size:12px;"><i class="fas fa-star me-1" style="color:#8b5cf6;"></i>Advanced</span>
+                    <span style="font-size:14px;font-weight:700;" id="preview-oo-adv">AED 0</span>
                 </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
-                    <span style="color:rgba(255,255,255,.7);font-size:13px;"><i class="fas fa-users me-2"></i>Batch</span>
-                    <span style="font-size:16px;font-weight:700;" id="preview-batch">AED 0</span>
+            </div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.5);margin-bottom:6px;">Private (1-on-1)</div>
+            <div class="d-flex flex-column gap-2">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+                    <span style="color:rgba(255,255,255,.6);font-size:12px;"><i class="fas fa-seedling me-1" style="color:#10b981;"></i>Intermediate</span>
+                    <span style="font-size:14px;font-weight:700;" id="preview-priv-int">AED 0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+                    <span style="color:rgba(255,255,255,.6);font-size:12px;"><i class="fas fa-star-half-alt me-1" style="color:#f59e0b;"></i>Professional</span>
+                    <span style="font-size:14px;font-weight:700;" id="preview-priv-pro">AED 0</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;">
+                    <span style="color:rgba(255,255,255,.6);font-size:12px;"><i class="fas fa-star me-1" style="color:#8b5cf6;"></i>Advanced</span>
+                    <span style="font-size:14px;font-weight:700;" id="preview-priv-adv">AED 0</span>
                 </div>
             </div>
 
@@ -235,7 +203,14 @@ function updatePreview() {
     const nameVal = document.getElementById('id_name')?.value || '—';
     document.getElementById('preview-name').textContent = nameVal || '—';
 
-    const fields = { online: 'id_online_rate', offline: 'id_rate', private: 'id_private_rate', batch: 'id_batch_rate' };
+    const fields = {
+        'oo-int':   'id_oo_intermediate',
+        'oo-pro':   'id_oo_professional',
+        'oo-adv':   'id_oo_advanced',
+        'priv-int': 'id_priv_intermediate',
+        'priv-pro': 'id_priv_professional',
+        'priv-adv': 'id_priv_advanced',
+    };
     for(const [key, id] of Object.entries(fields)) {
         const el = document.getElementById(id);
         const previewEl = document.getElementById('preview-'+key);
