@@ -5,7 +5,7 @@ from sqlalchemy import func, desc, asc
 from datetime import datetime, date, timedelta
 import json, hmac, hashlib, time, base64, os
 
-from app import db
+from extensions import db
 from models import *
 from forms import *
 import logging
@@ -18,7 +18,7 @@ main = Blueprint('main', __name__)
 
 # ── SSO Bridge shared secret (must match Django settings.CRM_SSO_SECRET) ──
 _SSO_SECRET = 'orbit-erp-crm-sso-bridge-2024-x9q3mz'
-_ERP_URL    = os.environ.get('ERP_URL', 'https://orbittraining.online')
+_ERP_URL    = os.environ.get('ERP_URL', 'http://localhost:8000')
 
 def _make_sso_token(username):
     payload = base64.urlsafe_b64encode(json.dumps({'u': username, 't': int(time.time())}).encode()).decode()
