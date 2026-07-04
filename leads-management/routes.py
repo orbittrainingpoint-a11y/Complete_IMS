@@ -2933,6 +2933,24 @@ def erp_lead_data(id):
     })
 
 
+@main.route('/api/internal/lead/<int:id>', methods=['GET'])
+def internal_lead_lookup(id):
+    """Server-to-server lead lookup for ERP registration form (HMAC-verified)."""
+    auth = request.headers.get('Authorization', '')
+    if not hmac.compare_digest(auth, f'Bearer {_SSO_SECRET}'):
+        return jsonify({'error': 'unauthorized'}), 401
+    lead = Lead.query.get(id)
+    if not lead:
+        return jsonify({'error': 'Lead not found'}), 404
+    return jsonify({
+        'id': lead.id,
+        'name': lead.name,
+        'phone': lead.phone or '',
+        'email': lead.email or '',
+        'status': lead.status,
+    })
+
+
 @main.route('/leads/<int:id>/register-in-erp', methods=['GET'])
 @login_required
 def register_in_erp(id):

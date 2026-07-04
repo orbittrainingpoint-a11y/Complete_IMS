@@ -136,21 +136,20 @@ def sync_user_to_crm(user, password=None, role=None):
 @login_required
 def api_crm_lead_lookup(request, lead_id):
     """Fetch CRM lead name/status for the registration form live lookup."""
-    import pymysql
+    import urllib.request, urllib.error
+    url = f"{_CRM_URL}/api/internal/lead/{lead_id}"
+    req = urllib.request.Request(url, headers={'Authorization': f'Bearer {_CRM_SECRET}'})
     try:
-        cfg = getattr(settings, 'CRM_DB', {})
-        conn = pymysql.connect(**cfg)
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, name, phone, email, status FROM lead WHERE id=%s", (lead_id,)
-            )
-            row = cur.fetchone()
-        conn.close()
-        if row:
-            return JsonResponse({'id': row[0], 'name': row[1], 'phone': row[2] or '', 'email': row[3] or '', 'status': row[4]})
-        return JsonResponse({'error': 'Lead not found'}, status=404)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            import json as _json2
+            data = _json2.loads(resp.read())
+            return JsonResponse(data)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return JsonResponse({'error': 'Lead not found'}, status=404)
+        return JsonResponse({'error': f'CRM error {e.code}'}, status=502)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': str(e)}, status=502)
 
 
 @login_required
