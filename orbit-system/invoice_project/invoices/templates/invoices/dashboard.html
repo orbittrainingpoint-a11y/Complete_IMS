@@ -423,69 +423,78 @@ function fetchInvoiceData(regNum) {
 // ── SHARED INVOICE CSS ────────────────────────────────────────────────────
 const INVOICE_CSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  @page { size: A4 portrait; margin: 12mm 14mm; }
-  body { font-family: Arial, sans-serif; font-size: 10pt; color: #1a1a2e; background:#fff; }
+  @page { size: A4 landscape; margin: 10mm 14mm; }
+  body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1a1a2e; background:#fff; }
   .inv-wrap { width:100%; }
 
   /* header */
   .inv-header { display:flex; align-items:stretch; border:2px solid #1a3d8f; margin-bottom:0; }
-  .inv-header-left { flex:1; padding:10px 14px; }
-  .inv-header-left h2 { font-size:12pt; font-weight:800; color:#1a3d8f; margin-bottom:3px; }
+  .inv-header-left { flex:1; padding:8px 14px; }
+  .inv-header-left h2 { font-size:11.5pt; font-weight:800; color:#1a3d8f; margin-bottom:3px; }
   .inv-header-left p { font-size:8pt; margin:1px 0; color:#333; }
-  .inv-header-right { width:150px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:10px; border-left:2px solid #1a3d8f; background:#f0f4ff; }
-  .inv-header-right img { max-width:130px; max-height:65px; object-fit:contain; }
+  .inv-header-right { width:140px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px; border-left:2px solid #1a3d8f; background:#f0f4ff; }
+  .inv-header-right img { max-width:120px; max-height:55px; object-fit:contain; }
 
   /* title bar */
-  .inv-title-bar { background:#1a3d8f; color:#fff; text-align:center; padding:5px; font-size:13pt; font-weight:800; letter-spacing:2px; margin-bottom:6px; }
+  .inv-title-bar { background:#1a3d8f; color:#fff; text-align:center; padding:4px; font-size:12pt; font-weight:800; letter-spacing:2px; margin-bottom:5px; }
 
-  /* meta grid */
-  .inv-meta { display:flex; gap:6px; margin-bottom:6px; }
-  .inv-meta-block { border:1px solid #c8d0e0; border-radius:3px; padding:7px 10px; }
-  .inv-meta-block.client { flex:1.5; }
-  .inv-meta-block.details { flex:1; }
-  .inv-meta-block h4 { font-size:7pt; text-transform:uppercase; letter-spacing:.8px; color:#6b7a99; margin-bottom:4px; border-bottom:1px solid #e2e8f0; padding-bottom:3px; }
-  .inv-meta-block .val { font-size:10pt; font-weight:700; color:#1a1a2e; }
-  .inv-meta-block .sub { font-size:8pt; color:#555; margin:1px 0; }
+  /* meta grid — landscape: 3 blocks side by side */
+  .inv-meta { display:flex; gap:6px; margin-bottom:5px; }
+  .inv-meta-block { border:1px solid #c8d0e0; border-radius:3px; padding:6px 10px; }
+  .inv-meta-block.client { flex:2; }
+  .inv-meta-block.details { flex:1.5; }
+  .inv-meta-block h4 { font-size:7pt; text-transform:uppercase; letter-spacing:.8px; color:#6b7a99; margin-bottom:3px; border-bottom:1px solid #e2e8f0; padding-bottom:2px; }
+  .inv-meta-block .val { font-size:9.5pt; font-weight:700; color:#1a1a2e; }
+  .inv-meta-block .sub { font-size:7.5pt; color:#555; margin:1px 0; }
   .inv-meta-block table { width:100%; border-collapse:collapse; }
-  .inv-meta-block table td { padding:2px 4px; font-size:8.5pt; border:none; }
-  .inv-meta-block table td:first-child { color:#6b7a99; font-size:8pt; white-space:nowrap; width:45%; }
+  .inv-meta-block table td { padding:2px 4px; font-size:8pt; border:none; }
+  .inv-meta-block table td:first-child { color:#6b7a99; font-size:7.5pt; white-space:nowrap; width:45%; }
   .inv-meta-block table td:last-child { font-weight:600; }
-  .trn-highlight { background:#fff7ed; border:1px solid #fed7aa; border-radius:3px; padding:2px 6px; font-size:8pt; font-weight:700; color:#9a3412; display:inline-block; margin-top:3px; }
+  .trn-highlight { background:#fff7ed; border:1px solid #fed7aa; border-radius:3px; padding:2px 6px; font-size:7.5pt; font-weight:700; color:#9a3412; display:inline-block; margin-top:2px; }
 
   /* items table */
   .items-table { width:100%; border-collapse:collapse; margin-bottom:0; font-size:9pt; }
-  .items-table th { background:#1a3d8f; color:#fff; padding:6px 8px; text-align:left; font-size:8.5pt; font-weight:700; }
+  .items-table th { background:#1a3d8f; color:#fff; padding:5px 8px; text-align:left; font-size:8.5pt; font-weight:700; }
   .items-table th.right, .items-table td.right { text-align:right; }
   .items-table th.center, .items-table td.center { text-align:center; }
-  .items-table td { padding:6px 8px; border-bottom:1px solid #e2e8f0; }
+  .items-table td { padding:5px 8px; border-bottom:1px solid #e2e8f0; }
   .items-table tbody tr:nth-child(even) { background:#f7f9fc; }
-  .items-table tfoot td { background:#eef2ff; font-weight:700; border-top:2px solid #c8d0e0; padding:5px 8px; }
+  .items-table tfoot td { background:#eef2ff; font-weight:700; border-top:2px solid #c8d0e0; padding:4px 8px; }
 
   /* totals summary */
   .inv-totals-wrap { display:flex; justify-content:flex-end; margin-top:0; }
-  .inv-totals { width:280px; border:1px solid #c8d0e0; border-top:none; }
+  .inv-totals { width:300px; border:1px solid #c8d0e0; border-top:none; }
   .inv-totals table { width:100%; border-collapse:collapse; font-size:9pt; }
-  .inv-totals table td { padding:5px 10px; border-bottom:1px solid #e2e8f0; }
+  .inv-totals table td { padding:4px 10px; border-bottom:1px solid #e2e8f0; }
   .inv-totals table td:first-child { color:#555; }
   .inv-totals table td:last-child { text-align:right; font-weight:600; }
   .inv-totals table tr.disc td { color:#dc2626; }
-  .inv-totals table tr.grand td { background:#1a3d8f; color:#fff; font-weight:800; font-size:10.5pt; }
+  .inv-totals table tr.grand td { background:#1a3d8f; color:#fff; font-weight:800; font-size:10pt; }
   .inv-totals table tr.paid-now td { background:#ecfdf5; color:#065f46; font-weight:700; }
-  .inv-totals table tr.balance td { background:#fff7ed; color:#b45309; font-weight:800; font-size:10pt; }
+  .inv-totals table tr.balance td { background:#fff7ed; color:#b45309; font-weight:800; }
   .inv-totals table tr.paid-full td { background:#d1fae5; color:#065f46; font-weight:800; }
 
-  /* terms + signatures */
-  .inv-bottom { margin-top:12px; }
-  .inv-terms h4 { font-size:8pt; font-weight:700; margin-bottom:5px; color:#1a3d8f; text-transform:uppercase; letter-spacing:.5px; }
-  .inv-terms ol { padding-left:16px; font-size:7.5pt; color:#555; }
-  .inv-terms ol li { margin-bottom:3px; }
-  .inv-sigs { display:flex; justify-content:space-between; margin-top:24px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:8pt; }
-  .inv-sigs .sig { text-align:center; width:180px; }
-  .inv-sigs .sig .sig-line { border-top:1.5px solid #1a1a2e; padding-top:5px; margin-top:36px; font-weight:600; color:#333; }
-  .inv-sigs .sig .sig-sub { font-size:7pt; color:#6b7a99; margin-top:2px; }
+  /* bottom section — landscape: two columns */
+  .inv-bottom { display:flex; gap:18px; margin-top:10px; align-items:flex-start; }
+  .inv-terms { flex:1.6; }
+  .inv-terms h4 { font-size:7.5pt; font-weight:700; margin-bottom:4px; color:#1a3d8f; text-transform:uppercase; letter-spacing:.5px; }
+  .inv-terms ol { padding-left:14px; font-size:7pt; color:#555; }
+  .inv-terms ol li { margin-bottom:2px; }
+  .inv-right-col { flex:1; }
+  .inv-prev-ref { border:1px solid #c8d0e0; border-radius:3px; padding:6px 9px; background:#f8faff; margin-bottom:10px; }
+  .inv-prev-ref h4 { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#1a3d8f; margin-bottom:4px; border-bottom:1px solid #e2e8f0; padding-bottom:2px; }
+  .inv-prev-ref table { width:100%; border-collapse:collapse; }
+  .inv-prev-ref table td { font-size:7.5pt; padding:2px 3px; }
+  .inv-prev-ref table td:first-child { color:#6b7a99; width:40%; }
+  .inv-prev-ref table td:last-child { font-weight:600; color:#1a1a2e; }
+  .inv-prev-ref .ref-num { font-weight:700; color:#9a3412; }
+  .inv-sigs { display:flex; justify-content:space-between; padding-top:6px; border-top:1px solid #e2e8f0; font-size:8pt; }
+  .inv-sigs .sig { text-align:center; width:140px; }
+  .inv-sigs .sig .sig-line { border-top:1.5px solid #1a1a2e; padding-top:4px; margin-top:28px; font-weight:600; color:#333; font-size:7.5pt; }
+  .inv-sigs .sig .sig-sub { font-size:6.5pt; color:#6b7a99; margin-top:2px; }
 
   /* status badge */
-  .status-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:8pt; font-weight:700; }
+  .status-badge { display:inline-block; padding:2px 7px; border-radius:4px; font-size:7.5pt; font-weight:700; }
   .status-paid { background:#d1fae5; color:#065f46; }
   .status-term { background:#fef3c7; color:#92400e; }
   .status-other { background:#e0e7ff; color:#3730a3; }
@@ -534,6 +543,26 @@ function printTaxInvoice(row) {
     const totalDueStr  = inv ? inv.totalDueAmount  : fmt(Math.max(0, grandTotal - amountPaidNow));
     const totalPaid    = parseFloat(totalPaidStr) || amountPaidNow;
     const totalDue     = parseFloat(totalDueStr)  || 0;
+    const lastPmt      = inv ? inv.lastPayment : null;
+
+    // ── Previous payment reference block ──────────────────────────────
+    let prevPayRef = '';
+    if (lastPmt) {
+      const refRow = lastPmt.reference
+        ? `<tr><td>Ref No.</td><td class="ref-num">${lastPmt.reference}</td></tr>`
+        : '';
+      prevPayRef = `
+        <div class="inv-prev-ref">
+          <h4>Previous Payment Reference</h4>
+          <table>
+            <tr><td>Invoice No.</td><td>${lastPmt.invoice_number}</td></tr>
+            <tr><td>Amount Paid</td><td>AED ${fmt(lastPmt.amount)}</td></tr>
+            ${refRow}
+            <tr><td>Date</td><td>${lastPmt.paid_at}</td></tr>
+            <tr><td>Method</td><td>${lastPmt.payment_method}</td></tr>
+          </table>
+        </div>`;
+    }
 
     // ── Build totals summary rows ─────────────────────────────────────
     const discRow = discPct > 0
@@ -620,7 +649,7 @@ function printTaxInvoice(row) {
         </div>
       </div>
 
-      <!-- TERMS & SIGNATURES -->
+      <!-- TERMS & SIGNATURES — landscape two-column layout -->
       <div class="inv-bottom">
         <div class="inv-terms">
           <h4>Terms &amp; Conditions</h4>
@@ -632,14 +661,17 @@ function printTaxInvoice(row) {
             <li>The Institute reserves the right to modify course content, schedules, and fee structure without prior notice.</li>
           </ol>
         </div>
-        <div class="inv-sigs">
-          <div class="sig">
-            <div class="sig-line">Authorized Signatory</div>
-            <div class="sig-sub">Orbit Training Centre</div>
-          </div>
-          <div class="sig">
-            <div class="sig-line">Customer Signature</div>
-            <div class="sig-sub">Date: _______________</div>
+        <div class="inv-right-col">
+          ${prevPayRef}
+          <div class="inv-sigs">
+            <div class="sig">
+              <div class="sig-line">Authorized Signatory</div>
+              <div class="sig-sub">Orbit Training Centre</div>
+            </div>
+            <div class="sig">
+              <div class="sig-line">Customer Signature</div>
+              <div class="sig-sub">Date: _______________</div>
+            </div>
           </div>
         </div>
       </div>

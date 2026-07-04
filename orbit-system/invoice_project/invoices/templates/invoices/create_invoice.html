@@ -374,6 +374,7 @@
 <script>
 const fmt = n => 'AED ' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 let _alreadyPaid = 0;
+let _grandTotal  = 0;   // updated by calcTotals() — used for Full Payment validation
 window._invoiceCourses = window._invoiceCourses || [];
 
 function getInvoiceRate(c) {
@@ -463,9 +464,11 @@ function calcTotals() {
     $('#isVat').text(fmt(vat));
     $('#isTotal').text(fmt(total));
     $('#isPaid').text(fmt(thisPaid));
+    _grandTotal = total;
     const dueAmt = Math.max(0, due);
     $('#isDue').text(fmt(dueAmt)).css('color', dueAmt > 0.005 ? '#fca5a5' : '#6ee7b7');
     $('#isPendingBadge').toggle(dueAmt > 0.005);
+    updateStatusOptions();
 
     if (_alreadyPaid > 0) {
         $('#prevPaidRow').show();
@@ -594,6 +597,35 @@ $(document).ready(function() {
 });
 {% endif %}
 
+// ── FULL PAYMENT GUARD ────────────────────────────────────────────────────
+function updateStatusOptions() {
+    const sel   = document.getElementById('id_status');
+    if (!sel) return;
+    const paid  = parseFloat(document.getElementById('id_amount_paid')?.value) || 0;
+    const isFull = _grandTotal > 0 && paid >= _grandTotal - 0.005;
+    Array.from(sel.options).forEach(opt => {
+        if (opt.value === 'Full Payment') opt.disabled = !isFull;
+    });
+    // If Full Payment is currently selected but amount no longer covers it, revert
+    if (sel.value === 'Full Payment' && !isFull) {
+        sel.value = 'Term Payment';
+    }
+}
+
+// When user picks Full Payment manually — auto-fill amount to grand total
+document.getElementById('id_status')?.addEventListener('change', function() {
+    if (this.value === 'Full Payment') {
+        const paid = parseFloat(document.getElementById('id_amount_paid')?.value) || 0;
+        if (_grandTotal > 0 && paid < _grandTotal - 0.005) {
+            document.getElementById('id_amount_paid').value = _grandTotal.toFixed(2);
+            calcTotals();
+        }
+    }
+});
+
+// Re-evaluate whenever amount paid changes
+$('#id_amount_paid').on('input', updateStatusOptions);
+
 /* ════════════════════════════════════════════════════════
    CLIENT-SIDE VALIDATION
    ════════════════════════════════════════════════════════ */
@@ -653,6 +685,17 @@ document.getElementById('invoiceForm').addEventListener('submit', function(e) {
             invalid.push(el);
         }
     });
+
+    // Full Payment vs amount paid cross-check
+    const statusEl     = document.getElementById('id_status');
+    const amountPaidEl = document.getElementById('id_amount_paid');
+    if (statusEl && statusEl.value === 'Full Payment' && amountPaidEl) {
+        const paid = parseFloat(amountPaidEl.value) || 0;
+        if (_grandTotal > 0 && paid < _grandTotal - 0.005) {
+            invMarkInvalid(amountPaidEl, `Full Payment requires AED ${_grandTotal.toFixed(2)} — entered AED ${paid.toFixed(2)}`);
+            invalid.push(amountPaidEl);
+        }
+    }
 
     if (invalid.length > 0) {
         e.preventDefault();
