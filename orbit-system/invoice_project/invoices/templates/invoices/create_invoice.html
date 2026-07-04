@@ -342,8 +342,8 @@
             <div class="is-row" id="isDiscRow" style="display:none;"><span style="color:rgba(255,255,255,.7);">Discount</span><span id="isDiscount" style="color:#fca5a5;">— AED 0.00</span></div>
             <div class="is-row" id="isAfterDiscRow" style="display:none;"><span style="color:rgba(255,255,255,.7);">After Discount</span><span id="isAfterDisc">AED 0.00</span></div>
             <div style="border-top:1px solid rgba(255,255,255,.15);margin:6px 0;"></div>
-            <div class="is-row"><span style="color:rgba(255,255,255,.6);font-size:12px;">Ex-VAT Amount</span><span id="isExVat" style="font-size:12px;color:rgba(255,255,255,.75);">AED 0.00</span></div>
-            <div class="is-row"><span style="color:#93c5fd;">VAT (5%)</span><span id="isVat" style="color:#93c5fd;">AED 0.00</span></div>
+            <div class="is-row"><span style="color:rgba(255,255,255,.6);font-size:12px;">Net Fee (ex-VAT)</span><span id="isExVat" style="font-size:12px;color:rgba(255,255,255,.75);">AED 0.00</span></div>
+            <div class="is-row"><span style="color:#93c5fd;">+ VAT (5%)</span><span id="isVat" style="color:#93c5fd;">AED 0.00</span></div>
             <div class="is-row grand"><span>Grand Total</span><span id="isTotal">AED 0.00</span></div>
 
             <div class="mt-4" style="padding-top:16px;border-top:1px solid rgba(255,255,255,.15);">
@@ -441,11 +441,10 @@ function calcTotals() {
     });
     const disc      = parseFloat($('#id_discount').val() || 0);
     const discAmt   = subtotal * disc / 100;
-    const afterDisc = subtotal - discAmt;
-    // Prices are VAT-inclusive — back-calculate ex-VAT
-    const exVat     = afterDisc / 1.05;
-    const vat       = afterDisc - exVat;
-    const total     = afterDisc;
+    const afterDisc = subtotal - discAmt;  // ex-VAT net fee
+    const vat       = afterDisc * 0.05;   // VAT added on top (5%)
+    const exVat     = afterDisc;           // alias: afterDisc IS the ex-VAT amount
+    const total     = afterDisc + vat;     // grand total incl. VAT
     const thisPaid  = parseFloat($('#id_amount_paid').val() || 0);
     const due       = total - _alreadyPaid - thisPaid;
 

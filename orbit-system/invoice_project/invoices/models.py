@@ -246,14 +246,14 @@ class Invoice(models.Model):
     po_number = models.CharField(max_length=100, blank=True, default='')
 
     def calculate_total_amount(self):
-        total = Decimal('0.00')
+        subtotal = Decimal('0.00')
         if self.pk:
             for item in self.items.all():
                 course_total = item.course.get_rate(self.class_type, self.level) * item.quantity * self.number_of_person
-                # Prices are VAT-inclusive; back-calculate ex-VAT separately — total stays as-is
                 discounted_total = course_total * (1 - Decimal(self.discount) / 100)
-                total += discounted_total
-        return total.quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                subtotal += discounted_total
+        vat = subtotal * Decimal('0.05')
+        return (subtotal + vat).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
     def save(self, *args, **kwargs):
         if not self.invoice_number:
             # Generate invoice number based on current timestamp
