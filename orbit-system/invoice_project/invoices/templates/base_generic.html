@@ -150,7 +150,7 @@
         }
         .nav-link[aria-expanded="true"] .chevron { transform: rotate(90deg); }
         .sub-nav { padding-left: 20px; }
-        .sub-nav .nav-link { font-size: 16px; padding: 9px 10px; }
+        .sub-nav .nav-link { font-size: 13px; padding: 7px 10px; }
 
         .sidebar-scroll {
             flex: 1 1 0%;
@@ -353,18 +353,72 @@
             width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0;
         }
 
-        /* mobile */
+        /* prevent flex children from blowing out the layout */
+        .content-wrapper { min-width: 0; overflow-x: hidden; }
+        .page-content    { min-width: 0; }
+
+        /* mobile overlay */
         .sidebar-overlay {
             display: none; position: fixed; inset: 0;
             background: rgba(0,0,0,.5); z-index: 1039;
         }
+
+        /* ── 1200 px: narrow sidebar so content keeps breathing room ── */
+        @media (max-width: 1199px) {
+            :root { --sidebar-width: 220px; }
+            .nav-link { font-size: 13px; }
+            .brand-text { font-size: 14px; }
+            .page-content { padding: 20px; }
+            .topbar-username { display: none; }
+        }
+
+        /* ── 1024 px: tighten further ── */
+        @media (max-width: 1024px) {
+            :root { --sidebar-width: 200px; }
+            .page-content { padding: 16px; }
+            .page-title { font-size: 19px; }
+            /* page headers: wrap the action buttons below the title */
+            .page-header.d-flex { flex-wrap: wrap; gap: 10px; }
+            /* KPI grid: max 2 per row on this width */
+            .row.g-3 > [class*="col-xl-3"] { flex: 0 0 50%; max-width: 50%; }
+        }
+
+        /* ── 991 px: hide sidebar (existing behaviour) + extra tweaks ── */
         @media (max-width: 991px) {
             .sidebar { transform: translateX(-100%); }
             .sidebar.open { transform: translateX(0); }
             .sidebar-overlay.open { display: block; }
             .content-wrapper { margin-left: 0; }
             .topbar-toggle { display: flex; }
+            .page-content { padding: 14px; }
+            .page-title { font-size: 18px; }
+            /* KPIs: 2 per row on tablet */
+            .row.g-3 > [class*="col-xl-3"],
+            .row.g-3 > [class*="col-xl-4"] { flex: 0 0 50%; max-width: 50%; }
+            /* topbar: shrink spacing */
+            .topbar { padding: 0 14px; gap: 10px; }
+            .topbar-right { gap: 8px; }
         }
+
+        /* ── 768 px: mobile ── */
+        @media (max-width: 767px) {
+            .page-content { padding: 12px; }
+            .page-title { font-size: 17px; }
+            /* KPIs: 1 per row */
+            .row.g-3 > [class*="col-xl-3"],
+            .row.g-3 > [class*="col-xl-4"],
+            .row.g-3 > [class*="col-sm-6"] { flex: 0 0 100%; max-width: 100%; }
+            /* tables: always scrollable */
+            .card .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            /* action strips: wrap buttons */
+            .action-strip, .d-flex.gap-2 { flex-wrap: wrap; }
+            /* topbar */
+            .topbar { padding: 0 12px; gap: 8px; }
+            .topbar-breadcrumb { display: none; }
+        }
+
+        /* ensure all .table-responsive divs clip correctly */
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
         @media print {
             .sidebar, .topbar, .no-print { display: none !important; }

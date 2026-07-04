@@ -309,6 +309,11 @@ li { margin: 0 0 2px 0; font-size: 10.3px; }
   cursor: pointer;
 }
 
+@media screen {
+  /* On screen: wrap tables so they scroll rather than overflow */
+  table { width: 100%; overflow-x: auto; display: block; }
+}
+
 @media print {
   html, body {
     background: #ffffff;

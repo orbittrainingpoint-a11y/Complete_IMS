@@ -25,7 +25,7 @@
         <div class="card-body">
             <h3 class="card-title">Invoice Information</h3>
             {% if invoices %}
-                <table class="table">
+                <div class="table-responsive"><table class="table">
                     <thead>
                         <tr>
                             <th>Invoice Number</th>
@@ -59,7 +59,7 @@
                             {% endfor %}
                         {% endwith %}
                     </tbody>
-                </table>
+                </table></div>
             {% else %}
                 <p>No invoices associated with this corporate registration.</p>
             {% endif %}
