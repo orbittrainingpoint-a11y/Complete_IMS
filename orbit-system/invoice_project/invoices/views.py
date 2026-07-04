@@ -1444,6 +1444,7 @@ def get_registration_details(request):
             'registration_type': registration.registration_type,
             'discount': discount,
             'class_type': registration.class_type,
+            'level': registration.level or 'intermediate',
             'already_paid': already_paid,
         }
 

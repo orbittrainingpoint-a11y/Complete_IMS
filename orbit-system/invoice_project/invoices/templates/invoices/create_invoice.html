@@ -485,6 +485,7 @@ function doLookup(regNum) {
             $('#id_client_country').val(data.client_country||'');
             $('#id_discount').val(data.discount||0);
             $('#id_class_type').val(data.class_type||'');
+            $('#id_level').val(data.level||'intermediate');
             if(data.registration_type === 'OC') {
                 $('#company_name_group').show();
                 $('#id_company_name').val(data.company_name||'');
