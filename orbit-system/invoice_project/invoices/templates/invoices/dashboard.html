@@ -184,6 +184,7 @@
                 data-email="{{ invoice.registration.email }}"
                 data-invoice-items='{{ invoice.items_json }}'
                 data-po-number="{{ invoice.po_number }}"
+                data-level="{{ invoice.level }}"
                 data-logo-url="{% static 'images/Orbit-Logo-1.png' %}">
               <td style="width:36px;"><input type="checkbox" class="form-check-input inv-cb" value="{{ invoice.pk }}" onchange="onCbChange()"></td>
               <td>
@@ -605,6 +606,7 @@ function printTaxInvoice(row) {
           ${d.phone ? `<div class="sub"><b>Phone:</b> ${d.phone}</div>` : ''}
           ${d.email ? `<div class="sub"><b>Email:</b> ${d.email}</div>` : ''}
           ${d.regDate ? `<div class="sub"><b>Reg. Date:</b> ${d.regDate}</div>` : ''}
+          ${d.level ? `<div class="sub"><b>Level:</b> ${d.level.charAt(0).toUpperCase() + d.level.slice(1)}</div>` : ''}
           ${clientTrn ? `<div class="trn-highlight">TRN: ${clientTrn}</div>` : ''}
         </div>
         <div class="inv-meta-block details">
@@ -666,9 +668,9 @@ function printTaxInvoice(row) {
             <li>For Credit/Debit Card payments, an additional convenience fee of 3% may apply.</li>
             <li>The Institute reserves the right to modify course content, schedules, and fee structure without prior notice.</li>
           </ol>
+          ${prevPayRef}
         </div>
         <div class="inv-right-col">
-          ${prevPayRef}
           <div class="inv-sigs">
             <div class="sig">
               <div class="sig-line">Authorized Signatory</div>
