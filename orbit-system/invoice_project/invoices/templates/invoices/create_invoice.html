@@ -338,10 +338,13 @@
 
         <div class="inv-summary">
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:16px;">Invoice Summary</div>
-            <div class="is-row"><span style="color:rgba(255,255,255,.7);">Subtotal</span><span id="isSubtotal">AED 0.00</span></div>
-            <div class="is-row"><span style="color:rgba(255,255,255,.7);">Discount</span><span id="isDiscount" style="color:#fca5a5;">— AED 0.00</span></div>
-            <div class="is-row"><span style="color:rgba(255,255,255,.7);">VAT (5%)</span><span id="isVat" style="color:#93c5fd;">AED 0.00</span></div>
-            <div class="is-row grand"><span>Total</span><span id="isTotal">AED 0.00</span></div>
+            <div class="is-row"><span style="color:rgba(255,255,255,.7);">Course Subtotal</span><span id="isSubtotal">AED 0.00</span></div>
+            <div class="is-row" id="isDiscRow" style="display:none;"><span style="color:rgba(255,255,255,.7);">Discount</span><span id="isDiscount" style="color:#fca5a5;">— AED 0.00</span></div>
+            <div class="is-row" id="isAfterDiscRow" style="display:none;"><span style="color:rgba(255,255,255,.7);">After Discount</span><span id="isAfterDisc">AED 0.00</span></div>
+            <div style="border-top:1px solid rgba(255,255,255,.15);margin:6px 0;"></div>
+            <div class="is-row"><span style="color:rgba(255,255,255,.6);font-size:12px;">Ex-VAT Amount</span><span id="isExVat" style="font-size:12px;color:rgba(255,255,255,.75);">AED 0.00</span></div>
+            <div class="is-row"><span style="color:#93c5fd;">VAT (5%)</span><span id="isVat" style="color:#93c5fd;">AED 0.00</span></div>
+            <div class="is-row grand"><span>Grand Total</span><span id="isTotal">AED 0.00</span></div>
 
             <div class="mt-4" style="padding-top:16px;border-top:1px solid rgba(255,255,255,.15);">
                 <div id="prevPaidRow" style="display:none;margin-bottom:10px;">
@@ -447,7 +450,17 @@ function calcTotals() {
     const due       = total - _alreadyPaid - thisPaid;
 
     $('#isSubtotal').text(fmt(subtotal));
-    $('#isDiscount').text('— ' + fmt(discAmt));
+    // Show discount rows only when a discount is applied
+    if (disc > 0) {
+        $('#isDiscRow').show();
+        $('#isAfterDiscRow').show();
+        $('#isDiscount').text('— ' + fmt(discAmt));
+        $('#isAfterDisc').text(fmt(afterDisc));
+    } else {
+        $('#isDiscRow').hide();
+        $('#isAfterDiscRow').hide();
+    }
+    $('#isExVat').text(fmt(exVat));
     $('#isVat').text(fmt(vat));
     $('#isTotal').text(fmt(total));
     $('#isPaid').text(fmt(thisPaid));

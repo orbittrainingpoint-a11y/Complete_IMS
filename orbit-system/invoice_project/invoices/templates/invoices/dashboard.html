@@ -539,8 +539,9 @@ function printTaxInvoice(row) {
     // ── Build totals summary rows ─────────────────────────────────────
     const discRow = discPct > 0
       ? `<tr class="disc"><td>Discount (${discPct}%)</td><td>− AED ${fmt(discountAmt)}</td></tr>
-         <tr><td>After Discount</td><td>AED ${fmt(afterDisc)}</td></tr>`
-      : '';
+         <tr><td>After Discount</td><td>AED ${fmt(afterDisc)}</td></tr>
+         <tr style="border-top:1px solid #e2e8f0;"><td colspan="2"></td></tr>`
+      : `<tr style="border-top:1px solid #e2e8f0;"><td colspan="2"></td></tr>`;
 
     const balanceRow = totalDue > 0.005
       ? `<tr class="balance"><td>Balance Due</td><td>AED ${fmt(totalDue)}</td></tr>`
@@ -613,7 +614,8 @@ function printTaxInvoice(row) {
           <table>
             <tr><td>Sub Total</td><td>AED ${fmt(lineTotal)}</td></tr>
             ${discRow}
-            <tr><td style="color:#555;font-size:8pt;">VAT (5% incl.)</td><td style="color:#555;font-size:8pt;">AED ${fmt(vatAmt)}</td></tr>
+            <tr><td style="color:#555;">Ex-VAT Amount</td><td style="color:#555;">AED ${fmt(exVat)}</td></tr>
+            <tr><td style="color:#1a3d8f;font-weight:600;">VAT (5%)</td><td style="color:#1a3d8f;font-weight:600;">AED ${fmt(vatAmt)}</td></tr>
             <tr class="grand"><td>Grand Total</td><td>AED ${fmt(grandTotal)}</td></tr>
             <tr class="paid-now"><td>Paid This Invoice</td><td>AED ${fmt(amountPaidNow)}</td></tr>
             ${balanceRow}
