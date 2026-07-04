@@ -44,11 +44,7 @@
                                 <td>{{ invoice.invoice_number }}</td>
                                 <td>{{ invoice.date }}</td>
                                 <td>{{ invoice.total_amount }}</td>
-                                <td> {% with adjusted_amount=invoice.amount_paid|multiply:0.05 %}
-                                    {% with total_amount=invoice.amount_paid|add:adjusted_amount %}
-                                    {{ total_amount|floatformat:2 }}
-                                    {% endwith %}
-                                    {% endwith %}</td>
+                                <td>{{ invoice.amount_paid|floatformat:2 }}</td>
 <td>
     {% calculate_running_due invoice forloop.counter as current_due %}
     {{ current_due|floatformat:2 }}
