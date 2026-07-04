@@ -2939,16 +2939,21 @@ def internal_lead_lookup(id):
     auth = request.headers.get('Authorization', '')
     if not hmac.compare_digest(auth, f'Bearer {_SSO_SECRET}'):
         return jsonify({'error': 'unauthorized'}), 401
-    lead = Lead.query.get(id)
-    if not lead:
-        return jsonify({'error': 'Lead not found'}), 404
-    return jsonify({
-        'id': lead.id,
-        'name': lead.name,
-        'phone': lead.phone or '',
-        'email': lead.email or '',
-        'status': lead.status,
-    })
+    try:
+        lead = db.session.get(Lead, id)
+        if not lead:
+            return jsonify({'error': 'Lead not found'}), 404
+        return jsonify({
+            'id': lead.id,
+            'name': lead.name,
+            'phone': lead.phone or '',
+            'email': lead.email or '',
+            'status': lead.status,
+        })
+    except Exception as e:
+        import traceback, sys
+        traceback.print_exc(file=sys.stderr)
+        return jsonify({'error': str(e)}), 500
 
 
 @main.route('/leads/<int:id>/register-in-erp', methods=['GET'])
