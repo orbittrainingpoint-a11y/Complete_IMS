@@ -551,7 +551,7 @@ function printTaxInvoice(row) {
 
     // ── Previous payment reference block ──────────────────────────────
     let prevPayRef = '';
-    if (lastPmt) {
+    if (lastPmt && lastPmt.invoice_number !== d.invoiceNumber) {
       const refRow = lastPmt.reference
         ? `<tr><td>Ref No.</td><td class="ref-num">${lastPmt.reference}</td></tr>`
         : '';
