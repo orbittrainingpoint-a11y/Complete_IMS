@@ -351,7 +351,10 @@
                 <div style="font-size:11px;opacity:.6;margin-bottom:10px;">This Invoice Payment</div>
                 <div id="isPaid" style="font-size:20px;font-weight:800;color:#6ee7b7;">AED 0.00</div>
                 <div style="font-size:11px;opacity:.6;margin-top:12px;margin-bottom:6px;">Balance Due</div>
-                <div id="isDue" style="font-size:22px;font-weight:800;color:#fca5a5;">AED 0.00</div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <div id="isDue" style="font-size:22px;font-weight:800;color:#fca5a5;">AED 0.00</div>
+                  <span id="isPendingBadge" style="display:none;font-size:11px;background:#fca5a5;color:#1a1a2e;border-radius:6px;padding:3px 8px;font-weight:800;letter-spacing:.5px;">PENDING</span>
+                </div>
             </div>
 
             <button type="submit" class="btn btn-primary w-100 mt-4" style="padding:14px;font-size:15px;font-weight:700;border-radius:12px;">
@@ -448,7 +451,9 @@ function calcTotals() {
     $('#isVat').text(fmt(vat));
     $('#isTotal').text(fmt(total));
     $('#isPaid').text(fmt(thisPaid));
-    $('#isDue').text(fmt(Math.max(0, due))).css('color', due > 0.005 ? '#fca5a5' : '#6ee7b7');
+    const dueAmt = Math.max(0, due);
+    $('#isDue').text(fmt(dueAmt)).css('color', dueAmt > 0.005 ? '#fca5a5' : '#6ee7b7');
+    $('#isPendingBadge').toggle(dueAmt > 0.005);
 
     if (_alreadyPaid > 0) {
         $('#prevPaidRow').show();

@@ -103,7 +103,8 @@
   <div class="summary-bar" id="sumBar">
     <div class="sum-box"><div class="val" id="sumTotal">—</div><div class="lbl">Total Invoiced</div></div>
     <div class="sum-box"><div class="val" id="sumPaid">—</div><div class="lbl">Total Paid</div></div>
-    <div class="sum-box"><div class="val" id="sumDue" style="color:#dc2626;">—</div><div class="lbl">Outstanding</div></div>
+    <div class="sum-box"><div class="val" id="sumVat" style="color:#2563eb;">—</div><div class="lbl">VAT (5%) Incl.</div></div>
+    <div class="sum-box" id="sumDueBox"><div class="val" id="sumDue" style="color:#dc2626;">—</div><div class="lbl">Balance Pending</div></div>
     <div class="sum-box"><div class="val">{{ invoices|length }}</div><div class="lbl">Invoices</div></div>
   </div>
 
@@ -114,7 +115,9 @@
           <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Invoice #</th>
           <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Date</th>
           <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Total</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">VAT (5%)</th>
           <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Paid</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Balance Due</th>
           <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Status</th>
           <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Method</th>
         </tr>
@@ -125,14 +128,14 @@
           <td style="font-weight:700;color:var(--primary);">{{ invoice.invoice_number }}</td>
           <td style="font-size:12px;color:var(--text-muted);">{{ invoice.date }}</td>
           <td style="font-weight:600;">AED {{ invoice.total_amount|floatformat:2 }}</td>
+          <td style="font-size:12px;color:#2563eb;" class="row-vat">—</td>
           <td style="font-weight:600;">AED {{ invoice.amount_paid|floatformat:2 }}</td>
+          <td class="row-balance">—</td>
           <td>
-            {% if invoice.status == 'paid' %}
-              <span class="pill pill-green">Paid</span>
-            {% elif invoice.status == 'partial' %}
-              <span class="pill pill-orange">Partial</span>
+            {% if invoice.status == 'Full Payment' %}
+              <span class="pill pill-green">Full Payment</span>
             {% else %}
-              <span class="pill pill-red">Pending</span>
+              <span class="pill pill-orange">{{ invoice.get_status_display }}</span>
             {% endif %}
           </td>
           <td style="font-size:12px;">{{ invoice.get_payment_display }}</td>
@@ -275,16 +278,53 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Payment summary computation
+  const fmt = v => 'AED ' + v.toLocaleString('en-AE', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const el  = id => document.getElementById(id);
+
   let tot = 0, paid = 0;
   document.querySelectorAll('.inv-row').forEach(r => {
-    tot  += parseFloat(r.dataset.total) || 0;
-    paid += parseFloat(r.dataset.paid)  || 0;
+    const rowTotal = parseFloat(r.dataset.total) || 0;
+    const rowPaid  = parseFloat(r.dataset.paid)  || 0;
+    const rowVat   = rowTotal - (rowTotal / 1.05);   // back-calculate VAT
+    const rowBal   = Math.max(0, rowTotal - rowPaid);
+
+    // Per-row VAT column
+    const vatCell = r.querySelector('.row-vat');
+    if (vatCell) vatCell.textContent = 'AED ' + rowVat.toFixed(2);
+
+    // Per-row balance due column
+    const balCell = r.querySelector('.row-balance');
+    if (balCell) {
+      if (rowBal > 0.005) {
+        balCell.innerHTML = `<span style="color:#dc2626;font-weight:700;">AED ${rowBal.toFixed(2)}</span>
+          <span style="display:inline-block;margin-left:4px;font-size:10px;background:#fee2e2;color:#dc2626;border-radius:4px;padding:1px 5px;font-weight:700;">PENDING</span>`;
+      } else {
+        balCell.innerHTML = '<span style="color:#16a34a;font-weight:600;">—</span>';
+      }
+    }
+
+    tot  += rowTotal;
+    paid += rowPaid;
   });
-  const fmt = v => 'AED ' + v.toLocaleString('en-AE', {minimumFractionDigits:2, maximumFractionDigits:2});
-  const el = id => document.getElementById(id);
+
+  const totalVat = tot - (tot / 1.05);
+  const due      = Math.max(0, tot - paid);
+
   if (el('sumTotal')) el('sumTotal').textContent = fmt(tot);
   if (el('sumPaid'))  el('sumPaid').textContent  = fmt(paid);
-  if (el('sumDue'))   el('sumDue').textContent   = fmt(Math.max(0, tot - paid));
+  if (el('sumVat'))   el('sumVat').textContent   = fmt(totalVat);
+  if (el('sumDue'))   {
+    el('sumDue').textContent = fmt(due);
+    // Highlight the pending box if there's an outstanding balance
+    if (due > 0.005) {
+      const box = document.getElementById('sumDueBox');
+      if (box) box.style.cssText += ';background:#fff1f2;border-color:#fecdd3;';
+      el('sumDue').style.color = '#dc2626';
+    } else {
+      el('sumDue').textContent = 'AED 0.00';
+      el('sumDue').style.color = '#16a34a';
+    }
+  }
 });
 </script>
 {% endblock %}
