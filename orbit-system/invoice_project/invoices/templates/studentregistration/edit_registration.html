@@ -1,216 +1,884 @@
 {% extends 'base_generic.html' %}
+{% block title %}Edit Registration — {{ registration.first_name }} {{ registration.last_name }}{% endblock %}
+{% block breadcrumb_label %}<span class="current">Edit Registration</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Icon-floating-label helper ───────────────────────────────── */
+.ff { position:relative; margin-bottom:16px; }
+.ff .ff-icon {
+    position:absolute; left:14px; top:50%; transform:translateY(-50%);
+    color:var(--text-muted); font-size:13px; pointer-events:none; z-index:6;
+}
+.ff textarea ~ .ff-icon { top:20px; transform:none; }
+.ff.has-icon .form-control,
+.ff.has-icon .form-select { padding-left:38px; }
+.ff.has-icon .form-floating > label { padding-left:38px; }
+.form-floating > .form-control,
+.form-floating > .form-select { height:56px; padding-top:22px; padding-bottom:6px; }
+.form-floating > textarea.form-control { height:auto; min-height:80px; padding-top:26px; }
+.form-floating > label {
+    padding-top:14px; font-size:14px; color:var(--text-muted);
+    transition:all .15s; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.form-floating > .form-control:focus ~ label,
+.form-floating > .form-control:not(:placeholder-shown) ~ label,
+.form-floating > .form-select ~ label {
+    font-size:11px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.3px; color:var(--primary); padding-top:5px;
+}
+.field-error { font-size:12px; color:var(--danger); margin-top:3px; }
+.req { color:var(--danger); }
+
+/* ── Validation ───────────────────────────────────────────────── */
+.field-invalid .form-control,
+.field-invalid .form-select,
+.field-invalid select,
+.field-invalid input {
+    border: 2px dashed #ef4444 !important;
+    border-radius: 8px !important;
+    background: rgba(239,68,68,.04) !important;
+    animation: shake .35s ease;
+}
+.field-error-msg {
+    font-size: 12px; color: #ef4444; margin-top: 4px;
+    display: flex; align-items: center; gap: 5px; font-weight: 600;
+}
+.course-entry.course-invalid {
+    border: 2px dashed #ef4444 !important;
+    background: rgba(239,68,68,.04) !important;
+    animation: shake .35s ease;
+}
+@keyframes shake {
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-6px);}
+    40%{transform:translateX(6px);}
+    60%{transform:translateX(-4px);}
+    80%{transform:translateX(4px);}
+}
+
+/* ── Section divider ──────────────────────────────────────────── */
+.sec-head {
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px;
+    color:var(--text-muted); border-bottom:1px solid var(--border);
+    padding-bottom:6px; margin:6px 0 18px;
+}
+
+/* ── Course entry ─────────────────────────────────────────────── */
+.course-entry {
+    background:var(--bg); border:1.5px solid var(--border); border-radius:12px;
+    padding:16px 16px 16px 28px; margin-bottom:10px; position:relative; transition:border-color .2s;
+}
+.course-entry:hover { border-color:var(--primary); }
+.course-entry-num {
+    position:absolute; left:-12px; top:16px; width:24px; height:24px;
+    border-radius:50%; background:var(--primary); color:#fff;
+    font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;
+}
+.btn-del-course {
+    position:absolute; top:10px; right:10px; width:28px; height:28px;
+    border-radius:8px; border:none; background:rgba(239,68,68,.1); color:var(--danger);
+    cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px;
+}
+.btn-del-course:hover { background:var(--danger); color:#fff; }
+.btn-add-course {
+    border:1.5px dashed var(--primary); background:rgba(37,99,235,.05); color:var(--primary);
+    border-radius:10px; padding:10px; font-size:13px; font-weight:600; width:100%;
+    transition:all .2s; cursor:pointer;
+}
+.btn-add-course:hover { background:var(--primary); color:#fff; }
+.course-label {
+    font-size:11px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.5px; color:var(--text-muted); margin-bottom:6px; display:block;
+}
+
+/* ── Price card ───────────────────────────────────────────────── */
+.price-card { background:linear-gradient(135deg,#0f1b2d,#1a2d47); border-radius:16px; padding:22px; color:#fff; }
+.price-row-i { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(255,255,255,.09); font-size:13px; }
+.price-row-i:last-child { border-bottom:none; }
+.price-row-i.grand { font-size:19px; font-weight:800; border-top:1px solid rgba(255,255,255,.2); padding-top:12px; }
+.pl { color:rgba(255,255,255,.65); }
+
+/* ── VAT Back-Calculator ─────────────────────────────────────── */
+.vat-calc { background:var(--card-bg); border:1.5px solid var(--border); border-radius:16px; overflow:hidden; }
+.vc-header { display:flex; align-items:center; gap:12px; padding:14px 18px; cursor:pointer; user-select:none; border-bottom:1px solid var(--border); }
+.vc-header-icon { width:34px; height:34px; border-radius:9px; background:rgba(37,99,235,.1); color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+.vc-header-text { flex:1; }
+.vc-title { font-size:13px; font-weight:700; color:var(--text); }
+.vc-sub { font-size:11px; color:var(--text-muted); margin-top:1px; }
+.vc-chevron { color:var(--text-muted); font-size:12px; transition:transform .2s; }
+.vc-chevron.open { transform:rotate(180deg); }
+.vc-body { padding:16px 18px; }
+.vc-tabs { display:flex; border:1.5px solid var(--primary); border-radius:9px; overflow:hidden; margin-bottom:14px; }
+.vc-tab { flex:1; padding:7px 6px; font-size:11px; font-weight:700; border:none; background:transparent; color:var(--primary); cursor:pointer; text-transform:uppercase; letter-spacing:.4px; transition:all .15s; }
+.vc-tab.active { background:var(--primary); color:#fff; }
+.vc-note { font-size:11px; color:var(--text-muted); background:rgba(37,99,235,.06); border-radius:7px; padding:7px 10px; margin-bottom:12px; line-height:1.5; }
+.vc-field { margin-bottom:11px; }
+.vc-field label { display:block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:5px; }
+.vc-inp-wrap { display:flex; align-items:center; border:1.5px solid var(--border); border-radius:9px; overflow:hidden; background:var(--bg); transition:border-color .15s; }
+.vc-inp-wrap:focus-within { border-color:var(--primary); }
+.vc-prefix,.vc-suffix { padding:8px 10px; font-size:12px; font-weight:700; color:var(--text-muted); background:rgba(0,0,0,.04); white-space:nowrap; }
+.vc-inp-wrap input { border:none; background:transparent; color:var(--text); font-size:14px; font-weight:700; padding:8px 10px; width:100%; outline:none; }
+.vc-inp-wrap input::placeholder { font-weight:400; color:var(--text-muted); }
+.vc-breakdown { background:var(--bg); border-radius:10px; padding:11px 13px; margin-top:11px; }
+.vc-brow { display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:5px 0; border-bottom:1px solid var(--border); color:var(--text); }
+.vc-brow:last-child { border-bottom:none; }
+.vc-brow.vc-key { font-size:13px; font-weight:800; color:var(--primary); }
+.vc-brow.vc-total { font-size:13px; font-weight:700; }
+.vc-apply { width:100%; margin-top:11px; padding:9px; font-size:12px; font-weight:700; border-radius:9px; }
+.vc-warn { font-size:11px; color:#d97706; background:rgba(245,158,11,.1); border-radius:8px; padding:8px 11px; margin-top:10px; line-height:1.5; }
+.vc-err { font-size:11px; color:#ef4444; background:rgba(239,68,68,.1); border-radius:8px; padding:8px 11px; margin-top:10px; line-height:1.5; }
+.vc-placeholder { font-size:12px; color:var(--text-muted); text-align:center; padding:14px 0; }
+</style>
+{% endblock %}
 
 {% block content %}
-<h2>Edit Registration</h2>
-<form method="post" id="editRegistrationForm">
-    {% csrf_token %}
-    
-    <!-- Personal Information -->
-    <div class="card mb-3">
-        <div class="card-header">
-            <h3>Personal Information</h3>
-        </div>
-        <div class="card-body">
-            {% for field in form %}
-                {% if field.name != 'courses' %}
-                    <div class="form-group">
-                        {{ field.label_tag }} {{ field }}
-                        {% if field.help_text %}
-                            <small class="form-text text-muted">{{ field.help_text }}</small>
-                        {% endif %}
-                        {% for error in field.errors %}
-                            <div class="alert alert-danger">{{ error }}</div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            {% endfor %}
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <div class="page-title"><i class="fas fa-user-edit me-2 text-primary"></i>Edit Registration</div>
+        <div class="page-subtitle">{{ registration.first_name }} {{ registration.last_name }} &mdash; #{{ registration.registration_no }}</div>
+    </div>
+    <a href="{% url 'student_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-arrow-left me-1"></i>Students
+    </a>
+</div>
+
+{% if form.errors or formset.errors %}
+<div id="serverErrBanner" class="d-flex align-items-start gap-3 mb-4" style="background:rgba(239,68,68,.08);border:1.5px solid rgba(239,68,68,.3);border-radius:12px;padding:14px 18px;">
+    <i class="fas fa-circle-exclamation" style="font-size:22px;color:#ef4444;flex-shrink:0;margin-top:2px;"></i>
+    <div style="flex:1;">
+        <div style="font-weight:700;color:#ef4444;font-size:14px;">Please fix the following before submitting</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.9;">
+            {% for field in form %}{% if field.errors %}<span><i class="fas fa-arrow-right me-1" style="color:#ef4444;font-size:10px;"></i><strong>{{ field.label }}</strong>: {{ field.errors.0 }}</span><br>{% endif %}{% endfor %}
+            {% for ferr in formset.errors %}{% if ferr %}{% for k,v in ferr.items %}<span><i class="fas fa-arrow-right me-1" style="color:#ef4444;font-size:10px;"></i><strong>Course — {{ k }}</strong>: {{ v.0 }}</span><br>{% endfor %}{% endif %}{% endfor %}
+            {% if formset.non_form_errors %}<span><i class="fas fa-arrow-right me-1" style="color:#ef4444;font-size:10px;"></i>{{ formset.non_form_errors.0 }}</span>{% endif %}
         </div>
     </div>
+</div>
+{% endif %}
 
-    <!-- Course Selection -->
-    <div class="card mb-3">
-        <div class="card-header">
-            <h3>Course Selection</h3>
-        </div>
-        <div class="card-body">
-            <div id="courseFormset">
-                {{ formset.management_form }}
-                {% for course_form in formset %}
-                    <div class="course-form mb-3">
-                        <div class="form-group">
-                            {{ course_form.course.label_tag }}
-                            <select name="{{ course_form.course.html_name }}" class="form-control course-select">
-                                <option value="">---------</option>
-                                {% for course in courses %}
-                                    <option value="{{ course.id }}" 
-                                        data-online-rate="{{ course.online_rate }}"
-                                        data-offline-rate="{{ course.rate }}"
-                                        data-private-rate="{{ course.private_rate }}"
-                                        data-batch-rate="{{ course.batch_rate }}"
-                                        {% if course_form.initial.course == course.id %}selected{% endif %}>
-                                        {{ course.name }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            {{ course_form.discount.label_tag }}
-                            <input type="number" name="{{ course_form.discount.html_name }}" 
-                                   class="form-control" step="0.01" min="0" max="20" required
-                                   value="{{ course_form.discount.value|default:'' }}">
-                        </div>
-                        <input type="hidden" name="{{ course_form.price.html_name }}" value="0">
-                    </div>
-                {% endfor %}
+<form method="post" id="registrationForm" novalidate>
+{% csrf_token %}
+{{ formset.management_form }}
+<div class="row g-4">
+
+<!-- ════════════════════════════════════════════════════════════
+     LEFT COLUMN
+════════════════════════════════════════════════════════════ -->
+<div class="col-xl-8">
+
+    <!-- ── PERSONAL INFORMATION ───────────────────────────── -->
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="form-section-icon"><i class="fas fa-user"></i></div>
+            <div>
+                <div class="form-section-title">Personal Information</div>
+                <div style="font-size:12px;opacity:.7">Contact, identity and address details</div>
             </div>
-            <button type="button" id="addCourse" class="btn btn-secondary">Add Course</button>
+        </div>
+        <div class="form-section-body">
+
+            <div class="sec-head">Name &amp; Contact</div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="ff has-icon{% if form.first_name.errors %} field-invalid{% endif %}">
+                        <i class="ff-icon fas fa-user"></i>
+                        <div class="form-floating">
+                            {{ form.first_name }}
+                            <label for="{{ form.first_name.id_for_label }}">First Name <span class="req">*</span></label>
+                        </div>
+                        {% if form.first_name.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ form.first_name.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon{% if form.last_name.errors %} field-invalid{% endif %}">
+                        <i class="ff-icon fas fa-user"></i>
+                        <div class="form-floating">
+                            {{ form.last_name }}
+                            <label for="{{ form.last_name.id_for_label }}">Last Name <span class="req">*</span></label>
+                        </div>
+                        {% if form.last_name.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ form.last_name.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon{% if form.email.errors %} field-invalid{% endif %}">
+                        <i class="ff-icon fas fa-envelope"></i>
+                        <div class="form-floating">
+                            {{ form.email }}
+                            <label for="{{ form.email.id_for_label }}">Email Address <span class="req">*</span></label>
+                        </div>
+                        {% if form.email.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ form.email.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon{% if form.phone_no.errors %} field-invalid{% endif %}">
+                        <i class="ff-icon fas fa-phone"></i>
+                        <div class="form-floating">
+                            {{ form.phone_no }}
+                            <label for="{{ form.phone_no.id_for_label }}">Phone Number <span class="req">*</span></label>
+                        </div>
+                        {% if form.phone_no.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ form.phone_no.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-phone-alt"></i>
+                        <div class="form-floating">
+                            {{ form.alternative_no }}
+                            <label for="{{ form.alternative_no.id_for_label }}">Alternative Number</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-birthday-cake"></i>
+                        <div class="form-floating">
+                            {{ form.date_of_birth }}
+                            <label for="{{ form.date_of_birth.id_for_label }}">Date of Birth</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sec-head mt-3">Identification</div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-id-card"></i>
+                        <div class="form-floating">
+                            {{ form.emirates_id_no }}
+                            <label for="{{ form.emirates_id_no.id_for_label }}">Emirates ID</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-passport"></i>
+                        <div class="form-floating">
+                            {{ form.passport_no }}
+                            <label for="{{ form.passport_no.id_for_label }}">Passport Number</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-fingerprint"></i>
+                        <div class="form-floating">
+                            {{ form.uid_no }}
+                            <label for="{{ form.uid_no.id_for_label }}">UID Number</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-globe"></i>
+                        <div class="form-floating">
+                            {{ form.nationality }}
+                            <label for="{{ form.nationality.id_for_label }}">Nationality</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-graduation-cap"></i>
+                        <div class="form-floating">
+                            {{ form.education }}
+                            <label for="{{ form.education.id_for_label }}">Education Level</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sec-head mt-3">Address</div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-map-marker-alt"></i>
+                        <div class="form-floating">
+                            {{ form.emirates }}
+                            <label for="{{ form.emirates.id_for_label }}">Emirate</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon{% if form.country.errors %} field-invalid{% endif %}">
+                        <i class="ff-icon fas fa-flag"></i>
+                        <div class="form-floating">
+                            {{ form.country }}
+                            <label for="{{ form.country.id_for_label }}">Country <span class="req">*</span></label>
+                        </div>
+                        {% if form.country.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ form.country.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-home" style="top:20px;transform:none;"></i>
+                        <div class="form-floating">
+                            {{ form.address }}
+                            <label for="{{ form.address.id_for_label }}">Full Address</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <!-- Invoicing Details -->
-    <div class="card mb-3">
-        <div class="card-header">
-            <h3>Invoicing Details</h3>
+    <!-- ── REGISTRATION DETAILS ───────────────────────────── -->
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="form-section-icon"><i class="fas fa-clipboard-list"></i></div>
+            <div>
+                <div class="form-section-title">Registration Details</div>
+                <div style="font-size:12px;opacity:.7">Class type, assignment and status</div>
+            </div>
         </div>
-        <div class="card-body">
-            <div class="row">
+        <div class="form-section-body">
+            <div class="row g-3">
+                <div class="col-md-6{% if form.class_type.errors %} field-invalid{% endif %}" id="wrap_class_type">
+                    <div class="form-floating">
+                        {{ form.class_type }}
+                        <label for="{{ form.class_type.id_for_label }}">Class Type <span class="req">*</span></label>
+                    </div>
+                    {% if form.class_type.errors %}<div class="field-error-msg mt-1"><i class="fas fa-circle-exclamation"></i>{{ form.class_type.errors.0 }}</div>{% endif %}
+                </div>
                 <div class="col-md-6">
-                    <p><strong>Total Course Price:</strong> <span id="totalCoursePrice">0.00</span></p>
-                    <p><strong>Total Discount:</strong> <span id="totalDiscount">0.00</span></p>
-                    <p><strong>Total VAT:</strong> <span id="totalVat">0.00</span></p>
-                    <p><strong>Grand Total:</strong> <span id="grandTotal">0.00</span></p>
+                    <div class="form-floating">
+                        {{ form.level }}
+                        <label for="{{ form.level.id_for_label }}">Level</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-floating">
+                        {{ form.registration_type }}
+                        <label for="{{ form.registration_type.id_for_label }}">Registration Type</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-calendar"></i>
+                        <div class="form-floating">
+                            {{ form.date }}
+                            <label for="{{ form.date.id_for_label }}">Registration Date</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon{% if form.consultant_name.errors %} field-invalid{% endif %}">
+                        <i class="ff-icon fas fa-user-tie"></i>
+                        <div class="form-floating">
+                            {{ form.consultant_name }}
+                            <label for="{{ form.consultant_name.id_for_label }}">Consultant <span class="req">*</span></label>
+                        </div>
+                        {% if form.consultant_name.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ form.consultant_name.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ff has-icon">
+                        <i class="ff-icon fas fa-building"></i>
+                        <div class="form-floating">
+                            {{ form.company_or_university_name }}
+                            <label for="{{ form.company_or_university_name.id_for_label }}">Company / University</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-floating">
+                        {{ form.student_status }}
+                        <label for="{{ form.student_status.id_for_label }}">Student Status</label>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <!-- ── COURSE SELECTION ──────────────────────────────── -->
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="form-section-icon"><i class="fas fa-book-open"></i></div>
+            <div>
+                <div class="form-section-title">Course Selection</div>
+                <div style="font-size:12px;opacity:.7">Price auto-calculates from class type</div>
+            </div>
+        </div>
+        <div class="form-section-body">
+            <div id="courseFormset" style="padding-left:14px;">
+                {% for course_form in formset %}
+                <div class="course-entry">
+                    <div class="course-entry-num">{{ forloop.counter }}</div>
+                    <div class="row g-3 align-items-start">
+                        <div class="col-md-6">
+                            <span class="course-label">Course <span class="req">*</span></span>
+                            <select name="{{ course_form.course.html_name }}" class="form-select course-select" required>
+                                <option value="">— Select course —</option>
+                                {% for c in courses %}
+                                <option value="{{ c.id }}"
+                                    data-oo-intermediate="{{ c.oo_intermediate }}"
+                                    data-oo-professional="{{ c.oo_professional }}"
+                                    data-oo-advanced="{{ c.oo_advanced }}"
+                                    data-priv-intermediate="{{ c.priv_intermediate }}"
+                                    data-priv-professional="{{ c.priv_professional }}"
+                                    data-priv-advanced="{{ c.priv_advanced }}"
+                                    {% if course_form.initial.course == c.id %}selected{% endif %}>
+                                    {{ c.name }}{% if c.code %} ({{ c.code }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="course-label">Discount / Coupon</span>
+                            <div class="input-group">
+                                <input type="text" name="{{ course_form.discount.html_name }}"
+                                    class="form-control discount-input" placeholder="0% or CODE"
+                                    value="{{ course_form.discount.value|default:'0' }}">
+                                <button type="button" class="btn btn-outline-secondary validate-coupon" title="Validate">
+                                    <i class="fas fa-tag"></i>
+                                </button>
+                            </div>
+                            <div class="coupon-msg mt-1"></div>
+                        </div>
+                        <div class="col-md-2">
+                            <span class="course-label">Price</span>
+                            <div class="course-price-display" style="font-size:16px;font-weight:700;color:var(--primary);padding:8px 0;">AED 0</div>
+                            <input type="hidden" name="{{ course_form.price.html_name }}" value="0" class="price-hidden">
+                        </div>
+                    </div>
+                    {% if forloop.counter > 1 %}
+                    <button type="button" class="btn-del-course" title="Remove">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" id="addCourse" class="btn-add-course mt-2">
+                <i class="fas fa-plus-circle me-2"></i>Add Another Course
+            </button>
+        </div>
+    </div>
+
+</div><!-- /col-xl-8 -->
+
+<!-- ════════════════════════════════════════════════════════════
+     RIGHT COLUMN
+════════════════════════════════════════════════════════════ -->
+<div class="col-xl-4" style="position:sticky;top:80px;align-self:flex-start;min-width:0;">
+
+    <!-- VAT Back-Calculator -->
+    <div class="vat-calc mb-4">
+        <div class="vc-header" id="vcHeader">
+            <div class="vc-header-icon"><i class="fas fa-calculator"></i></div>
+            <div class="vc-header-text">
+                <div class="vc-title">VAT Back-Calculator</div>
+                <div class="vc-sub">Work backwards from the total you want to charge</div>
+            </div>
+            <i class="fas fa-chevron-down vc-chevron open" id="vcChevron"></i>
+        </div>
+        <div class="vc-body" id="vcBody">
+            <div class="vc-tabs">
+                <button type="button" class="vc-tab active" data-mode="A">
+                    <i class="fas fa-percent me-1"></i>Find Discount
+                </button>
+                <button type="button" class="vc-tab" data-mode="B">
+                    <i class="fas fa-tag me-1"></i>Find Rate / Pax
+                </button>
+            </div>
+            <div id="vcModeA">
+                <div class="vc-note">
+                    <i class="fas fa-lightbulb me-1"></i>
+                    Enter the <strong>total the student will pay</strong>. Uses the course subtotal already loaded in the form.
+                </div>
+                <div class="vc-field">
+                    <label>Target Grand Total (incl. VAT)</label>
+                    <div class="vc-inp-wrap">
+                        <span class="vc-prefix">AED</span>
+                        <input type="number" id="vcTargetA" placeholder="e.g. 5 250.00" step="0.01" min="0">
+                    </div>
+                </div>
+                <div id="vcResultA"><div class="vc-placeholder"><i class="fas fa-arrow-up me-1"></i>Enter a target total above</div></div>
+            </div>
+            <div id="vcModeB" style="display:none;">
+                <div class="vc-note">
+                    <i class="fas fa-lightbulb me-1"></i>
+                    Enter the total, discount %, and number of persons to find the <strong>course rate per person</strong> needed.
+                </div>
+                <div class="vc-field">
+                    <label>Target Grand Total (incl. VAT)</label>
+                    <div class="vc-inp-wrap">
+                        <span class="vc-prefix">AED</span>
+                        <input type="number" id="vcTargetB" placeholder="e.g. 5 250.00" step="0.01" min="0">
+                    </div>
+                </div>
+                <div class="vc-field">
+                    <label>Discount %</label>
+                    <div class="vc-inp-wrap">
+                        <input type="number" id="vcDiscB" placeholder="0" step="0.01" min="0" max="99.99" value="0">
+                        <span class="vc-suffix">%</span>
+                    </div>
+                </div>
+                <div class="vc-field">
+                    <label>Number of Persons</label>
+                    <div class="vc-inp-wrap">
+                        <input type="number" id="vcPersonsB" placeholder="1" min="1" value="1">
+                        <span class="vc-suffix">pax</span>
+                    </div>
+                </div>
+                <div id="vcResultB"><div class="vc-placeholder"><i class="fas fa-arrow-up me-1"></i>Enter values above</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Price Summary -->
+    <div class="price-card">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:16px;">Price Summary</div>
+        <div class="price-row-i"><span class="pl">Subtotal</span><span id="sSubtotal">AED 0.00</span></div>
+        <div class="price-row-i"><span class="pl">Discount</span><span id="sDiscount" style="color:#fca5a5;">— AED 0.00</span></div>
+        <div class="price-row-i"><span class="pl">After Discount</span><span id="sAfterDisc">AED 0.00</span></div>
+        <div class="price-row-i"><span class="pl">VAT (5%)</span><span id="sVat" style="color:#93c5fd;">AED 0.00</span></div>
+        <div class="price-row-i grand"><span>Grand Total</span><span id="sGrand">AED 0.00</span></div>
+        <div class="mt-4">
+            <div style="font-size:11px;opacity:.6;margin-bottom:4px;">Class Type</div>
+            <div id="ctDisplay" style="font-size:14px;font-weight:700;color:#93c5fd;">—</div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mt-4" style="padding:14px;font-size:15px;font-weight:700;border-radius:12px;">
+            <i class="fas fa-save me-2"></i>Save Changes
+        </button>
+    </div>
+
+</div><!-- /col-xl-4 -->
+
+</div><!-- /row -->
 </form>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const courseFormset = document.getElementById('courseFormset');
-    const addCourseButton = document.getElementById('addCourse');
-    const totalCoursePriceSpan = document.getElementById('totalCoursePrice');
-    const totalVatSpan = document.getElementById('totalVat');
-    const totalDiscountSpan = document.getElementById('totalDiscount');
-    const grandTotalSpan = document.getElementById('grandTotal');
-    const classTypeSelect = document.getElementById('id_class_type');
+/* ════ VALIDATION ════════════════════════════════════════════ */
+function clearValidation() {
+    document.querySelectorAll('.field-invalid').forEach(el => el.classList.remove('field-invalid'));
+    document.querySelectorAll('.field-error-msg.js-err').forEach(el => el.remove());
+    document.querySelectorAll('.course-invalid').forEach(el => el.classList.remove('course-invalid'));
+}
+function markInvalid(el, message) {
+    const wrapper = el.closest('.ff') || el.closest('.form-floating')?.parentElement || el.parentElement;
+    wrapper.classList.add('field-invalid');
+    wrapper.querySelectorAll('.field-error-msg.js-err').forEach(e => e.remove());
+    const err = document.createElement('div');
+    err.className = 'field-error-msg js-err';
+    err.innerHTML = `<i class="fas fa-circle-exclamation"></i>${message}`;
+    wrapper.appendChild(err);
+    return el;
+}
+function scrollToFirst(elements) {
+    const el = elements[0];
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - 120;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    setTimeout(() => el.focus(), 400);
+}
 
-    function updatePrices() {
-        let totalCoursePrice = 0;
-        let totalVat = 0;
-        let totalDiscount = 0;
-        let grandTotal = 0;
-        const classType = classTypeSelect.value;
-
-        document.querySelectorAll('.course-form').forEach(function(courseForm) {
-            const courseSelect = courseForm.querySelector('.course-select');
-            const discountInput = courseForm.querySelector('input[name$="-discount"]');
-            const priceInput = courseForm.querySelector('input[name$="-price"]');
-
-            if (courseSelect && courseSelect.value) {
-                const selectedOption = courseSelect.options[courseSelect.selectedIndex];
-                let price;
-                switch (classType) {
-                    case 'online':
-                        price = parseFloat(selectedOption.getAttribute('data-online-rate') || 0);
-                        break;
-                    case 'offline':
-                        price = parseFloat(selectedOption.getAttribute('data-offline-rate') || 0);
-                        break;
-                    case 'private':
-                        price = parseFloat(selectedOption.getAttribute('data-private-rate') || 0);
-                        break;
-                    case 'batch':
-                        price = parseFloat(selectedOption.getAttribute('data-batch-rate') || 0);
-                        break;
-                    default:
-                        price = 0;
-                }
-                const discountPercentage = parseFloat(discountInput.value) || 0;
-
-                const discountAmount = price * (discountPercentage / 100);
-                const discountedPrice = price - discountAmount;
-                const vat = discountedPrice * 0.05;
-                priceInput.value = price;  // Store the original price
-
-                totalCoursePrice += price;
-                totalDiscount += discountAmount;
-                totalVat += vat;
-                grandTotal += discountedPrice + vat;
-            }
-        });
-
-        totalCoursePriceSpan.textContent = totalCoursePrice.toFixed(2);
-        totalVatSpan.textContent = totalVat.toFixed(2);
-        totalDiscountSpan.textContent = totalDiscount.toFixed(2);
-        grandTotalSpan.textContent = grandTotal.toFixed(2);
+document.getElementById('registrationForm').addEventListener('submit', function(e) {
+    clearValidation();
+    const invalid = [];
+    const required = [
+        { id: 'id_first_name',      label: 'First Name is required'  },
+        { id: 'id_last_name',       label: 'Last Name is required'   },
+        { id: 'id_phone_no',        label: 'Phone Number is required' },
+        { id: 'id_email',           label: 'Email Address is required' },
+        { id: 'id_country',         label: 'Country is required'      },
+        { id: 'id_consultant_name', label: 'Consultant name is required' },
+    ];
+    required.forEach(({ id, label }) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (!el.value.trim()) { markInvalid(el, label); invalid.push(el); }
+    });
+    const emailEl = document.getElementById('id_email');
+    if (emailEl && emailEl.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailEl.value.trim())) {
+        markInvalid(emailEl, 'Enter a valid email address');
+        if (!invalid.includes(emailEl)) invalid.push(emailEl);
     }
-
-    function addCourseForm() {
-        const formCount = document.querySelector('#id_courses-TOTAL_FORMS');
-        const newForm = courseFormset.querySelector('.course-form').cloneNode(true);
-        const formRegex = RegExp(`courses-(\\d){1}-`,'g');
-
-        formCount.value = parseInt(formCount.value) + 1;
-        newForm.innerHTML = newForm.innerHTML.replace(formRegex, `courses-${formCount.value - 1}-`);
-        newForm.querySelectorAll('input, select').forEach(input => {
-            input.value = '';
-            input.name = input.name.replace(formRegex, `courses-${formCount.value - 1}-`);
-            input.id = input.id.replace(formRegex, `courses-${formCount.value - 1}-`);
-        });
-
-        // Add delete button
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.className = 'btn btn-danger btn-sm delete-course';
-        deleteButton.textContent = 'Delete Course';
-        deleteButton.addEventListener('click', deleteCourseForm);
-        newForm.appendChild(deleteButton);
-
-        courseFormset.appendChild(newForm);
-        attachEventListeners(newForm);
-        updatePrices();
+    const ctEl = document.getElementById('id_class_type');
+    if (ctEl && !ctEl.value) {
+        const wrap = document.getElementById('wrap_class_type') || ctEl.parentElement;
+        wrap.classList.add('field-invalid');
+        const err = document.createElement('div');
+        err.className = 'field-error-msg js-err mt-1';
+        err.innerHTML = '<i class="fas fa-circle-exclamation"></i>Please select a class type';
+        wrap.appendChild(err);
+        invalid.push(ctEl);
     }
-
-    function attachEventListeners(form) {
-        const courseSelect = form.querySelector('.course-select');
-        const discountInput = form.querySelector('input[name$="-discount"]');
-
-        courseSelect.addEventListener('change', updatePrices);
-        discountInput.addEventListener('input', updatePrices);
+    let courseSelected = false;
+    document.querySelectorAll('.course-select').forEach(sel => { if (sel.value) courseSelected = true; });
+    if (!courseSelected) {
+        const firstEntry = document.querySelector('.course-entry');
+        const firstSel   = document.querySelector('.course-select');
+        if (firstEntry) firstEntry.classList.add('course-invalid');
+        const errDiv = document.createElement('div');
+        errDiv.className = 'field-error-msg js-err mt-2';
+        errDiv.innerHTML = '<i class="fas fa-circle-exclamation"></i>Please select at least one course';
+        if (firstEntry) firstEntry.appendChild(errDiv);
+        if (firstSel) invalid.push(firstSel);
     }
-
-    function deleteCourseForm(event) {
-        const courseForm = event.target.closest('.course-form');
-        if (courseForm) {
-            courseForm.remove();
-            updateFormIndexes();
-            updatePrices();
+    if (invalid.length > 0) {
+        e.preventDefault();
+        scrollToFirst(invalid);
+        const btn = this.querySelector('[type=submit]');
+        if (btn) {
+            const orig = btn.innerHTML;
+            btn.style.background = '#ef4444';
+            btn.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${invalid.length} field${invalid.length > 1 ? 's' : ''} need attention`;
+            setTimeout(() => { btn.style.background = ''; btn.innerHTML = orig; }, 2500);
         }
+        return false;
+    }
+    const btn = this.querySelector('[type=submit]');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving…'; }
+});
+
+document.querySelectorAll('#registrationForm input, #registrationForm select, #registrationForm textarea').forEach(el => {
+    el.addEventListener('input', function() {
+        const wrapper = this.closest('.field-invalid');
+        if (wrapper) { wrapper.classList.remove('field-invalid'); wrapper.querySelectorAll('.field-error-msg.js-err').forEach(e => e.remove()); }
+    });
+    el.addEventListener('change', function() {
+        const wrapper = this.closest('.field-invalid');
+        if (wrapper) { wrapper.classList.remove('field-invalid'); wrapper.querySelectorAll('.field-error-msg.js-err').forEach(e => e.remove()); }
+        if (this.classList.contains('course-select') && this.value) {
+            this.closest('.course-entry')?.classList.remove('course-invalid');
+            this.closest('.course-entry')?.querySelectorAll('.field-error-msg.js-err').forEach(e => e.remove());
+        }
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const banner   = document.getElementById('serverErrBanner');
+    const firstErr = document.querySelector('.field-invalid');
+    const target   = banner || firstErr;
+    if (target) {
+        setTimeout(function() {
+            const top = target.getBoundingClientRect().top + window.scrollY - 100;
+            window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+        }, 150);
+        if (firstErr) { const inp = firstErr.querySelector('input,select,textarea'); if (inp) setTimeout(() => inp.focus(), 600); }
+    }
+});
+
+/* ════ PRICE CALCULATION ════════════════════════════════════ */
+const ctSel = document.getElementById('id_class_type');
+const fmt = n => 'AED ' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+function updatePrices() {
+    const t     = ctSel ? ctSel.value : '';
+    const level = (document.getElementById('id_level') || {value:'intermediate'}).value || 'intermediate';
+    document.getElementById('ctDisplay').textContent = t ? t.charAt(0).toUpperCase() + t.slice(1) : '—';
+    let sub = 0, disc = 0;
+    document.querySelectorAll('.course-entry').forEach(e => {
+        const sel = e.querySelector('.course-select');
+        const di  = e.querySelector('.discount-input');
+        const ph  = e.querySelector('.price-hidden');
+        const pd  = e.querySelector('.course-price-display');
+        if (!sel || !sel.value) { if (pd) pd.textContent = 'AED 0'; return; }
+        const opt = sel.options[sel.selectedIndex];
+        let price;
+        if (t === 'private') {
+            price = parseFloat(opt.dataset['priv' + level.charAt(0).toUpperCase() + level.slice(1)] || opt.dataset.privIntermediate || 0);
+        } else {
+            price = parseFloat(opt.dataset['oo' + level.charAt(0).toUpperCase() + level.slice(1)] || opt.dataset.ooIntermediate || 0);
+        }
+        const dv = di ? di.value.trim() : '0';
+        let dp = 0;
+        if (!isNaN(dv) && dv !== '')
+            dp = Math.min(parseFloat(dv) || 0, di?.dataset.couponApplied === 'true' ? 100 : 20);
+        const da = price * dp / 100;
+        if (ph) ph.value = price;
+        if (pd) pd.textContent = price > 0 ? fmt(price - da) : 'AED 0';
+        sub += price; disc += da;
+    });
+    const ad = sub - disc, vat = ad * 0.05, grand = ad + vat;
+    document.getElementById('sSubtotal').textContent  = fmt(sub);
+    document.getElementById('sDiscount').textContent  = '— ' + fmt(disc);
+    document.getElementById('sAfterDisc').textContent = fmt(ad);
+    document.getElementById('sVat').textContent       = fmt(vat);
+    document.getElementById('sGrand').textContent     = fmt(grand);
+}
+
+ctSel?.addEventListener('change', updatePrices);
+document.getElementById('id_level')?.addEventListener('change', updatePrices);
+
+function attachEntry(e) {
+    e.querySelector('.course-select')?.addEventListener('change', updatePrices);
+    const di = e.querySelector('.discount-input');
+    di?.addEventListener('input', () => { di.dataset.couponApplied = 'false'; updatePrices(); });
+    e.querySelector('.validate-coupon')?.addEventListener('click', () => validateCoupon(e));
+    e.querySelector('.btn-del-course')?.addEventListener('click', () => { e.remove(); reNum(); updatePrices(); });
+}
+
+function validateCoupon(e) {
+    const di = e.querySelector('.discount-input'), msg = e.querySelector('.coupon-msg');
+    const code = di.value.trim();
+    if (!code || !isNaN(code)) { msg.innerHTML = ''; return; }
+    msg.innerHTML = '<span style="font-size:12px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Checking…</span>';
+    fetch(`/validate-coupon/?code=${encodeURIComponent(code)}`)
+        .then(r => r.json()).then(d => {
+            if (d.valid) {
+                di.value = d.discount; di.dataset.couponApplied = 'true';
+                msg.innerHTML = `<span style="color:#10b981;font-size:12px;"><i class="fas fa-check me-1"></i>${d.discount}% applied</span>`;
+            } else {
+                msg.innerHTML = '<span style="color:var(--danger);font-size:12px;"><i class="fas fa-times me-1"></i>Invalid code</span>';
+                di.dataset.couponApplied = 'false';
+            }
+            updatePrices();
+        }).catch(() => msg.innerHTML = '<span style="color:var(--danger);font-size:12px;">Error checking code</span>');
+}
+
+function reNum() {
+    document.querySelectorAll('.course-entry').forEach((e, i) => {
+        const n = e.querySelector('.course-entry-num'); if (n) n.textContent = i + 1;
+        // show/hide delete btn for first entry
+        const del = e.querySelector('.btn-del-course');
+        if (i === 0) { if (del) del.style.display = 'none'; }
+        else { if (del) del.style.display = ''; }
+    });
+    const tf = document.getElementById('id_courses-TOTAL_FORMS');
+    if (tf) tf.value = document.querySelectorAll('.course-entry').length;
+}
+
+document.getElementById('addCourse')?.addEventListener('click', () => {
+    const fs  = document.getElementById('courseFormset');
+    const tf  = document.getElementById('id_courses-TOTAL_FORMS');
+    const idx = parseInt(tf.value);
+    const first = fs.querySelector('.course-entry');
+    const clone = first.cloneNode(true);
+    const re = /courses-(\d+)-/g;
+    clone.innerHTML = clone.innerHTML.replace(re, `courses-${idx}-`);
+    clone.querySelectorAll('input,select').forEach(el => {
+        el.value = el.classList.contains('discount-input') ? '0' : '';
+        el.name = el.name.replace(re, `courses-${idx}-`);
+        if (el.id) el.id = el.id.replace(re, `courses-${idx}-`);
+        if (el.dataset) el.dataset.couponApplied = 'false';
+    });
+    const cm = clone.querySelector('.coupon-msg'); if (cm) cm.innerHTML = '';
+    const pd = clone.querySelector('.course-price-display'); if (pd) pd.textContent = 'AED 0';
+    // always add delete btn on cloned entries
+    let delBtn = clone.querySelector('.btn-del-course');
+    if (!delBtn) {
+        delBtn = document.createElement('button');
+        delBtn.type = 'button'; delBtn.className = 'btn-del-course'; delBtn.title = 'Remove';
+        delBtn.innerHTML = '<i class="fas fa-times"></i>';
+        clone.appendChild(delBtn);
+    }
+    delBtn.style.display = '';
+    fs.appendChild(clone); tf.value = idx + 1; reNum(); attachEntry(clone); updatePrices();
+    clone.scrollIntoView({ behavior:'smooth', block:'nearest' });
+});
+
+document.querySelectorAll('.course-entry').forEach(e => attachEntry(e));
+updatePrices();
+
+/* ════ VAT BACK-CALCULATOR ══════════════════════════════════ */
+(function () {
+    const aed = n => 'AED ' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+    const pct = n => parseFloat(n || 0).toFixed(2) + '%';
+
+    function getFormSubtotal() {
+        const el = document.getElementById('sSubtotal');
+        if (!el) return 0;
+        return parseFloat(el.textContent.replace(/[^0-9.]/g, '')) || 0;
     }
 
-    function updateFormIndexes() {
-        const formCount = document.querySelector('#id_courses-TOTAL_FORMS');
-        const courseForms = document.querySelectorAll('.course-form');
-        formCount.value = courseForms.length;
-
-        courseForms.forEach((form, index) => {
-            form.querySelectorAll('input, select').forEach(input => {
-                input.name = input.name.replace(/-\d+-/, `-${index}-`);
-                input.id = input.id.replace(/-\d+-/, `-${index}-`);
+    function calcModeA() {
+        const target = parseFloat(document.getElementById('vcTargetA')?.value) || 0;
+        const box = document.getElementById('vcResultA');
+        if (!box) return;
+        if (target <= 0) { box.innerHTML = '<div class="vc-placeholder"><i class="fas fa-arrow-up me-1"></i>Enter a target total above</div>'; return; }
+        const subtotal = getFormSubtotal();
+        const preVat = target / 1.05;
+        const vatAmt = target - preVat;
+        if (subtotal <= 0) {
+            box.innerHTML = `<div class="vc-breakdown">
+                <div class="vc-brow"><span style="color:var(--text-muted);">Pre-VAT Amount</span><span>${aed(preVat)}</span></div>
+                <div class="vc-brow"><span style="color:var(--text-muted);">VAT (5%)</span><span style="color:#93c5fd;">${aed(vatAmt)}</span></div>
+                <div class="vc-brow vc-total"><span>Grand Total</span><span>${aed(target)}</span></div>
+            </div><div class="vc-note mt-2"><i class="fas fa-info-circle me-1"></i>Select a course above to calculate the exact discount needed.</div>`;
+            return;
+        }
+        const discAmt = subtotal - preVat;
+        const discPct = (discAmt / subtotal) * 100;
+        if (discPct < -0.005) {
+            box.innerHTML = `<div class="vc-err"><i class="fas fa-exclamation-triangle me-1"></i>Target <strong>${aed(target)}</strong> exceeds the full-price total of <strong>${aed(subtotal * 1.05)}</strong>. Reduce the target or adjust course rates.</div>`;
+            return;
+        }
+        if (discPct > 100) { box.innerHTML = '<div class="vc-err"><i class="fas fa-exclamation-triangle me-1"></i>Target requires more than 100% discount — not achievable.</div>'; return; }
+        const appliedPct = Math.max(0, discPct);
+        box.innerHTML = `<div class="vc-breakdown">
+            <div class="vc-brow"><span style="color:var(--text-muted);">Course Subtotal</span><span>${aed(subtotal)}</span></div>
+            <div class="vc-brow vc-key"><span><i class="fas fa-percent me-1"></i>Discount to Apply</span><span>${pct(appliedPct)}</span></div>
+            <div class="vc-brow"><span style="color:var(--text-muted);">Discount Amount</span><span style="color:#fca5a5;">— ${aed(Math.max(0,discAmt))}</span></div>
+            <div class="vc-brow"><span style="color:var(--text-muted);">After Discount</span><span>${aed(preVat)}</span></div>
+            <div class="vc-brow"><span style="color:var(--text-muted);">VAT (5%)</span><span style="color:#93c5fd;">${aed(vatAmt)}</span></div>
+            <div class="vc-brow vc-total"><span>Grand Total</span><span>${aed(target)}</span></div>
+        </div>
+        <button type="button" class="btn btn-primary vc-apply" id="vcApplyA">
+            <i class="fas fa-check me-2"></i>Apply ${pct(appliedPct)} to All Courses
+        </button>`;
+        document.getElementById('vcApplyA')?.addEventListener('click', () => {
+            document.querySelectorAll('.discount-input').forEach(inp => {
+                inp.value = appliedPct.toFixed(2); inp.dataset.couponApplied = 'false'; inp.dispatchEvent(new Event('input'));
             });
+            updatePrices();
         });
     }
 
-    addCourseButton.addEventListener('click', addCourseForm);
+    function calcModeB() {
+        const target  = parseFloat(document.getElementById('vcTargetB')?.value)  || 0;
+        const discPct = parseFloat(document.getElementById('vcDiscB')?.value)     || 0;
+        const persons = parseInt(document.getElementById('vcPersonsB')?.value)    || 1;
+        const box = document.getElementById('vcResultB');
+        if (!box) return;
+        if (target <= 0) { box.innerHTML = '<div class="vc-placeholder"><i class="fas fa-arrow-up me-1"></i>Enter values above</div>'; return; }
+        if (discPct >= 100) { box.innerHTML = '<div class="vc-err">Discount cannot be 100% or more.</div>'; return; }
+        const preVat      = target / 1.05;
+        const ratePerpax  = preVat / (persons * (1 - discPct / 100));
+        const courseTotal = ratePerpax * persons;
+        const discAmt     = courseTotal * (discPct / 100);
+        const afterDisc   = courseTotal - discAmt;
+        const vatAmt      = afterDisc * 0.05;
+        const grandTotal  = afterDisc + vatAmt;
+        box.innerHTML = `<div class="vc-breakdown">
+            <div class="vc-brow vc-key"><span><i class="fas fa-tag me-1"></i>Rate per Person</span><span>${aed(ratePerpax)}</span></div>
+            <div class="vc-brow"><span style="color:var(--text-muted);">Course Total (${persons} pax)</span><span>${aed(courseTotal)}</span></div>
+            <div class="vc-brow"><span style="color:var(--text-muted);">Discount (${pct(discPct)})</span><span style="color:#fca5a5;">— ${aed(discAmt)}</span></div>
+            <div class="vc-brow"><span style="color:var(--text-muted);">After Discount</span><span>${aed(afterDisc)}</span></div>
+            <div class="vc-brow"><span style="color:var(--text-muted);">VAT (5%)</span><span style="color:#93c5fd;">${aed(vatAmt)}</span></div>
+            <div class="vc-brow vc-total"><span>Grand Total</span><span>${aed(grandTotal)}</span></div>
+        </div>`;
+    }
 
-    document.querySelectorAll('.course-form').forEach(attachEventListeners);
-
-    classTypeSelect.addEventListener('change', updatePrices);
-
-    updatePrices();
-});
+    document.querySelectorAll('.vc-tab').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const mode = this.dataset.mode;
+            document.querySelectorAll('.vc-tab').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+            document.getElementById('vcModeA').style.display = mode === 'A' ? 'block' : 'none';
+            document.getElementById('vcModeB').style.display = mode === 'B' ? 'block' : 'none';
+        });
+    });
+    document.getElementById('vcHeader')?.addEventListener('click', function () {
+        const body = document.getElementById('vcBody');
+        const chev = document.getElementById('vcChevron');
+        const collapsed = body.style.display === 'none';
+        body.style.display = collapsed ? 'block' : 'none';
+        chev?.classList.toggle('open', collapsed);
+    });
+    document.getElementById('vcTargetA')?.addEventListener('input', calcModeA);
+    document.getElementById('vcTargetB')?.addEventListener('input', calcModeB);
+    document.getElementById('vcDiscB')?.addEventListener('input', calcModeB);
+    document.getElementById('vcPersonsB')?.addEventListener('input', calcModeB);
+    document.getElementById('courseFormset')?.addEventListener('change', () => setTimeout(calcModeA, 50));
+    document.getElementById('courseFormset')?.addEventListener('input',  () => setTimeout(calcModeA, 50));
+    document.getElementById('id_class_type')?.addEventListener('change', () => setTimeout(calcModeA, 50));
+    calcModeA();
+    calcModeB();
+})();
 </script>
 {% endblock %}
