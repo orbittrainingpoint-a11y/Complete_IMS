@@ -179,6 +179,9 @@
                 data-person="{{ invoice.number_of_person }}"
                 data-type="{{ invoice.class_type }}"
                 data-register="{{ invoice.registration.registration_number }}"
+                data-reg-date="{{ invoice.registration.date }}"
+                data-phone="{{ invoice.registration.phone_no }}"
+                data-email="{{ invoice.registration.email }}"
                 data-invoice-items='{{ invoice.items_json }}'
                 data-po-number="{{ invoice.po_number }}"
                 data-logo-url="{% static 'images/Orbit-Logo-1.png' %}">
@@ -599,6 +602,9 @@ function printTaxInvoice(row) {
           <div class="val">${d.client}</div>
           ${d.clientAddress ? `<div class="sub">${d.clientAddress}</div>` : ''}
           ${(d.emirates || d.country) ? `<div class="sub">${[d.emirates, d.country].filter(Boolean).join(', ')}</div>` : ''}
+          ${d.phone ? `<div class="sub"><b>Phone:</b> ${d.phone}</div>` : ''}
+          ${d.email ? `<div class="sub"><b>Email:</b> ${d.email}</div>` : ''}
+          ${d.regDate ? `<div class="sub"><b>Reg. Date:</b> ${d.regDate}</div>` : ''}
           ${clientTrn ? `<div class="trn-highlight">TRN: ${clientTrn}</div>` : ''}
         </div>
         <div class="inv-meta-block details">
