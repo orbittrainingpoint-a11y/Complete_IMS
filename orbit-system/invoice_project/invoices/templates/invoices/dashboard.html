@@ -465,9 +465,9 @@ const INVOICE_CSS = `
   .items-table tbody tr:nth-child(even) { background:#f7f9fc; }
   .items-table tfoot td { background:#eef2ff; font-weight:700; border-top:2px solid #c8d0e0; padding:4px 8px; }
 
-  /* totals summary */
-  .inv-totals-wrap { display:flex; justify-content:flex-end; margin-top:0; }
-  .inv-totals { width:300px; border:1px solid #c8d0e0; border-top:none; }
+  /* totals + terms merged — terms LEFT, (totals+sigs) RIGHT, one flex row */
+  .inv-totals-wrap { display:none; } /* folded into inv-bottom right col */
+  .inv-totals { border:1px solid #c8d0e0; border-top:none; }
   .inv-totals table { width:100%; border-collapse:collapse; font-size:9pt; }
   .inv-totals table td { padding:4px 10px; border-bottom:1px solid #e2e8f0; }
   .inv-totals table td:first-child { color:#555; }
@@ -478,13 +478,13 @@ const INVOICE_CSS = `
   .inv-totals table tr.balance td { background:#fff7ed; color:#b45309; font-weight:800; }
   .inv-totals table tr.paid-full td { background:#d1fae5; color:#065f46; font-weight:800; }
 
-  /* bottom section — landscape: two columns */
-  .inv-bottom { display:flex; gap:18px; margin-top:10px; align-items:flex-start; }
-  .inv-terms { flex:1.6; }
+  /* bottom section — terms LEFT, totals+sigs RIGHT, starts right after items table */
+  .inv-bottom { display:flex; gap:18px; margin-top:4px; align-items:flex-start; }
+  .inv-terms { flex:1.8; }
   .inv-terms h4 { font-size:7.5pt; font-weight:700; margin-bottom:4px; color:#1a3d8f; text-transform:uppercase; letter-spacing:.5px; }
   .inv-terms ol { padding-left:14px; font-size:7pt; color:#555; }
   .inv-terms ol li { margin-bottom:2px; }
-  .inv-right-col { flex:1; }
+  .inv-right-col { flex:0 0 300px; display:flex; flex-direction:column; gap:8px; }
   .inv-prev-ref { border:1px solid #c8d0e0; border-radius:3px; padding:6px 9px; background:#f8faff; margin-top:6px; margin-bottom:0; display:inline-block; max-width:220px; width:auto; }
   .inv-prev-ref h4 { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#1a3d8f; margin-bottom:4px; border-bottom:1px solid #e2e8f0; padding-bottom:2px; }
   .inv-prev-ref table { width:100%; border-collapse:collapse; }
@@ -643,21 +643,7 @@ function printTaxInvoice(row) {
         </tfoot>
       </table>
 
-      <!-- TOTALS SUMMARY (right-aligned) -->
-      <div class="inv-totals-wrap">
-        <div class="inv-totals">
-          <table>
-            <tr><td>Sub Total</td><td>AED ${fmt(lineTotal)}</td></tr>
-            ${discRow}
-            <tr><td style="color:#1a3d8f;font-weight:600;">VAT (5%)</td><td style="color:#1a3d8f;font-weight:600;">AED ${fmt(vatAmt)}</td></tr>
-            <tr class="grand"><td>Grand Total</td><td>AED ${fmt(grandTotal)}</td></tr>
-            <tr class="paid-now"><td>Paid This Invoice</td><td>AED ${fmt(amountPaidNow)}</td></tr>
-            ${balanceRow}
-          </table>
-        </div>
-      </div>
-
-      <!-- TERMS & SIGNATURES — landscape two-column layout -->
+      <!-- TERMS (left) + TOTALS & SIGNATURES (right) — one merged row -->
       <div class="inv-bottom">
         <div class="inv-terms">
           <h4>Terms &amp; Conditions</h4>
@@ -671,6 +657,16 @@ function printTaxInvoice(row) {
           ${prevPayRef}
         </div>
         <div class="inv-right-col">
+          <div class="inv-totals">
+            <table>
+              <tr><td>Sub Total</td><td>AED ${fmt(lineTotal)}</td></tr>
+              ${discRow}
+              <tr><td style="color:#1a3d8f;font-weight:600;">VAT (5%)</td><td style="color:#1a3d8f;font-weight:600;">AED ${fmt(vatAmt)}</td></tr>
+              <tr class="grand"><td>Grand Total</td><td>AED ${fmt(grandTotal)}</td></tr>
+              <tr class="paid-now"><td>Paid This Invoice</td><td>AED ${fmt(amountPaidNow)}</td></tr>
+              ${balanceRow}
+            </table>
+          </div>
           <div class="inv-sigs">
             <div class="sig">
               <div class="sig-line">Authorized Signatory</div>
