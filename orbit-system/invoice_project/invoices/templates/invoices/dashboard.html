@@ -485,10 +485,10 @@ const INVOICE_CSS = `
   .inv-terms ol { padding-left:14px; font-size:7pt; color:#555; }
   .inv-terms ol li { margin-bottom:2px; }
   .inv-right-col { flex:1; }
-  .inv-prev-ref { border:1px solid #c8d0e0; border-radius:3px; padding:6px 9px; background:#f8faff; margin-bottom:10px; }
+  .inv-prev-ref { border:1px solid #c8d0e0; border-radius:3px; padding:6px 9px; background:#f8faff; margin-bottom:8px; display:inline-block; max-width:220px; width:auto; }
   .inv-prev-ref h4 { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#1a3d8f; margin-bottom:4px; border-bottom:1px solid #e2e8f0; padding-bottom:2px; }
   .inv-prev-ref table { width:100%; border-collapse:collapse; }
-  .inv-prev-ref table td { font-size:7.5pt; padding:2px 3px; }
+  .inv-prev-ref table td { font-size:7.5pt; padding:2px 3px; white-space:nowrap; }
   .inv-prev-ref table td:first-child { color:#6b7a99; width:40%; }
   .inv-prev-ref table td:last-child { font-weight:600; color:#1a1a2e; }
   .inv-prev-ref .ref-num { font-weight:700; color:#9a3412; }
@@ -660,6 +660,7 @@ function printTaxInvoice(row) {
       <!-- TERMS & SIGNATURES — landscape two-column layout -->
       <div class="inv-bottom">
         <div class="inv-terms">
+          ${prevPayRef}
           <h4>Terms &amp; Conditions</h4>
           <ol>
             <li>Fees paid are strictly non-refundable and non-transferable.</li>
@@ -668,7 +669,6 @@ function printTaxInvoice(row) {
             <li>For Credit/Debit Card payments, an additional convenience fee of 3% may apply.</li>
             <li>The Institute reserves the right to modify course content, schedules, and fee structure without prior notice.</li>
           </ol>
-          ${prevPayRef}
         </div>
         <div class="inv-right-col">
           <div class="inv-sigs">
