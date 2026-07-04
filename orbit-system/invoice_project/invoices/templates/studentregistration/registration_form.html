@@ -497,6 +497,7 @@
                                 </button>
                             </div>
                             <div class="coupon-msg mt-1"></div>
+                            <div class="disc-cap-hint mt-1" style="font-size:11px;color:var(--text-muted);"></div>
                         </div>
                         <div class="col-md-2">
                             <span class="course-label">Price</span>
@@ -778,6 +779,18 @@ document.addEventListener('DOMContentLoaded', function() {
 const ctSel = document.getElementById('id_class_type');
 const fmt = n => 'AED ' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
+function getDiscountCap() {
+    return document.querySelectorAll('.course-entry').length >= 2 ? 30 : 20;
+}
+
+function updateDiscCapHints() {
+    const cap = getDiscountCap();
+    document.querySelectorAll('.disc-cap-hint').forEach(el => {
+        el.textContent = cap === 30 ? 'Max 30% (multi-course)' : 'Max 20%';
+        el.style.color = cap === 30 ? '#10b981' : 'var(--text-muted)';
+    });
+}
+
 function updatePrices() {
     const t     = ctSel ? ctSel.value : '';
     const level = (document.getElementById('id_level') || {value: 'intermediate'}).value || 'intermediate';
@@ -801,7 +814,7 @@ function updatePrices() {
         const dv = di ? di.value.trim() : '0';
         let dp = 0;
         if (!isNaN(dv) && dv !== '')
-            dp = Math.min(parseFloat(dv) || 0, di?.dataset.couponApplied === 'true' ? 100 : 20);
+            dp = Math.min(parseFloat(dv) || 0, di?.dataset.couponApplied === 'true' ? 100 : getDiscountCap());
         const da = price * dp / 100;
         if (ph) ph.value = price;
         if (pd) pd.textContent = price > 0 ? fmt(price - da) : 'AED 0';
@@ -850,6 +863,7 @@ function reNum() {
     });
     const tf = document.getElementById('id_form-TOTAL_FORMS');
     if (tf) tf.value = document.querySelectorAll('.course-entry').length;
+    updateDiscCapHints();
 }
 
 document.getElementById('addCourse')?.addEventListener('click', () => {
@@ -879,6 +893,7 @@ document.getElementById('addCourse')?.addEventListener('click', () => {
 
 document.querySelectorAll('.course-entry').forEach(e => attachEntry(e));
 updatePrices();
+updateDiscCapHints();
 
 /* ── CRM pre-fill: auto-select course from URL param ── */
 {% if crm_course_id %}
