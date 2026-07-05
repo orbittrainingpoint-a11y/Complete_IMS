@@ -79,16 +79,16 @@
           <td><span class="pill pill-blue" style="font-size:10px;">{{ course.code }}</span></td>
           <td>
             <div class="level-rates">
-              <div class="level-row"><span class="level-lbl">Int</span><span class="level-amt">{{ course.oo_intermediate|floatformat:0 }}</span></div>
-              <div class="level-row"><span class="level-lbl">Pro</span><span class="level-amt">{{ course.oo_professional|floatformat:0 }}</span></div>
-              <div class="level-row"><span class="level-lbl">Adv</span><span class="level-amt">{{ course.oo_advanced|floatformat:0 }}</span></div>
+              <div class="level-row"><span class="level-lbl">Int</span><span class="level-amt">{% if course.oo_intermediate %}{{ course.oo_intermediate|floatformat:0 }}{% else %}—{% endif %}</span></div>
+              <div class="level-row"><span class="level-lbl">Pro</span><span class="level-amt">{% if course.oo_professional %}{{ course.oo_professional|floatformat:0 }}{% else %}—{% endif %}</span></div>
+              <div class="level-row"><span class="level-lbl">Adv</span><span class="level-amt">{% if course.oo_advanced %}{{ course.oo_advanced|floatformat:0 }}{% else %}—{% endif %}</span></div>
             </div>
           </td>
           <td>
             <div class="level-rates">
-              <div class="level-row"><span class="level-lbl">Int</span><span class="level-amt">{{ course.priv_intermediate|floatformat:0 }}</span></div>
-              <div class="level-row"><span class="level-lbl">Pro</span><span class="level-amt">{{ course.priv_professional|floatformat:0 }}</span></div>
-              <div class="level-row"><span class="level-lbl">Adv</span><span class="level-amt">{{ course.priv_advanced|floatformat:0 }}</span></div>
+              <div class="level-row"><span class="level-lbl">Int</span><span class="level-amt">{% if course.priv_intermediate %}{{ course.priv_intermediate|floatformat:0 }}{% else %}—{% endif %}</span></div>
+              <div class="level-row"><span class="level-lbl">Pro</span><span class="level-amt">{% if course.priv_professional %}{{ course.priv_professional|floatformat:0 }}{% else %}—{% endif %}</span></div>
+              <div class="level-row"><span class="level-lbl">Adv</span><span class="level-amt">{% if course.priv_advanced %}{{ course.priv_advanced|floatformat:0 }}{% else %}—{% endif %}</span></div>
             </div>
           </td>
           <td>
