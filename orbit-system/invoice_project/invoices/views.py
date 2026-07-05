@@ -1469,7 +1469,7 @@ def get_invoice_details(request):
         total_amount_paid = sum(invoice.amount_paid for invoice in invoices)
 
         # Apply 5% VAT to total_amount_paid (amount_paid is stored ex-VAT)
-        total_amount_paid = total_amount_paid + (total_amount_paid * Decimal('0.05'))
+      #  total_amount_paid = total_amount_paid + (total_amount_paid * Decimal('0.05'))
 
         total_due_amount = total_amount - total_amount_paid
 
@@ -1612,7 +1612,7 @@ def corporate_invoice_detail(request, registration_id):
     invoices = Invoice.objects.filter(registration_id=registration.id).order_by('date')
     total_amount = sum(invoice.total_amount for invoice in invoices)
     total_amount_paid = sum(invoice.amount_paid for invoice in invoices)
-    total_amount_paid = total_amount_paid + (total_amount_paid * Decimal(0.05))
+  #  total_amount_paid = total_amount_paid + (total_amount_paid * Decimal(0.05))
     total_due_amount = total_amount - total_amount_paid
 
     context = {
