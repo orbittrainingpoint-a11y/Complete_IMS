@@ -835,6 +835,12 @@ function attachEntry(e) {
     e.querySelector('.course-select')?.addEventListener('change', updatePrices);
     const di = e.querySelector('.discount-input');
     di?.addEventListener('input', () => { di.dataset.couponApplied = 'false'; updatePrices(); });
+    di?.addEventListener('blur', () => {
+        if (!di || di.dataset.couponApplied === 'true' || isNaN(di.value)) return;
+        const v = parseFloat(di.value) || 0;
+        const cap = getDiscountCap();
+        if (v > cap) { di.value = cap; updatePrices(); }
+    });
     e.querySelector('.validate-coupon')?.addEventListener('click', () => validateCoupon(e));
     e.querySelector('.btn-del-course')?.addEventListener('click', () => { e.remove(); reNum(); updatePrices(); });
 }

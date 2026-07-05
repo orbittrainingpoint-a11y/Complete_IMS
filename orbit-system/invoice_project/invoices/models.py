@@ -959,7 +959,7 @@ class AuditLog(models.Model):
     ACTION_CHOICES = [
         ('create', 'Created'), ('update', 'Updated'), ('delete', 'Deleted'),
         ('payment', 'Payment Recorded'), ('status_change', 'Status Changed'),
-        ('export', 'Exported'), ('login', 'Login'), ('view', 'Viewed'),
+        ('export', 'Exported'), ('login', 'Login'), ('logout', 'Logout'), ('view', 'Viewed'),
     ]
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     action = models.CharField(max_length=20, choices=ACTION_CHOICES)

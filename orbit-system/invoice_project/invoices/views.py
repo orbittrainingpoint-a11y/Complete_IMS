@@ -1125,18 +1125,21 @@ def registration_form(request):
 
         if form.is_valid() and formset.is_valid():
             registration = form.save()
-            for course_form in formset:
-                if course_form.cleaned_data and not course_form.cleaned_data.get('DELETE', False):
-                    course = course_form.cleaned_data.get('course')
-                    discount = course_form.cleaned_data.get('discount', 0)
-                    price = course_form.cleaned_data.get('price', 0)
-                    if course:
-                        RegistrationCourse.objects.create(
-                            registration=registration,
-                            course=course,
-                            discount=discount,
-                            price=price  # Use the submitted price
-                        )
+            valid_course_forms = [
+                f for f in formset
+                if f.cleaned_data and not f.cleaned_data.get('DELETE', False) and f.cleaned_data.get('course')
+            ]
+            base_cap = Decimal('30') if len(valid_course_forms) >= 2 else Decimal('20')
+            for course_form in valid_course_forms:
+                course = course_form.cleaned_data['course']
+                discount = min(course_form.cleaned_data.get('discount') or Decimal('0'), base_cap)
+                price = course_form.cleaned_data.get('price', 0)
+                RegistrationCourse.objects.create(
+                    registration=registration,
+                    course=course,
+                    discount=discount,
+                    price=price,
+                )
             # Save CRM lead link if provided
             crm_lead_id = request.POST.get('crm_lead_id', '').strip()
             if crm_lead_id and crm_lead_id.isdigit():
@@ -1270,19 +1273,19 @@ def edit_registration(request, pk):
         
         if form.is_valid() and formset.is_valid():
             registration = form.save()
-            
+
             # Delete existing RegistrationCourse objects
             RegistrationCourse.objects.filter(registration=registration).delete()
 
-            # Create new RegistrationCourse objects
-            for course_form in formset:
-                if course_form.cleaned_data:
-                    RegistrationCourse.objects.create(
-                        registration=registration,
-                        course=course_form.cleaned_data['course'],
-                        discount=course_form.cleaned_data['discount'],
-                        price = course_form.cleaned_data.get('price', 0)
-                    )
+            valid_course_forms = [f for f in formset if f.cleaned_data and f.cleaned_data.get('course')]
+            base_cap = Decimal('30') if len(valid_course_forms) >= 2 else Decimal('20')
+            for course_form in valid_course_forms:
+                RegistrationCourse.objects.create(
+                    registration=registration,
+                    course=course_form.cleaned_data['course'],
+                    discount=min(course_form.cleaned_data.get('discount') or Decimal('0'), base_cap),
+                    price=course_form.cleaned_data.get('price', 0),
+                )
 
             # Update CRM lead link if provided
             crm_lead_id = request.POST.get('crm_lead_id', '').strip()
