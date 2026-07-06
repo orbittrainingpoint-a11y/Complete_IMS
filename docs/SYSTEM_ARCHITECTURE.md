@@ -1,83 +1,70 @@
 # System Architecture Document
 ## Orbit ERP — Institute Management System
 
-**Document Version:** 1.0  
-**Date:** 2026-06-25
+**Document Version:** 2.0
+**Date:** 2026-07-06
 
 ---
 
 ## 1. Architecture Overview
 
-Orbit ERP is a **monolithic Django web application** following the Model-View-Template (MVT) pattern. All business logic, data access, and rendering are handled within a single Django process. There are no microservices, external APIs, or message queues.
+Orbit ERP is a two-application system following a Django + Flask hybrid architecture:
+
+1. **Django ERP** (core back-office) — Monolithic Django application following the Model-View-Template (MVT) pattern.
+2. **Flask CRM** (lead pipeline) — Separate Flask application with its own database.
+
+The two applications share user accounts via an HMAC-signed SSO token bridge and are co-deployed on the same VPS behind an Apache reverse proxy.
 
 ---
 
-## 2. High-Level Architecture Diagram
+## 2. High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        USER BROWSER                              │
-│              (Chrome / Firefox / Edge)                           │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ HTTP/HTTPS Requests
-                          │
-┌─────────────────────────▼───────────────────────────────────────┐
-│                   WEB LAYER                                       │
-│                                                                   │
-│   Development:          │   Production:                           │
-│   Django Dev Server     │   IIS + wfastcgi                        │
-│   (port 8000)           │   (port 80/443)                         │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ WSGI
-                          │
-┌─────────────────────────▼───────────────────────────────────────┐
-│                   APPLICATION LAYER (Django 5.0.6)                │
-│                                                                   │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                   Middleware Stack                         │   │
-│  │  Security → Session → Common → CSRF → Auth → Messages    │   │
-│  └──────────────────────┬───────────────────────────────────┘   │
-│                          │                                        │
-│  ┌───────────┐    ┌──────▼──────┐    ┌──────────────────────┐   │
-│  │  URL      │───►│   Views     │───►│    Templates         │   │
-│  │  Router   │    │  (68+ fns)  │    │  (78 HTML files)     │   │
-│  │ (86 URLs) │    │  views.py   │    │  DTL + Bootstrap 5   │   │
-│  └───────────┘    └──────┬──────┘    └──────────────────────┘   │
-│                          │                                        │
-│                   ┌──────▼──────┐                                │
-│                   │   Forms     │                                 │
-│                   │  (25 forms) │                                 │
-│                   │  forms.py   │                                 │
-│                   └──────┬──────┘                                │
-│                          │                                        │
-│                   ┌──────▼──────┐                                │
-│                   │   Models    │                                 │
-│                   │  (22 models)│                                 │
-│                   │  Django ORM │                                 │
-│                   └──────┬──────┘                                │
-└──────────────────────────┼──────────────────────────────────────┘
-                           │ SQL Queries
-                           │
-┌──────────────────────────▼──────────────────────────────────────┐
-│                    DATA LAYER                                     │
-│                                                                   │
-│              MySQL 8.0 / MariaDB 10.4                            │
-│              Database: orbit_invoice                             │
-│              35 Tables / ~11,000+ Records                        │
-└─────────────────────────────────────────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────────────┐
-│                  FILE STORAGE LAYER                               │
-│                                                                   │
-│              Local Filesystem: media/ directory                  │
-│              Size: ~193MB                                        │
-│              Types: PDF, PNG, Images                             │
+┌───────────────────────────────────────────────────────────────────┐
+│                         USER BROWSER                               │
+│                  (Chrome / Firefox / Edge)                         │
+└──────────────────────────────┬────────────────────────────────────┘
+                               │ HTTPS
+                               │
+┌──────────────────────────────▼────────────────────────────────────┐
+│                Apache Web Server (VPS)                             │
+│           orbittraining.online — SSL Termination                  │
+│                                                                    │
+│  ProxyPass /       → http://127.0.0.1:8001/  (Django ERP)         │
+│  ProxyPass /crm/   → http://127.0.0.1:5001/  (Flask CRM)          │
+│  X-Forwarded-Proto: https                                         │
+└──────────┬───────────────────────────┬────────────────────────────┘
+           │                           │
+┌──────────▼───────────┐  ┌────────────▼─────────────────────────┐
+│   Django ERP          │  │   Flask CRM                           │
+│   Gunicorn :8001      │  │   Gunicorn :5001                      │
+│   Django 5.0.6        │  │   Flask + SQLAlchemy                  │
+│   orbit-system/       │  │   leads-management/                   │
+│   invoice_project/    │  │   app.py, routes.py, models.py        │
+└──────────┬────────────┘  └────────────┬─────────────────────────┘
+           │                            │
+           │  ┌─────────────────────────┘
+           │  │
+┌──────────▼──▼────────────────────────────────────────────────────┐
+│                  MySQL 8 / MariaDB                                 │
+│                                                                    │
+│   orbit_invoice DB  (Django ERP data)                             │
+│   leads DB          (Flask CRM data)                              │
+└───────────────────────────────────────────────────────────────────┘
+           │
+┌──────────▼──────────────────────────────────────────────────────┐
+│                   File Storage (Local)                            │
+│               media/ directory (~200MB+)                         │
+│   certificates/, course_contents/, khda_certificates/            │
+│   proposal_logos/, proposal_logos_white/                         │
+│   registration_forms/, trainer_profiles/, company_profiles/      │
+│   portal/trade_license/, portal/vat/                             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. Application Layer Detail
+## 3. Django ERP Application Layer
 
 ### 3.1 Request-Response Flow
 
@@ -85,191 +72,160 @@ Orbit ERP is a **monolithic Django web application** following the Model-View-Te
 Browser Request
      │
      ▼
-URL Dispatcher (urls.py)
-  ├── invoice_project/urls.py  [root router]
-  │     ├── /admin/          → Django Admin
-  │     ├── /accounts/       → django.contrib.auth.urls
-  │     └── /               → invoices/urls.py
-  │
-  └── invoices/urls.py  [86 patterns]
+URL Dispatcher (invoice_project/urls.py)
+  ├── /admin/          → Django Admin
+  ├── /accounts/       → django.contrib.auth.urls
+  └── /               → invoices/urls.py  [135 patterns]
+        │
+        ▼
+   Middleware Stack
+   Security → Session → CSRF → Auth → Messages → Clickjacking
         │
         ▼
    View Function (views.py)
         │
-        ├── Authentication Check (@login_required)
-        ├── Admin Check (@user_passes_test) if needed
+        ├── @login_required check → redirect to login if no session
+        ├── @user_passes_test(is_admin_user) if admin-only view
         │
-        ├── GET Request:
-        │     ├── Query database via ORM
-        │     ├── Prepare context dict
-        │     └── Render template → HTML Response
-        │
-        └── POST Request:
-              ├── Validate CSRF token
-              ├── Instantiate Form with POST data
-              ├── form.is_valid()
-              │     ├── True: Save to DB → Redirect
-              │     └── False: Re-render form with errors
-              └── Return Response
+        ├── GET:  Query DB via ORM → Build context → Render template → Response
+        └── POST: CSRF check → Form validation → Save to DB → Redirect / Re-render
 ```
 
-### 3.2 Data Flow for Invoice Creation
+### 3.2 Signals and App Startup
+
+```python
+# invoices/apps.py
+class InvoicesConfig(AppConfig):
+    def ready(self):
+        import invoices.signals  # Connects login/logout audit signals
+
+# invoices/signals.py
+@receiver(user_logged_in)
+def on_user_logged_in(sender, request, user, **kwargs):
+    AuditLog.objects.create(action='login', user=user, ip_address=_get_ip(request))
+
+@receiver(user_logged_out)
+def on_user_logged_out(sender, request, user, **kwargs):
+    AuditLog.objects.create(action='logout', user=user, ip_address=_get_ip(request))
+```
+
+`_get_ip()` reads `HTTP_X_FORWARDED_FOR` header first (because Apache proxy adds this header), then falls back to `REMOTE_ADDR`.
+
+### 3.3 Context Processors
+
+`invoices/context_processors.py` — `sidebar_data()` injects into every template:
+- `unread_notification_count` — count of unread notifications for current user
+- `user_role` — current user's profile role
+- Navigation state data
+
+---
+
+## 4. SSO Bridge Architecture
+
+The SSO bridge enables one-click navigation between the two applications without requiring separate logins.
 
 ```
-User fills Invoice Form
+ERP User clicks "Open CRM"
      │
      ▼
-POST /create_invoice/
+/crm-jump/ view
+  ├── Generate HMAC token:
+  │     payload = base64url({"u": username, "t": unix_timestamp})
+  │     sig = hmac_sha256(CRM_SSO_SECRET, payload)[:32]
+  │     token = f"{payload}.{sig}"
+  └── Redirect to: {CRM_URL}/auto-login?t=<token>
+     │
+     ▼ (CRM verifies token, logs user into Flask session)
+
+CRM User clicks "Register in ERP"
      │
      ▼
-views.create_invoice()
-  ├── InvoiceForm(request.POST)
-  ├── form.is_valid()
-  ├── Generate invoice_number (YY/MM/###)
-  ├── invoice = form.save()
-  └── Redirect to /add_invoice_items/{id}/
+CRM generates its own HMAC token → Redirect to ERP /crm-auth/
      │
      ▼
-views.add_invoice_items()
-  ├── InvoiceItemFormSet(request.POST)
-  ├── For each item:
-  │     ├── item.invoice = invoice
-  │     ├── item.save()
-  │     └── Calculate subtotal + VAT
-  └── invoice.calculate_total_amount()
-  └── invoice.save()
-     │
-     ▼
-  Invoice Complete
+/crm-auth/ view
+  ├── Verify token (90-second TTL, HMAC signature)
+  ├── Look up ERP User by username
+  ├── Call login(request, erp_user)
+  └── If crm_id present:
+        Fetch lead data from CRM internal API (/api/internal/lead/<id>)
+        Redirect to /register/?crm_id=<id>&fn=<first>&ln=<last>&ph=<phone>&em=<email>&ci=<course_id>
+      Else:
+        Redirect to dashboard or next parameter
+
+Shared secret: CRM_SSO_SECRET (set in both .env.erp and .env.crm)
+```
+
+### 4.1 CRM Internal API Call
+
+```python
+# views.py — api_crm_lead_lookup()
+url = f"{CRM_URL}/api/internal/lead/{lead_id}"
+req = urllib.request.Request(url, headers={'Authorization': f'Bearer {CRM_SSO_SECRET}'})
+# Returns: {"id", "full_name", "status", "phone", "email", "interested_course"}
 ```
 
 ---
 
-## 4. Module Architecture
+## 5. Model Architecture
 
 ```
-invoices/ (Django App)
-├── models.py
-│   ├── Authentication Models (via auth_user FK)
-│   ├── Core Business Models
-│   │   ├── Client
-│   │   ├── Course ──────────────────────────────┐
-│   │   └── CourseContent                        │
-│   │                                            │
-│   ├── Registration Models                      │
-│   │   ├── Registration ←───────────────────────┤
-│   │   ├── RegistrationCourse (M2M through)      │
-│   │   ├── CorporateRegistration (1-to-1)        │
-│   │   ├── CertificateUpload (1-to-1)            │
-│   │   └── FormUpload (1-to-1)                   │
-│   │                                            │
-│   ├── Financial Models                         │
-│   │   ├── Invoice ←───────────────────────────┤
-│   │   ├── InvoiceItem                          │
-│   │   ├── InvoicePurchase                      │
-│   │   ├── InvoicePurchaseItem                  │
-│   │   ├── Quotation ←──────────────────────────┤
-│   │   └── QuotationItem                        │
-│   │                                            │
-│   ├── Document Models                          │
-│   │   ├── Certificate                          │
-│   │   ├── Proposal ←───────────────────────────┤
-│   │   ├── TrainerProfile                       │
-│   │   └── CompanyProfile                       │
-│   │                                            │
-│   ├── CRM Models                               │
-│   │   ├── Lead ←───────────────────────────────┘
-│   │   ├── FollowUp
-│   │   ├── Comment
-│   │   ├── Meeting
-│   │   ├── Pipeline
-│   │   └── PipelineStage
-│   │
-│   └── Utility Models
-│       └── Coupon
+invoices/ (Django App — models.py)
 │
-├── views.py (68+ functions grouped by domain)
-│   ├── auth_views: signup, logout_view
-│   ├── dashboard_views: dashboard, orbit_dashboard
-│   ├── invoice_views: create_invoice, edit_invoice, ...
-│   ├── registration_views: registration_form, edit_registration, ...
-│   ├── course_views: course_list, course_create, ...
-│   ├── certificate_views: certificate_dashboard, ...
-│   ├── quotation_views: create_quotation, ...
-│   ├── proposal_views: create_proposal, ...
-│   ├── lead_views: lead_dashboard, create_lead, ...
-│   ├── profile_views: create_trainer_profile, ...
-│   ├── coupon_views: coupon_list, validate_coupon, ...
-│   └── ajax_views: get_course_details, get_registration_details, ...
+├── Core Business
+│   ├── Client (TRN field added)
+│   ├── Course (6 level-based price fields + 4 legacy fields)
+│   └── CourseContent
 │
-├── forms.py (25 form classes)
-│   ├── ModelForms (most forms)
-│   └── Custom validation logic
+├── Registration
+│   ├── Registration (level, student_status fields added)
+│   ├── RegistrationCourse (M2M through)
+│   ├── CorporateRegistration (1:1)
+│   ├── CertificateUpload (1:1)
+│   ├── FormUpload (1:1)
+│   ├── StudentFormLink (token-based self-registration)
+│   ├── CompanyPortalRequest (corporate self-registration)
+│   └── CompanyPortalAttendee
 │
-├── urls.py (86 URL patterns)
+├── Financial
+│   ├── Invoice (level field added)
+│   ├── InvoiceItem
+│   ├── InvoicePayment (NEW — installment records)
+│   ├── InvoicePurchase
+│   ├── InvoicePurchaseItem
+│   ├── Quotation (coupon FK added)
+│   ├── QuotationItem
+│   └── QuotationItemOverride (NEW)
 │
-└── templatetags/
-    └── custom_filters.py (10 filters + 3 tags)
-```
-
----
-
-## 5. Database Layer
-
-### 5.1 ORM Query Patterns
-
-**Standard CRUD:**
-```python
-# Create
-invoice = Invoice.objects.create(...)
-
-# Read (single)
-invoice = Invoice.objects.get(pk=pk)
-
-# Read (filtered list)
-invoices = Invoice.objects.filter(
-    user=request.user,
-    status='Full Payment'
-).order_by('-date')
-
-# Update
-invoice.status = 'Full Payment'
-invoice.save()
-
-# Delete
-invoice.delete()
-```
-
-**Aggregation (Dashboard):**
-```python
-from django.db.models import Sum, Count
-total_revenue = Invoice.objects.filter(
-    date__month=current_month
-).aggregate(total=Sum('total_amount'))['total']
-```
-
-**Related Objects:**
-```python
-# Get all courses for a registration
-courses = registration.registrationcourse_set.all()
-
-# Get invoice with client info (JOIN)
-invoices = Invoice.objects.select_related('client', 'registration')
-```
-
-### 5.2 Transaction Safety
-
-Django wraps each view in an implicit transaction. For multi-step operations (invoice + items), Django's `atomic()` should be used:
-
-```python
-from django.db import transaction
-
-with transaction.atomic():
-    invoice = Invoice.objects.create(...)
-    for item_data in items:
-        InvoiceItem.objects.create(invoice=invoice, **item_data)
-    invoice.calculate_total_amount()
-    invoice.save()
+├── Documents
+│   ├── Certificate
+│   ├── Proposal
+│   ├── TrainerProfile
+│   └── CompanyProfile
+│
+├── Operations
+│   ├── TrainingSchedule (NEW)
+│   ├── Expense (NEW)
+│   └── FeeReminderLog (NEW)
+│
+├── Users & Access
+│   ├── UserProfile (NEW — role, phone)
+│   └── SalesTarget (NEW)
+│
+├── Notifications & Audit
+│   ├── Notification (NEW)
+│   └── AuditLog (NEW — auto-populated via signals)
+│
+├── CRM (Legacy — Django CRM was superseded by Flask CRM)
+│   ├── Lead
+│   ├── FollowUp
+│   ├── Comment
+│   ├── Meeting
+│   ├── Pipeline
+│   └── PipelineStage
+│
+└── Utility
+    └── Coupon (expiry_date, max_uses, used_count added)
 ```
 
 ---
@@ -280,40 +236,31 @@ with transaction.atomic():
 
 ```
 base_generic.html (main layout)
-├── head section (Bootstrap, Font Awesome, Poppins)
+├── <head>: Bootstrap, Font Awesome, Poppins, Select2
 ├── sidebar navigation
-│   ├── Dashboard links
-│   ├── Module links
-│   └── User info
-├── main content area
-│   └── {% block content %}
-│         └── (page-specific content)
-│         {% endblock %}
-├── message display
-└── scripts (jQuery, Bootstrap JS, Select2)
-    └── {% block extra_scripts %}
-          └── (page-specific JS)
-          {% endblock %}
+│   ├── Dashboard, Registrations, Invoices...
+│   ├── Notification bell (unread count from context processor)
+│   └── User info and role badge
+├── main content area — {% block content %}
+├── message display (Django messages framework)
+└── scripts — {% block extra_scripts %}
 ```
 
-### 6.2 AJAX Pattern
+### 6.2 Level-Based Pricing JS Flow
 
 ```javascript
-// Example: Validate coupon
-fetch('/validate-coupon/', {
-    method: 'POST',
-    headers: {
-        'X-CSRFToken': getCookie('csrftoken'),
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ code: couponCode })
-})
-.then(response => response.json())
-.then(data => {
-    if (data.valid) {
-        applyDiscount(data.discount_percentage);
-    }
-});
+// On class_type or level change in invoice/registration form:
+// 1. Fetch course pricing via AJAX
+fetch('/get_course_details/?course_id=<id>&class_type=<type>&level=<level>')
+// 2. Populate unit_price with appropriate oo_* or priv_* value
+// 3. Recalculate totals
+
+// Discount cap enforcement (frontend):
+const maxDiscount = itemCount > 1 ? 30 : 20;
+if (discountValue > maxDiscount) {
+    showError(`Discount cannot exceed ${maxDiscount}%`);
+    discountField.value = maxDiscount;
+}
 ```
 
 ### 6.3 CSS Framework Usage
@@ -323,7 +270,7 @@ fetch('/validate-coupon/', {
 | Bootstrap | 5.1.3 / 5.3.0 | Grid, components, utilities |
 | Font Awesome | 5.15.3 / 6.0.0 | Action icons |
 | Bootstrap Icons | 1.7.2 | Additional icons |
-| Select2 | Latest | Enhanced dropdowns |
+| Select2 | Latest CDN | Enhanced dropdowns |
 | Google Fonts | — | Poppins typeface |
 
 ---
@@ -333,10 +280,10 @@ fetch('/validate-coupon/', {
 ### 7.1 Authentication Flow
 
 ```
-Request
-  │
-  ▼
-@login_required decorator
+HTTP Request
+     │
+     ▼
+@login_required
   │
   ├── No session → Redirect to /accounts/login/?next=<url>
   │
@@ -345,103 +292,175 @@ Request
         ▼
         @user_passes_test(is_admin_user)  [if admin-only view]
           │
-          ├── Not admin → Redirect with 403 message
+          ├── Not admin → Redirect with permission error
           │
           └── Admin confirmed → Execute view
 ```
 
+`is_admin_user()`:
+```python
+def is_admin_user(user):
+    try:
+        return user.profile.role in ('admin',) or user.is_superuser
+    except Exception:
+        return user.is_superuser
+```
+
 ### 7.2 CSRF Protection
 
-All HTML forms include `{% csrf_token %}`. AJAX POST requests send `X-CSRFToken` header.
+All HTML forms: `{% csrf_token %}`. AJAX: `X-CSRFToken` header.
 
-### 7.3 Input Validation
+### 7.3 SSO Token Security
 
-1. **Django Form validation** — type checking, required fields, custom validators
-2. **Model-level constraints** — unique keys, FK constraints, check constraints
-3. **Template escaping** — Django auto-escapes all template variables (XSS prevention)
+- Algorithm: HMAC-SHA256
+- Signature truncated to 32 hex chars
+- Payload: base64url-encoded JSON `{"u": username, "t": unix_timestamp}`
+- TTL: 90 seconds (verified on receipt)
+- `hmac.compare_digest()` used for constant-time comparison
 
----
-
-## 8. File Storage Architecture
-
-```
-media/  (MEDIA_ROOT)
-├── certificates/          ← invoices_certificateupload.certificate_file
-├── course_contents/       ← invoices_coursecontent.file
-├── khda_certificates/     ← invoices_certificate.uploaded_certificate (KHDA)
-├── proposal_logos/        ← invoices_proposal.logo
-├── proposal_logos_white/  ← invoices_proposal.logo_white_url
-├── registration_forms/    ← invoices_formupload.form_file
-├── trainer_profiles/      ← invoices_trainerprofile.profile_pdf
-└── company_profiles/      ← invoices_companyprofile.company_pdf
-```
-
-**File Access:** Via `/media/<path>` URL (served by Django in development, by IIS/nginx in production)
-
----
-
-## 9. Auto-Numbering System
-
-All business documents use the same pattern:
+### 7.4 IP Address Resolution
 
 ```python
-def generate_number(prefix, model_class, field_name):
-    from datetime import datetime
-    now = datetime.now()
-    # prefix = YY/MM for invoices, PROP-YYYY for proposals
-    
-    last = model_class.objects.filter(
-        **{f'{field_name}__startswith': prefix}
-    ).order_by(f'-{field_name}').first()
-    
-    if last:
-        last_seq = int(getattr(last, field_name).split('/')[-1])
-        next_seq = last_seq + 1
-    else:
-        next_seq = 1
-    
-    return f"{prefix}/{next_seq:03d}"
+def _get_ip(request):
+    xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    return xff.split(',')[0].strip() or request.META.get('REMOTE_ADDR') or None
 ```
 
-| Document | Format | Example |
-|----------|--------|---------|
-| Invoice | YY/MM/### | 24/06/001 |
-| Purchase Invoice | YY/MM/### | 24/06/001 |
-| Quotation | YY/MM/### | 24/06/001 |
-| Registration (Individual) | OT/YY/MM/### | OT/24/06/001 |
-| Registration (Corporate) | OC/YY/MM/### | OC/24/06/001 |
-| Certificate | {CODE}/YY/### | PM/24/001 |
-| Proposal | PROP-YYYY-#### | PROP-2024-0001 |
+Django is configured with `SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')` to trust Apache's forwarded headers.
 
 ---
 
-## 10. Scalability Considerations
+## 8. Data Flow for Key Operations
 
-### Current Limitations
-
-| Limitation | Impact | Solution |
-|------------|--------|---------|
-| Single database server | No read replicas | Add read replica |
-| No caching layer | All requests hit DB | Add Redis/Memcached |
-| Local file storage | No CDN | Move to S3/Azure Blob |
-| Monolithic architecture | Cannot scale modules independently | Modularize or microservices |
-| No background tasks | Long operations block requests | Add Celery + Redis |
-| No connection pooling | DB connections per request | Add PgBouncer/MySQL Proxy |
-
-### Recommended Improvements
+### 8.1 Invoice Creation with Level-Based Pricing
 
 ```
-Current:    Browser → Django → MySQL (single server)
+User selects: Course + Class Type + Level
+     │
+     ▼
+AJAX: GET /get_course_details/?course_id=X&class_type=online&level=professional
+     │
+     ▼
+Returns: course.oo_professional (AED price)
+     │
+     ▼
+User fills invoice header → POST /create_invoice/
+  Invoice.save() → auto-generate invoice_number YY/MM/###
+                 → total_amount = 0 initially
+     │
+     ▼
+POST /add_invoice_items/{id}/
+  For each item:
+    item.unit_price = course.get_rate(class_type, level)
+    item.vat_rate = 0.05
+  invoice.calculate_total_amount()
+    = Σ(get_rate × qty × persons × (1 − disc%)) × 1.05
+  invoice.save()
+```
 
-Improved:   Browser → Nginx (static files)
-                    → Load Balancer
-                    → Django App (multiple instances)
-                    → Redis (cache + session)
-                    → MySQL Primary + Replica
-                    → S3 (media files)
+### 8.2 CRM → ERP Registration Flow
+
+```
+Staff on CRM lead page → "Register in ERP" button
+     │
+     ▼
+CRM: generate SSO token with {u: username, t: now}
+     → redirect to ERP /crm-auth/?t=<token>&crm_id=42&fn=John&ln=Doe...
+     │
+     ▼
+ERP /crm-auth/ view:
+  1. Verify HMAC token (90s TTL)
+  2. login(request, user)
+  3. Return redirect to /register/?crm_id=42&fn=John&ln=Doe...
+     │
+     ▼
+Registration form loads:
+  GET /api/crm-lead/42/ → ERP proxies to CRM API → returns lead data
+  Form auto-filled: name, phone, email, course
+     │
+     ▼
+Staff completes form, submits → new Registration created
+```
+
+### 8.3 Audit Log Flow
+
+```
+User logs in via POST /accounts/login/
+     │
+     ▼
+Django auth sends user_logged_in signal
+     │
+     ▼
+signals.py on_user_logged_in():
+  AuditLog.objects.create(
+    user=user, action='login',
+    model_name='User', object_id=user.pk,
+    object_repr=user.username,
+    ip_address=X-Forwarded-For or REMOTE_ADDR
+  )
 ```
 
 ---
 
-*Document prepared for Orbit Training Point ERP System*  
-*Generated: 2026-06-25*
+## 9. File Storage Architecture
+
+```
+media/  (MEDIA_ROOT = orbit-system/invoice_project/media/)
+├── certificates/               ← CertificateUpload (student-named)
+├── course_contents/            ← CourseContent files
+├── khda_certificates/          ← Certificate.uploaded_certificate (KHDA)
+├── proposal_logos/             ← Proposal.logo (PNG only)
+├── proposal_logos_white/       ← Auto-generated white version
+├── registration_forms/         ← FormUpload (student-named)
+├── trainer_profiles/           ← TrainerProfile.profile_pdf (name-slugged)
+├── company_profiles/           ← CompanyProfile.company_pdf (name-slugged)
+└── portal/
+    ├── trade_license/          ← CompanyPortalRequest.trade_license_doc
+    └── vat/                    ← CompanyPortalRequest.vat_certificate
+```
+
+**File Access:** Via `/media/<path>` URL. In development, Django serves media files (configured in root urls.py). In production, Apache serves them directly.
+
+---
+
+## 10. Auto-Numbering Architecture
+
+All business document numbers are generated in model `.save()` methods:
+
+```python
+# Example: Invoice (YY/MM/### — resets monthly)
+now = timezone.now()
+year, month = now.strftime('%y'), now.strftime('%m')
+last = Invoice.objects.filter(
+    invoice_number__startswith=f"{year}/{month}/"
+).order_by('-invoice_number').first()
+new_number = (int(last.invoice_number.split('/')[-1]) + 1) if last else 1
+self.invoice_number = f"{year}/{month}/{new_number:03d}"
+
+# Registration (OT/YY/### — resets annually, no month)
+year = timezone.now().strftime('%y')
+last = Registration.objects.filter(
+    registration_number__startswith=f"OT/{year}/"
+).order_by('-registration_number').first()
+new_number = (int(last.registration_number.split('/')[-1]) + 1) if last else 1
+self.registration_number = f"OT/{year}/{new_number:03d}"
+```
+
+---
+
+## 11. Production Deployment Summary
+
+| Component | Local Dev | VPS Production |
+|-----------|-----------|----------------|
+| Django ERP port | 8000 | 8001 (Gunicorn) |
+| Flask CRM port | 5000 | 5001 (Gunicorn) |
+| Web server | Django dev server | Apache reverse proxy |
+| Domain | localhost | orbittraining.online (HTTPS) |
+| Database | MariaDB (XAMPP) | MySQL 8 |
+| Env config | Local settings | `/var/www/html/orbit/.env.erp` and `.env.crm` |
+| Services | Manual start | `orbit-erp.service`, `orbit-crm.service` (systemd) |
+
+---
+
+*Document updated: 2026-07-06*
+*Reflects production system at orbittraining.online*

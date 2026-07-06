@@ -1,19 +1,24 @@
 # API Reference Document
 ## Orbit ERP — Institute Management System
 
-**Document Version:** 1.0  
-**Date:** 2026-06-25  
-**Type:** Internal Django Views / AJAX Endpoints
+**Document Version:** 2.0
+**Date:** 2026-07-06
+**Type:** Internal Django Views / AJAX Endpoints + CRM Internal API
 
 ---
 
 ## 1. Overview
 
-Orbit ERP is a server-rendered Django application with a set of AJAX endpoints for dynamic interactions. All endpoints require an authenticated session (cookie-based). There is no REST API or token-based authentication.
+Orbit ERP is a server-rendered Django application with AJAX endpoints for dynamic interactions. The system also exposes an internal API endpoint used by the ERP to look up CRM leads.
 
-**Base URL:** `http://localhost:8000/` (development)  
-**Authentication:** Session-based (`sessionid` cookie)  
-**CSRF:** Required on all POST/PUT/DELETE requests (Django CSRF middleware)
+**Base URL (local):** `http://localhost:8000/`
+**Base URL (VPS):** `https://orbittraining.online/`
+**CRM URL (local):** `http://localhost:5000/`
+**CRM URL (VPS):** proxied via Apache
+
+**Authentication:** Session-based (`sessionid` cookie) for all Django views.
+**CSRF:** Required on all POST requests (`csrfmiddlewaretoken` in form or `X-CSRFToken` header for AJAX).
+**CRM Internal API:** HMAC Bearer token (`Authorization: Bearer <CRM_SSO_SECRET>`).
 
 ---
 
@@ -21,8 +26,6 @@ Orbit ERP is a server-rendered Django application with a set of AJAX endpoints f
 
 ### `GET /accounts/login/`
 Display login form.
-
-**Response:** HTML login page
 
 ### `POST /accounts/login/`
 Authenticate user.
@@ -33,32 +36,67 @@ Authenticate user.
 | password | string | Yes |
 | csrfmiddlewaretoken | string | Yes |
 
-**Success:** Redirect to `/` (302)  
+**Success:** Redirect to `/` (302)
 **Failure:** Login form with error message
+**Side effect:** Writes AuditLog entry (action=login, ip_address recorded)
 
 ### `GET /logout/`
 Log out current user.
-
 **Response:** Redirect to login page (302)
+**Side effect:** Writes AuditLog entry (action=logout)
 
 ### `GET /signup/`
-**Access:** Admin only
-
+**Access:** Admin role only
 Display user creation form.
 
 ### `POST /signup/`
-**Access:** Admin only
+**Access:** Admin role only
+Create new user account. Auto-creates UserProfile with default role.
 
-Create new user account.
+### `GET /crm-jump/`
+**Access:** Login required
+Generate HMAC SSO token and redirect to CRM dashboard.
+**Response:** Redirect to `{CRM_URL}/auto-login?t=<token>`
+
+### `GET /crm-auth/?t=<token>[&crm_id=<id>&fn=<first>&ln=<last>&ph=<phone>&em=<email>]`
+Receive SSO token from CRM and log user into ERP.
+**Token TTL:** 90 seconds
+**Success with crm_id:** Redirect to `/register/?crm_id=<id>&fn=<first>&ln=<last>...`
+**Success without crm_id:** Redirect to dashboard or `next` parameter
+**Failure:** Redirect to login with error message
 
 ---
 
-## 3. Dashboard Endpoints
+## 3. User Management Endpoints (Admin Only)
+
+### `GET /manage/users/`
+List all users with roles and targets.
+
+### `GET/POST /manage/users/<id>/edit/`
+Edit user details.
+
+### `POST /manage/users/<id>/role/`
+Update user role. Triggers CRM sync for sales roles.
+
+### `POST /manage/users/<id>/delete/`
+Delete user account.
+
+### `POST /manage/users/<id>/change-password/`
+Change user password.
+
+### `GET/POST /manage/set-targets/`
+Set monthly sales targets per user.
+
+### `POST /manage/sync-crm/`
+Batch-sync all sales role users to Flask CRM database.
+
+---
+
+## 4. Dashboard Endpoints
 
 ### `GET /`
-Main orbit dashboard with KPI overview.
-
-**Response:** HTML — registration stats, invoice totals, lead summary
+Main orbit dashboard.
+**Response:** HTML — registration stats, revenue KPIs, target progress, notification count.
 
 ### `GET /dashboard/`
 Invoice dashboard with tabbed invoice lists.
@@ -72,19 +110,14 @@ Invoice dashboard with tabbed invoice lists.
 | due_date | date | Filter by due date |
 | payment_status | string | Filter by payment status |
 
-**Response:** HTML — paginated invoice list
-
 ---
 
-## 4. Invoice Endpoints
+## 5. Invoice Endpoints
 
-### `GET /create_invoice/`
-Display invoice creation form.
-
-### `POST /create_invoice/`
+### `GET/POST /create_invoice/`
 Create new sales invoice.
 
-**Form Data:**
+**POST Form Data:**
 | Field | Type | Required |
 |-------|------|----------|
 | registration | integer | No |
@@ -93,115 +126,125 @@ Create new sales invoice.
 | date | date | Yes |
 | due_date | date | Yes |
 | class_type | string | Yes |
+| level | string | Yes — intermediate/professional/advanced |
 | status | string | Yes |
 | payment | string | Yes |
-| total_amount | decimal | Yes |
+| total_amount | decimal | Yes (0 initially) |
 | amount_paid | decimal | Yes |
-| discount | decimal | No |
+| discount | decimal | No (max 20% single / 30% multi) |
 | number_of_person | integer | Yes |
 | po_number | string | No |
 
 **Success:** Redirect to `/add_invoice_items/{id}/`
 
-### `GET /add_invoice_items/<invoice_id>/`
-Display item addition form for invoice.
-
-### `POST /add_invoice_items/<invoice_id>/`
+### `GET/POST /add_invoice_items/<invoice_id>/`
 Add line items to invoice.
 
-**Formset Data (repeated per item):**
-| Field | Type |
-|-------|------|
-| form-{n}-course | integer |
-| form-{n}-description | string |
-| form-{n}-quantity | integer |
-| form-{n}-unit_price | decimal |
-| form-{n}-vat_rate | decimal |
-
-### `GET /invoice/<id>/edit/`
-Display invoice edit form.
-
-### `POST /invoice/<id>/edit/`
-Update invoice.
-
-### `GET /invoice/<id>/delete/`
-Display delete confirmation.
-
-### `POST /invoice/<id>/delete/`
-**Access:** Admin only  
-Delete invoice and all line items.
-
----
-
-## 5. Purchase Invoice Endpoints
-
-Same pattern as sales invoices:
-
-- `GET/POST /create_purchase_invoice/`
-- `GET/POST /invoice_purchase/<id>/edit/`
-- `GET/POST /invoice_purchase/<id>/delete/`
-
----
-
-## 6. Registration Endpoints
-
-### `GET /register/`
-Display student registration form.
-
-### `POST /register/`
-Create new student registration.
-
-**Key Form Data:**
+**Formset Data:**
 | Field | Type | Notes |
 |-------|------|-------|
-| registration_type | string | 'OT' or 'OC' |
-| class_type | string | online/offline/batch/private |
-| first_name | string | |
-| last_name | string | |
-| passport_no | string | |
-| email | email | |
-| phone_no | string | |
-| consultant_name | string | |
-| courses | ManyToMany | Course IDs |
+| form-{n}-course | integer | FK to Course |
+| form-{n}-description | string | |
+| form-{n}-quantity | integer | |
+| form-{n}-unit_price | decimal | |
+| form-{n}-vat_rate | decimal | 0.05 default |
 
-**Success:** Redirect to `/student-dashboard/` with registration number
+### `GET/POST /invoice/<id>/edit/`
+Edit invoice.
+
+### `GET/POST /invoice/<id>/delete/`
+**Access:** Admin role
+Delete invoice and all line items.
+
+### `POST /invoice/<pk>/mark-paid/`
+Quick action: set amount_paid = total_amount, status = Full Payment.
+
+### `POST /invoices/bulk-action/`
+Bulk status update on multiple invoices.
+
+### `GET /invoice/<pk>/payments/`
+View payment installments for an invoice.
+
+### `POST /invoice/<pk>/payments/add/`
+Record a new payment installment.
+
+**POST Form Data:**
+| Field | Type |
+|-------|------|
+| amount | decimal |
+| payment_method | string (cash/card/bank_transfer/cheque/payment_link/other) |
+| reference | string |
+| paid_at | date |
+| notes | string |
+
+---
+
+## 6. Purchase Invoice Endpoints
+
+### `GET/POST /create_purchase_invoice/`
+Create purchase invoice.
+
+### `GET/POST /invoice_purchase/<id>/edit/`
+Edit purchase invoice.
+
+### `GET/POST /invoice_purchase/<id>/delete/`
+**Access:** Admin role
+Delete purchase invoice.
+
+---
+
+## 7. Registration Endpoints
+
+### `GET/POST /register/`
+Create student registration.
+
+**Key Query Parameters (for CRM pre-fill):**
+| Parameter | Source |
+|-----------|--------|
+| crm_id | CRM lead ID |
+| fn | First name |
+| ln | Last name |
+| ph | Phone |
+| em | Email |
+| ci | Interested course ID |
 
 ### `GET /student-dashboard/`
-List all individual registrations.
+List all individual registrations with filters.
 
 ### `GET /corporate_dashboard/`
 List all corporate registrations.
 
-### `GET /edit-registration/<id>/`
-Display registration edit form.
+### `GET/POST /edit-registration/<id>/`
+Edit registration.
 
-### `POST /edit-registration/<id>/`
-Update registration.
-
-### `GET /delete-registration/<id>/`
-Confirmation page.
-
-### `POST /delete-registration/<id>/`
-**Access:** Admin only  
-Delete registration.
+### `GET/POST /delete-registration/<id>/`
+**Access:** Admin role
 
 ### `GET /print-registration/<id>/`
-Render printable registration form.
+Print-optimized registration form.
 
-**Response:** Print-optimized HTML
+### `GET /corporate-invoice-detail/<registration_id>/`
+Corporate registration detail with invoices.
+
+### `GET /registration/<registration_id>/`
+Registration invoice detail page.
+
+### `POST /student/<pk>/status/`
+Update student status (active/completed/dropped/suspended/pending).
 
 ---
 
-## 7. AJAX Endpoints
+## 8. AJAX Data Endpoints
 
 ### `GET /get_course_details/`
 Get course pricing by course ID and class type.
 
 **Query Parameters:**
-| Parameter | Type | Required |
-|-----------|------|----------|
-| course_id | integer | Yes |
-| class_type | string | Yes |
+| Parameter | Type |
+|-----------|------|
+| course_id | integer |
+| class_type | string |
+| level | string (optional, default: intermediate) |
 
 **Response:**
 ```json
@@ -209,26 +252,29 @@ Get course pricing by course ID and class type.
     "rate": "1500.00",
     "batch_rate": "1200.00",
     "online_rate": "1000.00",
-    "private_rate": "2000.00"
+    "private_rate": "2000.00",
+    "oo_intermediate": "1500.00",
+    "oo_professional": "2000.00",
+    "oo_advanced": "2500.00",
+    "priv_intermediate": "2000.00",
+    "priv_professional": "2500.00",
+    "priv_advanced": "3000.00"
 }
 ```
 
 ### `GET /get_registration_details/`
 Get registration details including linked invoice.
 
-**Query Parameters:**
-| Parameter | Type |
-|-----------|------|
-| registration_id | integer |
+**Query Parameters:** `registration_id` (integer)
 
 **Response:**
 ```json
 {
-    "registration_number": "OT/24/06/001",
+    "registration_number": "OT/26/001",
     "student_name": "John Doe",
     "invoice_id": 123,
-    "invoice_number": "24/06/001",
-    "total_amount": "1500.00",
+    "invoice_number": "26/07/001",
+    "total_amount": "1575.00",
     "amount_paid": "500.00"
 }
 ```
@@ -236,10 +282,7 @@ Get registration details including linked invoice.
 ### `GET /get_invoice_details/`
 Get invoice line items as JSON.
 
-**Query Parameters:**
-| Parameter | Type |
-|-----------|------|
-| invoice_id | integer |
+**Query Parameters:** `invoice_id` (integer)
 
 **Response:**
 ```json
@@ -249,7 +292,7 @@ Get invoice line items as JSON.
             "course_name": "Project Management",
             "quantity": 1,
             "unit_price": "1500.00",
-            "vat_rate": "5.00",
+            "vat_rate": "0.05",
             "subtotal": "1500.00",
             "vat_amount": "75.00",
             "total": "1575.00"
@@ -258,137 +301,103 @@ Get invoice line items as JSON.
 }
 ```
 
+### `GET /api/search-registrations/`
+Autocomplete search for registrations (used in invoice form).
+
+### `GET /search/`
+Global search across registrations, invoices, courses, certificates.
+
 ---
 
-## 8. Lead / CRM Endpoints
+## 9. CRM Internal API
 
-### `GET /lead/`
-Lead dashboard with statistics.
+Used by ERP to fetch lead data for registration form auto-fill.
 
-**Query Parameters:** status, source, course, date_from, date_to
+### `GET /api/crm-lead/<lead_id>/`
+**ERP endpoint** — proxies request to CRM internal API.
+**Access:** Login required
 
-### `GET/POST /lead/create/`
-Create new lead.
+**Calls internally:** `GET {CRM_URL}/api/internal/lead/<lead_id>`
+**Authorization:** `Bearer <CRM_SSO_SECRET>` header
 
-### `GET/POST /lead/edit/<id>/`
-Edit lead.
-
-### `POST /lead/delete/<id>/`
-**Access:** Admin  
-Delete lead.
-
-### `GET /lead/<lead_id>/`
-**AJAX endpoint**  
-Get lead details.
-
-**Response:**
+**Response (from CRM):**
 ```json
 {
-    "id": 1,
+    "id": 42,
     "full_name": "Jane Smith",
-    "email": "jane@example.com",
-    "phone": "+971 50 1234567",
     "status": "Qualified",
-    "source": "Website",
-    "interested_course": "Project Management",
-    "quote_amount": "1500.00",
-    "notes": "...",
-    "follow_up_date": "2024-07-01"
+    "phone": "+971501234567",
+    "email": "jane@example.com",
+    "interested_course": "Project Management"
 }
 ```
 
-### `GET/POST /lead/follow-up/<lead_id>/`
-Create follow-up for lead.
+**Error responses:**
+- `404` — Lead not found in CRM
+- `502` — CRM not reachable or returned error
 
-**POST Body:**
-```json
-{
-    "contact_date": "2024-07-01",
-    "contact_time": "10:00:00",
-    "priority": "High",
-    "status": "Pending",
-    "notes": "Call to discuss pricing"
-}
-```
+---
 
-### `POST /leads/<lead_id>/add_comment/`
-Add comment to lead.
+## 10. Report Endpoints
 
-**POST Body:** `{ "text": "Comment text" }`
+### `GET /reports/revenue/`
+Revenue report with date and consultant filters.
 
-**Response:** `{ "success": true }`
+### `GET /reports/revenue/export/`
+CSV export of revenue report.
 
-### `GET /lead/<lead_id>/comments/`
-Get all comments for lead.
+### `GET /reports/aging/`
+Receivables aging: groups overdue invoices by 0-15, 16-30, 31-60, 61-90, 90+ days.
+
+### `GET /reports/vat/`
+VAT report: output VAT from invoices vs input VAT from expenses.
+
+### `GET /reports/enrollment/`
+Enrollment report by period, consultant, course, class type.
+
+### `GET /reports/certificates/`
+Certificate report: issued certs by period, type, course.
+
+### `GET /expenses/report/`
+Expense report by category, vendor, date range.
+
+---
+
+## 11. Notification Endpoints
+
+### `GET /notifications/`
+**AJAX endpoint**
+Return unread notifications for current user.
 
 **Response:**
 ```json
 {
-    "comments": [
+    "notifications": [
         {
             "id": 1,
-            "user": "admin",
-            "text": "Called - interested",
-            "timestamp": "2024-06-25T10:30:00",
-            "is_flagged": false
+            "type": "invoice_due",
+            "title": "Invoice Due Tomorrow",
+            "message": "Invoice 26/07/001 is due on 2026-07-07",
+            "link": "/invoice/123/",
+            "is_read": false,
+            "created_at": "2026-07-06T10:00:00"
         }
-    ]
+    ],
+    "unread_count": 3
 }
 ```
 
-### `POST /leads/comments/<comment_id>/toggle_flag/`
-Toggle flag status of a comment.
+### `POST /notifications/<id>/read/`
+Mark a single notification as read.
 
-**Response:** `{ "is_flagged": true }`
+**Response:** `{"success": true}`
 
-### `POST /leads/<lead_id>/update_quote/`
-Update quote amount on lead.
-
-**POST Body:** `{ "quote_amount": "1500.00" }`
-
-### `GET /lead/dashboard-stats/`
-Get CRM statistics.
-
-**Response:**
-```json
-{
-    "total": 18,
-    "interested_highly": 5,
-    "qualified": 8,
-    "register_soon": 3,
-    "other": 2
-}
-```
+### `POST /notifications/read-all/`
+Mark all notifications for current user as read.
 
 ---
 
-## 9. Coupon Endpoints
-
-### `POST /validate-coupon/`
-Validate a coupon code.
-
-**POST Body:** `{ "code": "SAVE10" }`
-
-**Success Response:**
-```json
-{
-    "valid": true,
-    "discount_percentage": "10.00",
-    "message": "Coupon applied successfully"
-}
-```
-
-**Failure Response:**
-```json
-{
-    "valid": false,
-    "message": "Invalid or inactive coupon code"
-}
-```
-
----
-
-## 10. Certificate Endpoints
+## 12. Certificate Endpoints
 
 ### `GET /certificates/`
 List all certificates.
@@ -397,30 +406,26 @@ List all certificates.
 Create new certificate.
 
 ### `GET /certificates/print/<id>/`
-Print certificate.
-
-**Response:** Print-optimized HTML
+Print-optimized certificate.
 
 ### `GET/POST /certificates/khda-form/`
 KHDA certificate upload form.
 
+### `POST /certificates/create-khda/`
+Create KHDA certificate record.
+
 ### `GET/POST /upload-certificate/<registration_id>/`
 Upload certificate file for a registration.
-
-**POST Form Data:**
-| Field | Type |
-|-------|------|
-| certificate_file | file (PDF/image) |
 
 ### `GET/POST /upload-form/<registration_id>/`
 Upload registration form document.
 
 ---
 
-## 11. Quotation Endpoints
+## 13. Quotation Endpoints
 
 ### `GET/POST /quotation/create/`
-Create quotation with items formset.
+Create quotation with item formset.
 
 ### `GET /quotation/`
 List all quotations.
@@ -436,37 +441,162 @@ Delete quotation.
 
 ---
 
-## 12. Proposal Endpoints
+## 14. Proposal Endpoints
 
 ### `GET /proposals/`
 List all proposals.
 
 ### `GET/POST /proposals/create/`
-Create proposal with logo upload.
+Create proposal with optional logo upload.
 
 **POST Form Data (multipart/form-data):**
 | Field | Type | Notes |
 |-------|------|-------|
 | client_name | string | |
-| course | integer | |
+| course | integer | FK to Course |
 | presenter_title | string | |
 | date | date | |
 | location | string | |
-| trainer | integer | Optional |
-| logo | file | PNG, 800×300px |
+| trainer | integer | Optional FK |
+| logo | file | PNG only |
 
 ### `GET/POST /proposals/<id>/edit/`
 Edit proposal.
 
 ### `GET /proposals/<id>/print/`
-Print/view proposal PDF.
+View/print branded proposal.
 
 ### `POST /remove_logo/<proposal_id>/`
 Remove logo from proposal.
 
 ---
 
-## 13. Course Endpoints
+## 15. Training Schedule Endpoints
+
+### `GET /schedule/`
+List all training schedules.
+
+### `GET/POST /schedule/create/`
+Create training schedule.
+
+### `GET/POST /schedule/<id>/edit/`
+Edit schedule.
+
+### `POST /schedule/<id>/delete/`
+Delete schedule.
+
+---
+
+## 16. Expense Endpoints
+
+### `GET /expenses/`
+List all expenses.
+
+### `GET/POST /expenses/create/`
+Create expense record.
+
+### `GET/POST /expenses/<id>/edit/`
+Edit expense.
+
+### `POST /expenses/<id>/delete/`
+Delete expense.
+
+### `GET /expenses/report/`
+Expense summary report.
+
+---
+
+## 17. Audit Log Endpoint
+
+### `GET /audit/`
+**Access:** Admin role only
+View audit log with filters (user, action, model, date range).
+
+---
+
+## 18. Fee Reminder Endpoint
+
+### `GET /fee-reminders/`
+Fee reminder dashboard showing overdue/upcoming invoices.
+
+---
+
+## 19. Company Portal Endpoints
+
+### `GET/POST /portal/company/<token>/`
+Company self-registration portal (public — no login required).
+
+### `GET /portal/company/<token>/success/`
+Success page after portal submission.
+
+### `GET/POST /portal/company/<token>/attendees/`
+Add training attendees to a portal registration.
+
+### `GET /admin-portal/`
+**Access:** Admin only
+Manage all company portal requests.
+
+### `POST /admin-portal/generate/`
+Generate a new company portal link.
+
+### `POST /admin-portal/<id>/approve/`
+Approve a company portal request.
+
+---
+
+## 20. Student Form Link Endpoints
+
+### `GET /portal/student-links/`
+**Access:** Login required
+List all student form links for current user.
+
+### `POST /portal/student-links/generate/`
+Generate a new student self-registration link.
+
+### `GET/POST /portal/student/<token>/`
+Student self-registration form (public — no login required).
+
+---
+
+## 21. Coupon Endpoints
+
+### `GET /coupons/`
+List all coupons.
+
+### `GET/POST /coupons/create/`
+Create coupon.
+
+### `GET/POST /coupons/<id>/edit/`
+Edit coupon.
+
+### `POST /coupons/<id>/delete/`
+Delete coupon.
+
+### `POST /validate-coupon/`
+**AJAX endpoint** — Validate coupon code.
+
+**POST Body:** `{ "code": "SAVE20" }`
+
+**Success:**
+```json
+{
+    "valid": true,
+    "discount_percentage": "20.00",
+    "message": "Coupon applied: 20% discount"
+}
+```
+
+**Failure:**
+```json
+{
+    "valid": false,
+    "message": "Invalid or inactive coupon code"
+}
+```
+
+---
+
+## 22. Course Endpoints
 
 ### `GET /courses/`
 List all courses.
@@ -486,52 +616,55 @@ Delete course.
 ### `GET/POST /courses/<id>/content/create/`
 Upload course material.
 
-**POST Form Data (multipart/form-data):**
-| Field | Type |
-|-------|------|
-| title | string |
-| file | file |
-
-### `GET/POST /content/<id>/delete/`
+### `POST /content/<id>/delete/`
 Delete course material.
 
 ---
 
-## 14. Error Handling
+## 23. Profile Endpoints
+
+### `GET/POST /trainer-profile/create/`
+Create trainer profile.
+
+### `GET/POST /trainer-profile/<id>/edit/`
+Edit trainer profile.
+
+### `GET /trainer-profile/list/`
+List trainer profiles.
+
+### `POST /trainer-profile/<id>/delete/`
+Delete trainer profile.
+
+### `GET/POST /company-profile/create/`
+Create company profile.
+
+### `GET/POST /company-profile/<id>/edit/`
+Edit company profile.
+
+### `GET /company-profile/list/`
+List company profiles.
+
+### `POST /company-profile/<id>/delete/`
+Delete company profile and associated PDF file.
+
+---
+
+## 24. Error Handling
 
 | Status | Cause | Response |
 |--------|-------|---------|
 | 302 | Unauthenticated access | Redirect to `/accounts/login/?next={url}` |
-| 403 | Non-admin attempts admin action | Redirect with error message |
+| 302 | Invalid SSO token | Redirect to login with error message |
+| 403 | Non-admin attempts admin action | Redirect with permission error |
 | 404 | Object not found | Django 404 page |
-| 500 | Server error | Django error page (DEBUG=True shows traceback) |
+| 502 | CRM not reachable | JSON `{"error": "CRM error <code>"}` |
+| 500 | Server error | Django error page (or debug log in production) |
 
 ---
 
-## 15. CSRF Token
+## 25. CSRF Token Usage
 
-All POST requests require CSRF token:
-
-**Method 1 — Cookie:**
-```javascript
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
-}
-const csrftoken = getCookie('csrftoken');
-```
-
-**Method 2 — Template tag:**
+**HTML forms:**
 ```html
 <form method="post">
     {% csrf_token %}
@@ -539,7 +672,20 @@ const csrftoken = getCookie('csrftoken');
 </form>
 ```
 
+**AJAX POST requests:**
+```javascript
+const csrftoken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] ?? '';
+fetch('/validate-coupon/', {
+    method: 'POST',
+    headers: {
+        'X-CSRFToken': csrftoken,
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ code: couponCode })
+});
+```
+
 ---
 
-*Document prepared for Orbit Training Point ERP System*  
-*Generated: 2026-06-25*
+*Document updated: 2026-07-06*
+*Reflects production system at orbittraining.online*

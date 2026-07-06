@@ -1,11 +1,10 @@
 # Database Structure Document
 ## Orbit ERP — Institute Management System
 
-**Document Version:** 1.0  
-**Date:** 2026-06-25  
-**Database:** orbit_invoice  
-**Engine:** MySQL 8.0.39  
-**Total Tables:** 36
+**Document Version:** 2.0
+**Date:** 2026-07-06
+**Database:** orbit_invoice
+**Engine:** MariaDB (local dev) / MySQL 8.0 (VPS production)
 
 ---
 
@@ -14,183 +13,68 @@
 ```
 Database: orbit_invoice
 Character Set: utf8mb4
-Collation: utf8mb4_0900_ai_ci
+Collation: utf8mb4_0900_ai_ci (MySQL 8) / utf8mb4_general_ci (MariaDB)
 Engine: InnoDB (all tables)
-Total Records: ~11,000+ across all tables
 ```
 
----
-
-## 2. Entity Relationship Diagram (Text)
-
-```
-auth_user ─────────────────────────────────────────────────────────┐
-    │                                                               │
-    ├──(user_id)──► invoices_client ──(client_id)──► invoices_invoice
-    │                                                      │
-    ├──(user_id)──► invoices_quotation                     │
-    │                                                      │
-    ├──(user_id)──► invoices_lead                    invoices_invoiceitem
-    │                    │                                 │
-    │                    ├──► invoices_followup            └──(course_id)──► invoices_course
-    │                    ├──► invoices_comment                              │
-    │                    └──► invoices_meeting                              ├──► invoices_registrationcourse
-    │                                                                       │
-    ├──(user_id)──► invoices_trainerprofile          invoices_registration ─┤
-    │                    │                                 │               │
-    │                    └──(trainer_id)──► invoices_proposal               └──► invoices_coursecontent
-    │
-    ├──(user_id)──► invoices_companyprofile
-    │
-    ├──(user_id)──► invoices_invoicepurchase ──► invoices_invoicepurchaseitem
-    │
-    └──(created_by_id)──► invoices_coupon
-
-invoices_registration ──OneToOne──► invoices_corporateregistration
-invoices_registration ──OneToOne──► invoices_certificateupload
-invoices_registration ──OneToOne──► invoices_formupload
-
-invoices_pipeline ──(pipeline_id)──► invoices_pipelinestage ──(pipeline_stage_id)──► invoices_lead
-
-invoices_quotation ──(quotation_id)──► invoices_quotationitem ──(course_id)──► invoices_course
-```
+**Constraint:** No existing columns, tables, or data may be modified or removed. All schema changes are additive only.
 
 ---
 
-## 3. All Tables — Complete Schema
+## 2. Application Table Inventory
 
-### 3.1 Django System Tables
+### 2.1 Django System Tables (unchanged)
+- `auth_user`, `auth_group`, `auth_permission`
+- `auth_group_permissions`, `auth_user_groups`, `auth_user_user_permissions`
+- `django_content_type`, `django_migrations`, `django_session`, `django_admin_log`
 
----
+### 2.2 Business Application Tables
 
-#### `auth_user` — System Users
-*Django built-in. 54 records.*
-
-| Column | Type | Null | Key | Default | Extra |
-|--------|------|------|-----|---------|-------|
-| id | int | NO | PRI | — | AUTO_INCREMENT |
-| password | varchar(128) | NO | | | |
-| last_login | datetime(6) | YES | | NULL | |
-| is_superuser | tinyint(1) | NO | | | |
-| username | varchar(150) | NO | UNI | | |
-| first_name | varchar(150) | NO | | | |
-| last_name | varchar(150) | NO | | | |
-| email | varchar(254) | NO | | | |
-| is_staff | tinyint(1) | NO | | | |
-| is_active | tinyint(1) | NO | | | |
-| date_joined | datetime(6) | NO | | | |
-
----
-
-#### `auth_group` — Permission Groups
-*Django built-in.*
-
-| Column | Type | Null | Key |
-|--------|------|------|-----|
-| id | int | NO | PRI AUTO_INCREMENT |
-| name | varchar(150) | NO | UNI |
-
----
-
-#### `auth_permission` — System Permissions
-*Django built-in. 128 records.*
-
-| Column | Type | Null | Key |
-|--------|------|------|-----|
-| id | int | NO | PRI AUTO_INCREMENT |
-| name | varchar(255) | NO | |
-| content_type_id | int | NO | FK → django_content_type |
-| codename | varchar(100) | NO | UNI(content_type_id, codename) |
-
----
-
-#### `auth_group_permissions` — Group-Permission Junction
-
-| Column | Type | Key |
-|--------|------|-----|
-| id | bigint | PRI |
-| group_id | int | FK → auth_group |
-| permission_id | int | FK → auth_permission |
-| | | UNI(group_id, permission_id) |
+| Table | Purpose | Key Change vs v1 |
+|-------|---------|-----------------|
+| `invoices_client` | Client records | `trn_number` field added |
+| `invoices_course` | Courses | 6 level-based price fields added |
+| `invoices_coursecontent` | Course materials | Unchanged |
+| `invoices_registration` | Student registrations | `level`, `student_status` fields added; number format changed |
+| `invoices_registrationcourse` | Course enrolments | Unchanged |
+| `invoices_corporateregistration` | Corporate extension | Unchanged |
+| `invoices_invoice` | Sales invoices | `level` field added |
+| `invoices_invoiceitem` | Invoice line items | `vat_rate` now stored as 0.05 (not 5.00) |
+| `invoices_invoicepurchase` | Purchase invoices | Unchanged |
+| `invoices_invoicepurchaseitem` | Purchase line items | Unchanged |
+| `invoices_quotation` | Quotations | `coupon` FK added |
+| `invoices_quotationitem` | Quotation items | Unchanged |
+| `invoices_quotationitemoverride` | Custom price per pax | **New table** |
+| `invoices_certificate` | Issued certificates | Unchanged |
+| `invoices_certificateupload` | Cert file uploads | Unchanged |
+| `invoices_formupload` | Form uploads | Unchanged |
+| `invoices_proposal` | Training proposals | Unchanged |
+| `invoices_trainerprofile` | Trainer profiles | Unchanged |
+| `invoices_companyprofile` | Company profiles | Unchanged |
+| `invoices_lead` | Sales leads | Unchanged (CRM leads in separate `leads` DB) |
+| `invoices_followup` | Lead follow-ups | Unchanged |
+| `invoices_comment` | Lead comments | Unchanged |
+| `invoices_meeting` | Lead meetings | Unchanged |
+| `invoices_pipeline` | Sales pipelines | Unchanged |
+| `invoices_pipelinestage` | Pipeline stages | Unchanged |
+| `invoices_coupon` | Discount coupons | `expiry_date`, `max_uses`, `used_count` added |
+| `invoices_userprofile` | Staff role profiles | **New table** |
+| `invoices_salestarget` | Monthly sales targets | **New table** |
+| `invoices_notification` | In-app notifications | **New table** |
+| `invoices_companyportalrequest` | Company self-reg portal | **New table** |
+| `invoices_companyportalattendee` | Portal attendees | **New table** |
+| `invoices_studentformlink` | Token registration links | **New table** |
+| `invoices_invoicepayment` | Payment installments | **New table** |
+| `invoices_trainingschedule` | Training sessions | **New table** |
+| `invoices_expense` | Business expenses | **New table** |
+| `invoices_auditlog` | Action audit trail | **New table** |
+| `invoices_feereminderlog` | Fee reminder records | **New table** |
 
 ---
 
-#### `auth_user_groups` — User-Group Junction
+## 3. Complete Table Schemas
 
-| Column | Type | Key |
-|--------|------|-----|
-| id | bigint | PRI |
-| user_id | int | FK → auth_user |
-| group_id | int | FK → auth_group |
-| | | UNI(user_id, group_id) |
-
----
-
-#### `auth_user_user_permissions` — User-Permission Direct Assignment
-
-| Column | Type | Key |
-|--------|------|-----|
-| id | bigint | PRI |
-| user_id | int | FK → auth_user |
-| permission_id | int | FK → auth_permission |
-| | | UNI(user_id, permission_id) |
-
----
-
-#### `django_content_type` — Model Registry
-*32 records.*
-
-| Column | Type | Key |
-|--------|------|-----|
-| id | int | PRI AUTO_INCREMENT |
-| app_label | varchar(100) | UNI(app_label, model) |
-| model | varchar(100) | |
-
----
-
-#### `django_migrations` — Migration History
-*68 records.*
-
-| Column | Type |
-|--------|------|
-| id | bigint PRI AUTO_INCREMENT |
-| app | varchar(255) |
-| name | varchar(255) |
-| applied | datetime(6) |
-
----
-
-#### `django_session` — User Sessions
-
-| Column | Type | Key |
-|--------|------|-----|
-| session_key | varchar(40) | PRI |
-| session_data | longtext | |
-| expire_date | datetime(6) | IDX |
-
----
-
-#### `django_admin_log` — Admin Action Log
-
-| Column | Type | Key |
-|--------|------|-----|
-| id | int | PRI AUTO_INCREMENT |
-| action_time | datetime(6) | |
-| object_id | longtext | NULL |
-| object_repr | varchar(200) | |
-| action_flag | smallint unsigned | CHECK ≥ 0 |
-| change_message | longtext | |
-| content_type_id | int | NULL FK → django_content_type |
-| user_id | int | FK → auth_user |
-
----
-
-### 3.2 Business Application Tables
-
----
-
-#### `invoices_client` — Client Records
-*1,694 records. AUTO_INCREMENT: 1694*
+### 3.1 `invoices_client` — Client Records
 
 | Column | Type | Null | Key | Notes |
 |--------|------|------|-----|-------|
@@ -199,115 +83,97 @@ invoices_quotation ──(quotation_id)──► invoices_quotationitem ──(c
 | email | varchar(254) | NO | | |
 | phone | varchar(20) | NO | | |
 | address | longtext | NO | | |
+| emirates | varchar(100) | NO | | UAE emirate |
 | country | varchar(100) | NO | | |
-| emirates | varchar(100) | NO | | UAE emirate (Abu Dhabi, Dubai, etc.) |
+| trn_number | varchar(50) | NO | | Tax Registration Number (blank allowed) |
 | user_id | int | NO | FK → auth_user | Owning consultant |
 
 ---
 
-#### `invoices_course` — Training Courses
-*239 records. AUTO_INCREMENT: 239*
+### 3.2 `invoices_course` — Training Courses
 
 | Column | Type | Null | Key | Notes |
 |--------|------|------|-----|-------|
 | id | bigint | NO | PRI AUTO_INCREMENT | |
 | name | varchar(255) | NO | | Course full name |
-| code | varchar(10) | NO | UNI | Short code (2-10 chars) used in cert numbers |
-| rate | decimal(10,2) | NO | | Standard/offline rate |
-| batch_rate | decimal(10,2) | NO | | Group/batch rate |
-| online_rate | decimal(10,2) | NO | | Online delivery rate |
-| private_rate | decimal(10,2) | NO | | Private/1-on-1 rate |
+| code | varchar(10) | NO | UNI | Short code (2-10 chars) |
+| rate | decimal(10,2) | NO | | Legacy standard/offline rate |
+| batch_rate | decimal(10,2) | NO | | Legacy batch rate |
+| online_rate | decimal(10,2) | NO | | Legacy online rate |
+| private_rate | decimal(10,2) | NO | | Legacy private rate |
+| oo_intermediate | decimal(10,2) | NO | | Online/Offline — Intermediate |
+| oo_professional | decimal(10,2) | NO | | Online/Offline — Professional |
+| oo_advanced | decimal(10,2) | NO | | Online/Offline — Advanced |
+| priv_intermediate | decimal(10,2) | NO | | Private — Intermediate |
+| priv_professional | decimal(10,2) | NO | | Private — Professional |
+| priv_advanced | decimal(10,2) | NO | | Private — Advanced |
+
+Note: `oo_*` and `priv_*` fields default to 0. Course list displays `—` (dash) for zero values.
 
 ---
 
-#### `invoices_coursecontent` — Course Materials
-*68 records. AUTO_INCREMENT: 68*
+### 3.3 `invoices_registration` — Student Registrations
 
 | Column | Type | Null | Key | Notes |
 |--------|------|------|-----|-------|
 | id | bigint | NO | PRI AUTO_INCREMENT | |
-| title | varchar(255) | NO | | Material title |
-| file | varchar(100) | NO | | Path: media/course_contents/ |
-| upload_date | datetime(6) | NO | | Auto-set on upload |
-| course_id | bigint | NO | FK → invoices_course | |
-
----
-
-#### `invoices_registration` — Student Registrations
-*853 records. AUTO_INCREMENT: 853*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| registration_number | varchar(20) | NO | UNI | OT/YY/MM/### or OC/YY/MM/### |
-| registration_type | varchar(2) | NO | | 'OT' (individual) or 'OC' (corporate) |
+| registration_number | varchar(20) | NO | UNI | OT/YY/### or OC/YY/### |
+| registration_type | varchar(2) | NO | | 'OT' or 'OC' |
+| class_type | varchar(10) | NO | | online/offline/batch/private |
+| level | varchar(20) | NO | | intermediate/professional/advanced |
+| student_status | varchar(20) | NO | | active/completed/dropped/suspended/pending |
 | date | date | NO | | Registration date |
 | first_name | varchar(100) | NO | | |
 | last_name | varchar(100) | NO | | |
-| date_of_birth | date | YES | NULL | |
-| passport_no | varchar(100) | NO | | |
-| uid_no | varchar(100) | NO | | UAE UID number |
-| emirates_id_no | varchar(100) | NO | | UAE Emirates ID |
-| nationality | varchar(100) | NO | | |
-| education | varchar(100) | NO | | Highest education level |
-| phone_no | varchar(20) | NO | | Primary phone |
-| alternative_no | varchar(20) | NO | | Optional secondary phone |
+| date_of_birth | date | YES | NULL | Optional |
+| passport_no | varchar(100) | NO | | Blank allowed |
+| uid_no | varchar(100) | NO | | Blank allowed |
+| emirates_id_no | varchar(100) | NO | | Blank allowed |
+| nationality | varchar(100) | NO | | Blank allowed |
+| education | varchar(100) | NO | | Blank allowed |
+| phone_no | varchar(20) | NO | | |
+| alternative_no | varchar(20) | NO | | Blank allowed |
 | email | varchar(254) | NO | | |
+| emirates | varchar(100) | NO | | Blank allowed |
 | country | varchar(100) | NO | | |
-| emirates | varchar(100) | NO | | UAE emirate |
-| address | longtext | NO | | Full address |
-| company_or_university_name | varchar(100) | NO | | |
-| consultant_name | varchar(100) | NO | | Responsible consultant |
-| class_type | varchar(10) | NO | | online/offline/batch/private |
+| address | longtext | NO | | Blank allowed |
+| company_or_university_name | varchar(100) | NO | | Blank allowed |
+| consultant_name | varchar(100) | NO | | |
+
+**Registration Number Format Change:** Format is `OT/YY/###` (year only, no month). Resets annually. Previous docs incorrectly stated `OT/YY/MM/###`.
 
 ---
 
-#### `invoices_registrationcourse` — Registration-Course Junction (ManyToMany)
-*1,878 records. AUTO_INCREMENT: 1878*
+### 3.4 `invoices_registrationcourse` — Registration-Course Junction
 
 | Column | Type | Null | Key | Notes |
 |--------|------|------|-----|-------|
 | id | bigint | NO | PRI AUTO_INCREMENT | |
 | registration_id | bigint | NO | FK → invoices_registration | |
 | course_id | bigint | NO | FK → invoices_course | |
-| price | decimal(10,2) | NO | | Agreed price for this course |
-| discount | decimal(5,2) | NO | | Discount % (0.00–100.00) |
+| price | decimal(10,2) | NO | | Agreed price |
+| discount | decimal(5,2) | NO | | Discount % |
 | | | | UNI(registration_id, course_id) | |
 
 ---
 
-#### `invoices_corporateregistration` — Corporate Registration Extension
-*43 records. AUTO_INCREMENT: 43*
+### 3.5 `invoices_invoice` — Sales Invoices
 
 | Column | Type | Null | Key | Notes |
 |--------|------|------|-----|-------|
 | id | bigint | NO | PRI AUTO_INCREMENT | |
-| registration_id | bigint | NO | UNI FK → invoices_registration | OneToOne |
-| company_name | varchar(255) | NO | | |
-| company_address | longtext | NO | | |
-| company_location | varchar(255) | NO | | |
-| company_phone | varchar(20) | NO | | |
-| company_email | varchar(254) | NO | | |
-
----
-
-#### `invoices_invoice` — Sales Invoices
-*1,123 records. AUTO_INCREMENT: 1123*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| invoice_number | varchar(50) | NO | UNI | YY/MM/### format |
+| invoice_number | varchar(50) | NO | UNI | YY/MM/### |
 | date | date | NO | | Invoice date |
 | due_date | date | NO | | Payment due date |
-| total_amount | decimal(10,2) | NO | | Sum of all items + VAT |
+| total_amount | decimal(10,2) | NO | | Sum of items after discount + VAT |
 | amount_paid | decimal(10,2) | NO | | Amount received |
 | discount | decimal(5,2) | NO | | Invoice-level discount % |
 | number_of_person | int | NO | | |
+| level | varchar(20) | NO | | intermediate/professional/advanced |
 | status | varchar(20) | NO | | Full Payment/Term Payment/Tabby/Tamara |
 | payment | varchar(20) | NO | | Card/Cash/Account Transfer/Payment Link/Cheque |
 | class_type | varchar(10) | NO | | online/offline/batch/private |
-| po_number | varchar(100) | NO | | Purchase order number |
+| po_number | varchar(100) | NO | | Blank allowed |
 | client_id | bigint | NO | FK → invoices_client | |
 | user_id | int | NO | FK → auth_user | |
 | registration_id | bigint | YES | NULL FK → invoices_registration | Optional link |
@@ -315,8 +181,7 @@ invoices_quotation ──(quotation_id)──► invoices_quotationitem ──(c
 
 ---
 
-#### `invoices_invoiceitem` — Invoice Line Items
-*1,824 records. AUTO_INCREMENT: 1824*
+### 3.6 `invoices_invoiceitem` — Invoice Line Items
 
 | Column | Type | Null | Key | Notes |
 |--------|------|------|-----|-------|
@@ -326,63 +191,28 @@ invoices_quotation ──(quotation_id)──► invoices_quotationitem ──(c
 | description | longtext | NO | | Course name/description |
 | quantity | int | NO | | |
 | unit_price | decimal(10,2) | NO | | |
-| vat_rate | decimal(4,2) | NO | | Default 5.00 |
+| vat_rate | decimal(4,2) | NO | | Stored as 0.05 (decimal), default 0.05 |
 
 *Calculated (not stored):*
 - subtotal = quantity × unit_price
-- vat_amount = subtotal × (vat_rate / 100)
+- vat_amount = subtotal × vat_rate
 - total = subtotal + vat_amount
 
+**Note:** `vat_rate` is stored as a decimal (0.05), not as a percentage (5.00). The model's `get_vat_amount()` multiplies by `self.vat_rate` directly.
+
 ---
 
-#### `invoices_invoicepurchase` — Purchase/Expense Invoices
-*33 records. AUTO_INCREMENT: 33*
+### 3.7 `invoices_quotation` — Client Quotations
 
 | Column | Type | Null | Key | Notes |
 |--------|------|------|-----|-------|
 | id | bigint | NO | PRI AUTO_INCREMENT | |
-| invoice_number | varchar(50) | NO | UNI | |
-| date | date | NO | | |
-| due_date | date | NO | | |
-| total_amount | decimal(10,2) | NO | | |
-| advance_amount | decimal(10,2) | NO | | |
-| number_of_person | int | NO | | |
-| discount | decimal(5,2) | NO | Default: 0.00 | |
-| status | varchar(20) | NO | | |
-| payment | varchar(20) | NO | | |
-| po_number | varchar(100) | NO | | |
-| client_id | bigint | NO | FK → invoices_client | |
-| course_id | bigint | YES | NULL FK → invoices_course | |
-| user_id | int | NO | FK → auth_user | |
-
----
-
-#### `invoices_invoicepurchaseitem` — Purchase Invoice Line Items
-*69 records. AUTO_INCREMENT: 69*
-
-| Column | Type | Null | Key |
-|--------|------|------|-----|
-| id | bigint | NO | PRI AUTO_INCREMENT |
-| invoice_id | bigint | NO | FK → invoices_invoicepurchase |
-| course_id | bigint | YES | NULL FK → invoices_course |
-| description | longtext | NO | |
-| quantity | int | NO | |
-| unit_price | decimal(10,2) | NO | |
-| vat_rate | decimal(4,2) | NO | |
-
----
-
-#### `invoices_quotation` — Client Quotations
-*217 records. AUTO_INCREMENT: 217*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| quotation_number | varchar(20) | NO | UNI | YY/MM/### format |
+| quotation_number | varchar(20) | NO | UNI | YY/MM/### |
 | client_name | varchar(255) | NO | | |
-| schedule | varchar(255) | NO | | Proposed schedule dates |
-| training_venue | varchar(50) | NO | | In-House/External/Online |
+| schedule | varchar(255) | NO | | Proposed schedule text |
+| training_venue | varchar(50) | NO | | See venue choices below |
 | discount | decimal(10,2) | NO | | |
+| coupon_id | bigint | YES | NULL FK → invoices_coupon | |
 | consultant_name | varchar(20) | NO | | |
 | consultant_position | varchar(255) | NO | | |
 | consultant_number | varchar(20) | NO | | |
@@ -390,266 +220,303 @@ invoices_quotation ──(quotation_id)──► invoices_quotationitem ──(c
 | created_at | datetime(6) | NO | | |
 | user_id | int | NO | FK → auth_user | |
 
+**Venue choices:** `Orbit Training (In-House)`, `Company Premises (External)`, `online`
+
 ---
 
-#### `invoices_quotationitem` — Quotation Line Items
-*1,175 records. AUTO_INCREMENT: 1175*
+### 3.8 `invoices_quotationitemoverride` — Custom Quotation Pricing
+
+**New table** — allows admin/sales_manager to override course rate for a specific quotation item.
 
 | Column | Type | Null | Key | Notes |
 |--------|------|------|-----|-------|
 | id | bigint | NO | PRI AUTO_INCREMENT | |
-| quotation_id | bigint | NO | FK → invoices_quotation | |
-| course_id | bigint | NO | FK → invoices_course | |
-| duration | decimal(10,2) | NO | | Hours or days |
-| number_of_persons | int unsigned | NO | CHECK ≥ 0 | |
+| item_id | bigint | NO | UNI FK → invoices_quotationitem | OneToOne |
+| custom_price | decimal(10,2) | NO | | Price per pax override |
 
 ---
 
-#### `invoices_certificate` — Issued Certificates
-*254 records. AUTO_INCREMENT: 254*
+### 3.9 `invoices_coupon` — Discount Coupons
 
 | Column | Type | Null | Key | Notes |
 |--------|------|------|-----|-------|
 | id | bigint | NO | PRI AUTO_INCREMENT | |
-| certificate_number | varchar(50) | NO | UNI | {CODE}/YY/### |
-| register_number | varchar(20) | NO | | Links to registration (text, not FK) |
-| certificate_type | varchar(20) | NO | | 'regular' or 'KHDA' |
-| student_name | varchar(100) | NO | | |
-| course_name | varchar(100) | NO | | |
-| from_date | date | YES | NULL | |
-| end_date | date | YES | NULL | |
-| grade | varchar(2) | NO | | A+, A, B+, B, C+, C, D |
-| uploaded_certificate | varchar(100) | YES | NULL | File path if uploaded |
-| created_at | datetime(6) | NO | | |
-
----
-
-#### `invoices_certificateupload` — Certificate File Uploads
-*3 records. AUTO_INCREMENT: 3*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| registration_id | bigint | NO | UNI FK → invoices_registration | OneToOne |
-| certificate_file | varchar(100) | NO | | Path: media/certificates/ |
-| upload_date | datetime(6) | NO | | |
-
----
-
-#### `invoices_formupload` — Registration Form Uploads
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| registration_id | bigint | NO | UNI FK → invoices_registration | OneToOne |
-| form_file | varchar(100) | NO | | Path: media/registration_forms/ |
-| upload_date | datetime(6) | NO | | |
-
----
-
-#### `invoices_proposal` — Training Proposals
-*90 records. AUTO_INCREMENT: 90*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| proposal_number | varchar(20) | NO | UNI | PROP-YYYY-#### |
-| client_name | varchar(255) | NO | | |
-| presenter_title | varchar(255) | NO | | |
-| date | date | NO | | |
-| location | varchar(255) | NO | | |
-| logo | varchar(100) | YES | NULL | Path: media/proposal_logos/ |
-| logo_white_url | varchar(255) | YES | NULL | Path: media/proposal_logos_white/ |
-| created_at | datetime(6) | NO | | |
-| course_id | bigint | NO | FK → invoices_course | |
-| trainer_id | bigint | YES | NULL | FK → invoices_trainerprofile (soft ref) |
-
----
-
-#### `invoices_trainerprofile` — Trainer Profiles
-*10 records. AUTO_INCREMENT: 10*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| name | varchar(255) | NO | UNI | |
-| profile_pdf | varchar(100) | NO | | Path: media/trainer_profiles/ |
-| created_at | datetime(6) | NO | | |
-| user_id | int | NO | FK → auth_user | |
-
----
-
-#### `invoices_companyprofile` — Company Profiles
-*12 records. AUTO_INCREMENT: 12*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| name | varchar(255) | NO | | |
-| company_pdf | varchar(100) | NO | | Path: media/company_profiles/ |
-| created_at | datetime(6) | NO | | |
-| user_id | int | NO | FK → auth_user | |
-
----
-
-#### `invoices_lead` — Sales Leads (CRM)
-*18 records. AUTO_INCREMENT: 18*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| full_name | varchar(100) | NO | | |
-| email | varchar(254) | NO | UNI | Unique in system |
-| phone | varchar(20) | YES | NULL | With country code |
-| source | varchar(50) | NO | | Website/Referral/Event/Other |
-| status | varchar(20) | NO | | Interested Highly/Qualified/Register Soon/Other |
-| notes | longtext | YES | NULL | |
-| follow_up_date | date | YES | NULL | |
-| follow_up_status | varchar(20) | YES | NULL | |
-| quote_amount | decimal(10,2) | YES | NULL | |
-| created_at | datetime(6) | NO | | |
-| interested_course_id | bigint | YES | NULL FK → invoices_course | |
-| user_id | int | NO | FK → auth_user | Assigned consultant |
-| pipeline_stage_id | bigint | YES | NULL FK → invoices_pipelinestage | |
-
----
-
-#### `invoices_followup` — Lead Follow-Up Tasks
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| lead_id | bigint | NO | FK → invoices_lead | |
-| user_id | int | NO | FK → auth_user | |
-| contact_date | date | NO | | Scheduled date |
-| contact_time | time(6) | NO | | Scheduled time |
-| priority | varchar(20) | YES | NULL | Low/Medium/High/Urgent |
-| status | varchar(20) | NO | | Pending/Completed/Cancelled/Rescheduled |
-| notes | longtext | NO | | |
-| created_at | datetime(6) | NO | | |
-
----
-
-#### `invoices_comment` — Lead Comments/Notes
-*30 records. AUTO_INCREMENT: 30*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| lead_id | bigint | NO | FK → invoices_lead | |
-| user_id | int | NO | FK → auth_user | |
-| text | longtext | NO | | |
-| timestamp | datetime(6) | NO | | Auto-set |
-| is_flagged | tinyint(1) | NO | | Default False |
-
----
-
-#### `invoices_meeting` — Lead Meetings
-*7 records. AUTO_INCREMENT: 7*
-
-| Column | Type | Null | Key |
-|--------|------|------|-----|
-| id | bigint | NO | PRI AUTO_INCREMENT |
-| lead_id | bigint | NO | FK → invoices_lead |
-| user_id | int | NO | FK → auth_user |
-| contact_date | date | NO | |
-| contact_time | time(6) | NO | |
-| notes | longtext | YES | NULL |
-| created_at | datetime(6) | NO | |
-| updated_at | datetime(6) | NO | |
-
----
-
-#### `invoices_pipeline` — Sales Pipelines
-*2 records. AUTO_INCREMENT: 2*
-
-| Column | Type | Null | Key |
-|--------|------|------|-----|
-| id | bigint | NO | PRI AUTO_INCREMENT |
-| name | varchar(100) | NO | |
-| description | longtext | NO | |
-| created_at | datetime(6) | NO | |
-| updated_at | datetime(6) | NO | |
-
----
-
-#### `invoices_pipelinestage` — Pipeline Stages
-*2 records. AUTO_INCREMENT: 2*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| pipeline_id | bigint | NO | FK → invoices_pipeline | |
-| name | varchar(100) | NO | | Stage name |
-| order | int unsigned | NO | CHECK ≥ 0 | Display order |
-| description | longtext | NO | | |
-| is_won_stage | tinyint(1) | NO | | True = deal won |
-| is_lost_stage | tinyint(1) | NO | | True = deal lost |
-
----
-
-#### `invoices_coupon` — Discount Coupons
-*5 records. AUTO_INCREMENT: 5*
-
-| Column | Type | Null | Key | Notes |
-|--------|------|------|-----|-------|
-| id | bigint | NO | PRI AUTO_INCREMENT | |
-| code | varchar(50) | NO | UNI | Coupon code string |
+| code | varchar(50) | NO | UNI | |
 | discount_percentage | decimal(5,2) | NO | | 0.00–100.00 |
-| is_active | tinyint(1) | NO | | Active flag |
+| is_active | tinyint(1) | NO | | |
+| expiry_date | date | YES | NULL | Optional expiry |
+| max_uses | int | YES | NULL | NULL = unlimited |
+| used_count | int | NO | | Default 0 |
 | created_at | datetime(6) | NO | | |
 | created_by_id | int | NO | FK → auth_user | |
 
 ---
 
-## 4. All Foreign Key Relationships
+### 3.10 `invoices_userprofile` — Staff Role Profiles
 
-| # | Table | Column | References | On Delete |
-|---|-------|--------|-----------|-----------|
-| 1 | auth_group_permissions | group_id | auth_group(id) | CASCADE |
-| 2 | auth_group_permissions | permission_id | auth_permission(id) | CASCADE |
-| 3 | auth_permission | content_type_id | django_content_type(id) | CASCADE |
-| 4 | auth_user_groups | user_id | auth_user(id) | CASCADE |
-| 5 | auth_user_groups | group_id | auth_group(id) | CASCADE |
-| 6 | auth_user_user_permissions | user_id | auth_user(id) | CASCADE |
-| 7 | auth_user_user_permissions | permission_id | auth_permission(id) | CASCADE |
-| 8 | django_admin_log | content_type_id | django_content_type(id) | SET NULL |
-| 9 | django_admin_log | user_id | auth_user(id) | CASCADE |
-| 10 | invoices_client | user_id | auth_user(id) | CASCADE |
-| 11 | invoices_comment | lead_id | invoices_lead(id) | CASCADE |
-| 12 | invoices_comment | user_id | auth_user(id) | CASCADE |
-| 13 | invoices_companyprofile | user_id | auth_user(id) | CASCADE |
-| 14 | invoices_corporateregistration | registration_id | invoices_registration(id) | CASCADE |
-| 15 | invoices_coupon | created_by_id | auth_user(id) | CASCADE |
-| 16 | invoices_coursecontent | course_id | invoices_course(id) | CASCADE |
-| 17 | invoices_followup | lead_id | invoices_lead(id) | CASCADE |
-| 18 | invoices_followup | user_id | auth_user(id) | CASCADE |
-| 19 | invoices_formupload | registration_id | invoices_registration(id) | CASCADE |
-| 20 | invoices_invoice | client_id | invoices_client(id) | CASCADE |
-| 21 | invoices_invoice | course_id | invoices_course(id) | SET NULL |
-| 22 | invoices_invoice | registration_id | invoices_registration(id) | SET NULL |
-| 23 | invoices_invoice | user_id | auth_user(id) | CASCADE |
-| 24 | invoices_invoiceitem | course_id | invoices_course(id) | SET NULL |
-| 25 | invoices_invoiceitem | invoice_id | invoices_invoice(id) | CASCADE |
-| 26 | invoices_invoicepurchase | client_id | invoices_client(id) | CASCADE |
-| 27 | invoices_invoicepurchase | course_id | invoices_course(id) | SET NULL |
-| 28 | invoices_invoicepurchase | user_id | auth_user(id) | CASCADE |
-| 29 | invoices_invoicepurchaseitem | course_id | invoices_course(id) | SET NULL |
-| 30 | invoices_invoicepurchaseitem | invoice_id | invoices_invoicepurchase(id) | CASCADE |
-| 31 | invoices_lead | interested_course_id | invoices_course(id) | SET NULL |
-| 32 | invoices_lead | pipeline_stage_id | invoices_pipelinestage(id) | SET NULL |
-| 33 | invoices_lead | user_id | auth_user(id) | CASCADE |
-| 34 | invoices_meeting | lead_id | invoices_lead(id) | CASCADE |
-| 35 | invoices_meeting | user_id | auth_user(id) | CASCADE |
-| 36 | invoices_pipelinestage | pipeline_id | invoices_pipeline(id) | CASCADE |
-| 37 | invoices_proposal | course_id | invoices_course(id) | CASCADE |
-| 38 | invoices_quotation | user_id | auth_user(id) | CASCADE |
-| 39 | invoices_quotationitem | course_id | invoices_course(id) | CASCADE |
-| 40 | invoices_quotationitem | quotation_id | invoices_quotation(id) | CASCADE |
-| 41 | invoices_registrationcourse | course_id | invoices_course(id) | CASCADE |
-| 42 | invoices_registrationcourse | registration_id | invoices_registration(id) | CASCADE |
-| 43 | invoices_certificateupload | registration_id | invoices_registration(id) | CASCADE |
-| 44 | invoices_trainerprofile | user_id | auth_user(id) | CASCADE |
+**New table** — OneToOne extension of auth_user for role and phone.
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| user_id | int | NO | UNI FK → auth_user | OneToOne |
+| role | varchar(20) | NO | | admin/sales_manager/accounts/sales_executive |
+| phone | varchar(20) | NO | | Blank allowed |
+
+**Auto-created:** `post_save` signal on User creates UserProfile with default role `sales_executive`.
+
+---
+
+### 3.11 `invoices_salestarget` — Monthly Sales Targets
+
+**New table**
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| user_id | int | NO | FK → auth_user | |
+| month | date | NO | | First day of the target month |
+| target_amount | decimal(12,2) | NO | | Target revenue (AED) |
+| target_registrations | int | NO | | Target registration count |
+| created_by_id | int | YES | NULL FK → auth_user | |
+| created_at | datetime(6) | NO | | |
+| updated_at | datetime(6) | NO | | |
+| | | | UNI(user_id, month) | |
+
+---
+
+### 3.12 `invoices_notification` — In-App Notifications
+
+**New table**
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| recipient_id | int | NO | FK → auth_user | |
+| notif_type | varchar(30) | NO | | invoice_due/overdue_invoice/certificate_ready/registration_new/target_alert/system |
+| title | varchar(200) | NO | | |
+| message | longtext | NO | | |
+| link | varchar(200) | NO | | URL to navigate on click |
+| is_read | tinyint(1) | NO | | Default 0 |
+| created_at | datetime(6) | NO | | Ordered by -created_at |
+
+---
+
+### 3.13 `invoices_companyportalrequest` — Company Self-Registration Portal
+
+**New table**
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| token | varchar(64) | NO | UNI | Random URL-safe token |
+| generated_by_id | int | YES | NULL FK → auth_user | |
+| company_name | varchar(255) | NO | | |
+| trade_license_number | varchar(100) | NO | | Blank allowed |
+| trade_license_doc | varchar(100) | YES | NULL | File: portal/trade_license/ |
+| vat_number | varchar(50) | NO | | Blank allowed |
+| vat_certificate | varchar(100) | YES | NULL | File: portal/vat/ |
+| contact_person | varchar(150) | NO | | |
+| designation | varchar(100) | NO | | Blank allowed |
+| email | varchar(254) | NO | | |
+| phone | varchar(30) | NO | | |
+| address | longtext | NO | | Blank allowed |
+| emirate | varchar(100) | NO | | Blank allowed |
+| status | varchar(20) | NO | | pending/approved/rejected |
+| submitted_at | datetime(6) | YES | NULL | |
+| created_at | datetime(6) | NO | | |
+| notes | longtext | NO | | Blank allowed |
+
+---
+
+### 3.14 `invoices_companyportalattendee` — Portal Training Attendees
+
+**New table**
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| portal_request_id | bigint | NO | FK → invoices_companyportalrequest | |
+| full_name | varchar(200) | NO | | |
+| email | varchar(254) | NO | | Blank allowed |
+| phone | varchar(30) | NO | | Blank allowed |
+| designation | varchar(100) | NO | | Blank allowed |
+| emirates_id | varchar(50) | NO | | Blank allowed |
+| nationality | varchar(100) | NO | | Blank allowed |
+| course_name | varchar(200) | NO | | Blank allowed |
+| added_at | datetime(6) | NO | | |
+
+---
+
+### 3.15 `invoices_studentformlink` — Token Registration Links
+
+**New table**
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| token | varchar(64) | NO | UNI | Random URL-safe token |
+| consultant_id | int | YES | NULL FK → auth_user | |
+| consultant_name_locked | varchar(150) | NO | | Immutable consultant name |
+| is_active | tinyint(1) | NO | | |
+| expires_at | datetime(6) | YES | NULL | Optional expiry |
+| created_at | datetime(6) | NO | | |
+| use_count | int unsigned | NO | | Default 0 |
+| notes | varchar(300) | NO | | Blank allowed |
+
+`pre_selected_courses` is a ManyToMany through a junction table to `invoices_course`.
+
+---
+
+### 3.16 `invoices_invoicepayment` — Payment Installments
+
+**New table**
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| invoice_id | bigint | NO | FK → invoices_invoice | |
+| amount | decimal(10,2) | NO | | |
+| payment_method | varchar(30) | NO | | cash/card/bank_transfer/cheque/payment_link/other |
+| reference | varchar(100) | NO | | Cheque #, transfer ref |
+| paid_at | date | NO | | |
+| recorded_by_id | int | YES | NULL FK → auth_user | |
+| notes | varchar(300) | NO | | Blank allowed |
+| created_at | datetime(6) | NO | | Ordered by paid_at |
+
+---
+
+### 3.17 `invoices_trainingschedule` — Training Sessions
+
+**New table**
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| course_id | bigint | NO | FK → invoices_course | |
+| title | varchar(200) | NO | | Session name |
+| class_type | varchar(20) | NO | | online/offline/batch/private |
+| start_date | date | NO | | |
+| end_date | date | NO | | |
+| start_time | time(6) | YES | NULL | |
+| end_time | time(6) | YES | NULL | |
+| venue | varchar(200) | NO | | Blank allowed |
+| max_capacity | int unsigned | NO | | Default 0 |
+| instructor | varchar(100) | NO | | Blank allowed |
+| notes | longtext | NO | | Blank allowed |
+| status | varchar(20) | NO | | upcoming/ongoing/completed/cancelled |
+| created_by_id | int | YES | NULL FK → auth_user | |
+| created_at | datetime(6) | NO | | Ordered by start_date |
+
+---
+
+### 3.18 `invoices_expense` — Business Expenses
+
+**New table**
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| category | varchar(30) | NO | | venue/materials/instructor/marketing/utilities/software/travel/salary/other |
+| description | varchar(300) | NO | | |
+| amount | decimal(10,2) | NO | | Base amount excl. VAT |
+| vat_amount | decimal(10,2) | NO | | VAT portion (default 0) |
+| vendor | varchar(200) | NO | | Blank allowed |
+| expense_date | date | NO | | |
+| payment_method | varchar(30) | NO | | cash/card/bank_transfer/cheque/other |
+| receipt_ref | varchar(100) | NO | | Blank allowed |
+| course_id | bigint | YES | NULL FK → invoices_course | Optional link to course |
+| recorded_by_id | int | YES | NULL FK → auth_user | |
+| created_at | datetime(6) | NO | | Ordered by -expense_date |
+
+---
+
+### 3.19 `invoices_auditlog` — Action Audit Trail
+
+**New table**
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| user_id | int | YES | NULL FK → auth_user | NULL if user deleted |
+| action | varchar(20) | NO | | create/update/delete/payment/status_change/export/login/logout/view |
+| model_name | varchar(50) | NO | | Model class name |
+| object_id | varchar(50) | NO | | PK of affected object |
+| object_repr | varchar(300) | NO | | String representation |
+| changes | longtext | NO | | Description of changes |
+| ip_address | char(39) | YES | NULL | IPv4 or IPv6 |
+| timestamp | datetime(6) | NO | | Ordered by -timestamp |
+
+**Auto-populated:** Login and logout events written automatically via `signals.py`.
+
+---
+
+### 3.20 `invoices_feereminderlog` — Fee Reminder Records
+
+**New table**
+
+| Column | Type | Null | Key | Notes |
+|--------|------|------|-----|-------|
+| id | bigint | NO | PRI AUTO_INCREMENT | |
+| invoice_id | bigint | YES | NULL FK → invoices_invoice | |
+| client_name | varchar(200) | NO | | Denormalized |
+| invoice_number | varchar(50) | NO | | Denormalized |
+| amount_due | decimal(10,2) | NO | | |
+| due_date | date | NO | | |
+| days_overdue | int | NO | | Negative = days until due |
+| channel | varchar(10) | NO | | system/email/manual |
+| sent_by_id | int | YES | NULL FK → auth_user | |
+| note | longtext | NO | | Blank allowed |
+| sent_at | datetime(6) | NO | | Ordered by -sent_at |
+
+---
+
+### 3.21 Previously Documented Tables (Unchanged)
+
+The following tables are unchanged from v1 documentation. See v1 DATABASE_STRUCTURE.md for full column details:
+
+- `invoices_corporateregistration`
+- `invoices_invoicepurchase`
+- `invoices_invoicepurchaseitem`
+- `invoices_quotationitem`
+- `invoices_certificate`
+- `invoices_certificateupload`
+- `invoices_formupload`
+- `invoices_proposal`
+- `invoices_trainerprofile`
+- `invoices_companyprofile`
+- `invoices_lead`
+- `invoices_followup`
+- `invoices_comment`
+- `invoices_meeting`
+- `invoices_pipeline`
+- `invoices_pipelinestage`
+- `invoices_coursecontent`
+
+---
+
+## 4. Key Foreign Key Additions (v2)
+
+| Table | Column | References | On Delete |
+|-------|--------|-----------|-----------|
+| invoices_quotation | coupon_id | invoices_coupon(id) | SET NULL |
+| invoices_quotationitemoverride | item_id | invoices_quotationitem(id) | CASCADE |
+| invoices_userprofile | user_id | auth_user(id) | CASCADE |
+| invoices_salestarget | user_id | auth_user(id) | CASCADE |
+| invoices_salestarget | created_by_id | auth_user(id) | SET NULL |
+| invoices_notification | recipient_id | auth_user(id) | CASCADE |
+| invoices_companyportalrequest | generated_by_id | auth_user(id) | SET NULL |
+| invoices_companyportalattendee | portal_request_id | invoices_companyportalrequest(id) | CASCADE |
+| invoices_studentformlink | consultant_id | auth_user(id) | SET NULL |
+| invoices_invoicepayment | invoice_id | invoices_invoice(id) | CASCADE |
+| invoices_invoicepayment | recorded_by_id | auth_user(id) | SET NULL |
+| invoices_trainingschedule | course_id | invoices_course(id) | CASCADE |
+| invoices_trainingschedule | created_by_id | auth_user(id) | SET NULL |
+| invoices_expense | course_id | invoices_course(id) | SET NULL |
+| invoices_expense | recorded_by_id | auth_user(id) | SET NULL |
+| invoices_auditlog | user_id | auth_user(id) | SET NULL |
+| invoices_feereminderlog | invoice_id | invoices_invoice(id) | CASCADE |
+| invoices_feereminderlog | sent_by_id | auth_user(id) | SET NULL |
 
 ---
 
@@ -657,13 +524,6 @@ invoices_quotation ──(quotation_id)──► invoices_quotationitem ──(c
 
 | Table | Unique Column(s) |
 |-------|-----------------|
-| auth_user | username |
-| auth_group | name |
-| auth_permission | (content_type_id, codename) |
-| auth_group_permissions | (group_id, permission_id) |
-| auth_user_groups | (user_id, group_id) |
-| auth_user_user_permissions | (user_id, permission_id) |
-| django_content_type | (app_label, model) |
 | invoices_certificate | certificate_number |
 | invoices_certificateupload | registration_id |
 | invoices_corporateregistration | registration_id |
@@ -675,76 +535,50 @@ invoices_quotation ──(quotation_id)──► invoices_quotationitem ──(c
 | invoices_lead | email |
 | invoices_proposal | proposal_number |
 | invoices_quotation | quotation_number |
+| invoices_quotationitemoverride | item_id |
 | invoices_registration | registration_number |
 | invoices_registrationcourse | (registration_id, course_id) |
+| invoices_salestarget | (user_id, month) |
+| invoices_studentformlink | token |
+| invoices_companyportalrequest | token |
 | invoices_trainerprofile | name |
+| invoices_userprofile | user_id |
 
 ---
 
-## 6. Data Volumes (Current)
+## 6. File Upload Directories
 
-| Table | Records |
-|-------|---------|
-| auth_user | 54 |
-| invoices_client | 1,694 |
-| invoices_course | 239 |
-| invoices_coursecontent | 68 |
-| invoices_registration | 853 |
-| invoices_registrationcourse | 1,878 |
-| invoices_corporateregistration | 43 |
-| invoices_invoice | 1,123 |
-| invoices_invoiceitem | 1,824 |
-| invoices_invoicepurchase | 33 |
-| invoices_invoicepurchaseitem | 69 |
-| invoices_quotation | 217 |
-| invoices_quotationitem | 1,175 |
-| invoices_certificate | 254 |
-| invoices_certificateupload | 3 |
-| invoices_proposal | 90 |
-| invoices_lead | 18 |
-| invoices_followup | — |
-| invoices_comment | 30 |
-| invoices_meeting | 7 |
-| invoices_pipeline | 2 |
-| invoices_pipelinestage | 2 |
-| invoices_coupon | 5 |
-| invoices_companyprofile | 12 |
-| invoices_trainerprofile | 10 |
-| **Total (approx.)** | **~11,000+** |
+| Table | Field | Directory |
+|-------|-------|-----------|
+| invoices_trainerprofile | profile_pdf | `trainer_profiles/{name_slug}{ext}` |
+| invoices_companyprofile | company_pdf | `company_profiles/{name_slug}{ext}` |
+| invoices_proposal | logo | `proposal_logos/` |
+| invoices_proposal | logo_white_url | `proposal_logos_white/` |
+| invoices_coursecontent | file | `course_contents/` |
+| invoices_certificateupload | certificate_file | `certificates/{name}_{reg_number}{ext}` |
+| invoices_formupload | form_file | `registration_forms/{name}_{reg_number}{ext}` |
+| invoices_certificate | uploaded_certificate | `khda_certificates/{student_slug}_{cert_num}{ext}` |
+| invoices_companyportalrequest | trade_license_doc | `portal/trade_license/{company_slug}_trade_license{ext}` |
+| invoices_companyportalrequest | vat_certificate | `portal/vat/{company_slug}_vat{ext}` |
 
 ---
 
-## 7. Installation Instructions
-
-### 7.1 Install SQL on Localhost (MySQL)
+## 7. Database Setup (Local Development)
 
 ```sql
--- Step 1: Create database
 CREATE DATABASE IF NOT EXISTS orbit_invoice
   CHARACTER SET utf8mb4
-  COLLATE utf8mb4_0900_ai_ci;
-
--- Step 2: Import SQL dump
--- Run from command line:
-mysql -u root -p orbit_invoice < "D:\Insittute management system\orbiterp.sql"
+  COLLATE utf8mb4_general_ci;  -- use this collation for MariaDB
 ```
 
-### 7.2 Via MySQL Workbench
-1. Open MySQL Workbench
-2. Connect to localhost
-3. Server → Data Import
-4. Select "Import from Self-Contained File"
-5. Browse to `D:\Insittute management system\orbiterp.sql`
-6. Set Target Schema to `orbit_invoice`
-7. Click "Start Import"
-
-### 7.3 Via Command Line (XAMPP)
-```bash
-# If using XAMPP:
-C:\xampp\mysql\bin\mysql.exe -u root -p orbit_invoice < "D:\Insittute management system\orbiterp.sql"
+```powershell
+# XAMPP import
+C:\xampp\mysql\bin\mysql.exe -u root orbit_invoice < "D:\Insittute management system\orbiterp.sql"
 ```
+
+If you get `Unknown collation: 'utf8mb4_0900_ai_ci'`, replace it with `utf8mb4_general_ci` in the SQL file before importing (MySQL 8 collation not supported by older MariaDB).
 
 ---
 
-*Document prepared for Orbit Training Point ERP System*  
-*Generated: 2026-06-25*
+*Document updated: 2026-07-06*
+*Reflects production system at orbittraining.online*
