@@ -1007,3 +1007,48 @@ class FeeReminderLog(models.Model):
 
     def __str__(self):
         return f"Reminder for {self.invoice_number} — {self.sent_at.strftime('%d %b %Y')}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PAYMENT GATEWAY PAYOUTS (Tabby / Tamara)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class GatewayPayout(models.Model):
+    GATEWAY_CHOICES = [
+        ('tabby',  'Tabby'),
+        ('tamara', 'Tamara'),
+    ]
+    STATUS_CHOICES = [
+        ('pending',  'Pending'),
+        ('received', 'Received'),
+        ('short',    'Short Paid'),
+    ]
+
+    gateway            = models.CharField(max_length=10, choices=GATEWAY_CHOICES)
+    week_start         = models.DateField(help_text='Monday of the sales week')
+    week_end           = models.DateField(help_text='Sunday of the sales week')
+    payout_date        = models.DateField(help_text='Expected payout day')
+    total_sales        = models.DecimalField(max_digits=12, decimal_places=2)
+    commission_rate    = models.DecimalField(max_digits=6, decimal_places=4)
+    commission_amount  = models.DecimalField(max_digits=12, decimal_places=2)
+    vat_on_commission  = models.DecimalField(max_digits=12, decimal_places=2)
+    payout_fee         = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    net_payout         = models.DecimalField(max_digits=12, decimal_places=2)
+    actual_received    = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    status             = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    notes              = models.TextField(blank=True)
+    created_by         = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at         = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-week_start', 'gateway']
+        unique_together = ('gateway', 'week_start')
+
+    def __str__(self):
+        return f"{self.get_gateway_display()} {self.week_start} – {self.week_end}"
+
+    @property
+    def difference(self):
+        if self.actual_received is not None:
+            return self.actual_received - self.net_payout
+        return None

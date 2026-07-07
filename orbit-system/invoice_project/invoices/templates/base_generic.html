@@ -714,6 +714,11 @@
             </a>
         </div>
         <div class="nav-item">
+            <a href="{% url 'gateway_payout_list' %}" class="nav-link {% if request.resolver_match.url_name == 'gateway_payout_list' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-credit-card"></i></span> Gateway Payouts
+            </a>
+        </div>
+        <div class="nav-item">
             <a href="{% url 'audit_log' %}" class="nav-link {% if request.resolver_match.url_name == 'audit_log' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-history"></i></span> Audit Log
             </a>

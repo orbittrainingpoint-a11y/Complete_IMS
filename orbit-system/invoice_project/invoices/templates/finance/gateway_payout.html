@@ -1,0 +1,231 @@
+{% extends 'base_generic.html' %}
+{% block title %}Gateway Payouts{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="page-title">Gateway Payouts</h1>
+    <p class="page-subtitle text-muted">Tabby &amp; Tamara weekly payout calculator</p>
+  </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<!-- ── Summary cards ─────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div style="font-size:11px;color:#6b7a99;text-transform:uppercase;letter-spacing:.5px;">Pending Net Payout</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#1a3d8f;">AED {{ total_pending_net|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div style="font-size:11px;color:#6b7a99;text-transform:uppercase;letter-spacing:.5px;">Tabby Commission Rate</div>
+      <div style="font-size:1.4rem;font-weight:700;color:#f59e0b;">{{ tabby_rate }}% + AED 6 fee</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div style="font-size:11px;color:#6b7a99;text-transform:uppercase;letter-spacing:.5px;">Tamara Commission Rate</div>
+      <div style="font-size:1.4rem;font-weight:700;color:#8b5cf6;">{{ tamara_rate }}%</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div style="font-size:11px;color:#6b7a99;text-transform:uppercase;letter-spacing:.5px;">Tabby Min. Sales</div>
+      <div style="font-size:1.4rem;font-weight:700;color:#f59e0b;">AED {{ tabby_min }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add New Payout ─────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header"><strong><i class="fas fa-calculator me-2"></i>Add Weekly Payout</strong></div>
+  <div class="card-body">
+    <form method="post" id="payoutForm">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-2">
+          <label class="form-label fw-600">Gateway</label>
+          <select name="gateway" class="form-control" id="gwSelect" required onchange="recalc()">
+            <option value="tabby">Tabby</option>
+            <option value="tamara">Tamara</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-600">Week Start (Mon)</label>
+          <input type="date" name="week_start" id="weekStart" class="form-control" required onchange="recalc()">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-600">Total Sales (AED)</label>
+          <input type="number" name="total_sales" id="salesInput" class="form-control" step="0.01" min="0" required placeholder="0.00" oninput="recalc()">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-600">Preview</label>
+          <div id="calcPreview" style="font-size:12px;background:#f8faff;border:1px solid #c8d0e0;border-radius:6px;padding:8px 12px;line-height:1.8;">
+            Enter sales amount to preview
+          </div>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100"><i class="fas fa-plus me-1"></i>Save Payout</button>
+        </div>
+      </div>
+      <div class="row g-3 mt-1">
+        <div class="col-md-6">
+          <label class="form-label fw-600">Notes (optional)</label>
+          <input type="text" name="notes" class="form-control" placeholder="e.g. Payout ref #123">
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Payout History ─────────────────────────────────────────── -->
+<div class="card">
+  <div class="card-header"><strong><i class="fas fa-history me-2"></i>Payout History</strong></div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Gateway</th>
+          <th>Week</th>
+          <th>Payout Date</th>
+          <th class="text-end">Sales</th>
+          <th class="text-end">Commission</th>
+          <th class="text-end">VAT on Comm.</th>
+          <th class="text-end">Fee</th>
+          <th class="text-end">Net Payout</th>
+          <th class="text-end">Actual Received</th>
+          <th class="text-end">Diff</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payouts %}
+        <tr>
+          <td>
+            {% if p.gateway == 'tabby' %}
+              <span class="pill pill-blue">Tabby</span>
+            {% else %}
+              <span class="pill" style="background:#ede9fe;color:#6d28d9;">Tamara</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px;">{{ p.week_start|date:"d M" }} – {{ p.week_end|date:"d M Y" }}</td>
+          <td style="font-size:12px;">{{ p.payout_date|date:"D, d M Y" }}</td>
+          <td class="text-end">{{ p.total_sales|floatformat:2 }}</td>
+          <td class="text-end text-danger">{{ p.commission_amount|floatformat:2 }}</td>
+          <td class="text-end text-danger">{{ p.vat_on_commission|floatformat:2 }}</td>
+          <td class="text-end text-danger">{{ p.payout_fee|floatformat:2 }}</td>
+          <td class="text-end fw-bold">{{ p.net_payout|floatformat:2 }}</td>
+          <td class="text-end">
+            {% if p.actual_received is not None %}
+              {{ p.actual_received|floatformat:2 }}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if p.difference is not None %}
+              {% if p.difference >= 0 %}
+                <span style="color:#10b981;">+{{ p.difference|floatformat:2 }}</span>
+              {% else %}
+                <span style="color:#dc2626;">{{ p.difference|floatformat:2 }}</span>
+              {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if p.status == 'received' %}
+              <span class="pill" style="background:#d1fae5;color:#065f46;">Received</span>
+            {% elif p.status == 'short' %}
+              <span class="pill" style="background:#fef3c7;color:#92400e;">Short Paid</span>
+            {% else %}
+              <span class="pill" style="background:#e0e7ff;color:#3730a3;">Pending</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex gap-2 flex-wrap">
+              {% if p.status == 'pending' %}
+              <form method="post" class="d-inline" style="min-width:160px;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="mark_received">
+                <input type="hidden" name="pk" value="{{ p.pk }}">
+                <div class="input-group input-group-sm">
+                  <input type="number" name="actual_received" class="form-control" step="0.01" placeholder="Received amt">
+                  <button type="submit" class="btn btn-success btn-sm" title="Mark Received"><i class="fas fa-check"></i></button>
+                </div>
+              </form>
+              {% endif %}
+              <form method="post" class="d-inline" onsubmit="return confirm('Delete this payout record?')">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="pk" value="{{ p.pk }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i></button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="12" class="text-center text-muted py-4">No payout records yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const RATES = { tabby: 0.0707, tamara: 0.0702 };
+const FEES  = { tabby: 6, tamara: 0 };
+const MIN   = { tabby: 2500, tamara: 0 };
+
+function fmt(n) { return 'AED ' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+function recalc() {
+  const gw    = document.getElementById('gwSelect').value;
+  const sales = parseFloat(document.getElementById('salesInput').value) || 0;
+  const ws    = document.getElementById('weekStart').value;
+  const pre   = document.getElementById('calcPreview');
+
+  if (!sales || !ws) { pre.innerHTML = 'Enter sales amount to preview'; return; }
+
+  const rate   = RATES[gw];
+  const fee    = FEES[gw];
+  const comm   = +(sales * rate).toFixed(2);
+  const vat    = +(comm * 0.05).toFixed(2);
+  const net    = +(sales - comm - vat - fee).toFixed(2);
+
+  // payout date
+  const d = new Date(ws + 'T00:00:00');
+  // make sure it's Monday
+  const day = d.getDay();
+  if (day !== 1) d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  const pd = new Date(d);
+  pd.setDate(pd.getDate() + (gw === 'tabby' ? 7 : 8));
+  const pdStr = pd.toLocaleDateString('en-GB', {weekday:'short', day:'2-digit', month:'short', year:'numeric'});
+
+  let warn = '';
+  if (gw === 'tabby' && sales < 2500) {
+    warn = '<div style="color:#dc2626;font-weight:600;">⚠ Below AED 2,500 minimum — Tabby will not pay out this week</div>';
+  }
+
+  pre.innerHTML = `${warn}
+    <div><b>Commission (${(rate*100).toFixed(2)}%):</b> <span style="color:#dc2626;">− ${fmt(comm)}</span></div>
+    <div><b>VAT on Commission (5%):</b> <span style="color:#dc2626;">− ${fmt(vat)}</span></div>
+    <div><b>Payout Fee:</b> <span style="color:#dc2626;">− ${fmt(fee)}</span></div>
+    <div style="border-top:1px solid #c8d0e0;margin-top:4px;padding-top:4px;"><b>Net Payout:</b> <span style="color:#1a3d8f;font-weight:800;">${fmt(net)}</span></div>
+    <div><b>Expected Payout Date:</b> ${pdStr}</div>`;
+}
+
+// Default week start to last Monday
+const today = new Date();
+const dow = today.getDay();
+const diff = dow === 0 ? -6 : 1 - dow;
+const lastMon = new Date(today);
+lastMon.setDate(today.getDate() + diff);
+document.getElementById('weekStart').value = lastMon.toISOString().slice(0, 10);
+</script>
+{% endblock %}

@@ -132,4 +132,6 @@ urlpatterns = [
     path('crm-auth/', views.crm_auth, name='crm_auth'),
     # CRM Lead lookup (used by registration form live search)
     path('api/crm-lead/<int:lead_id>/', views.api_crm_lead_lookup, name='api_crm_lead_lookup'),
+    # Gateway Payouts (Tabby / Tamara)
+    path('finance/gateway-payouts/', views.gateway_payout_list, name='gateway_payout_list'),
 ]

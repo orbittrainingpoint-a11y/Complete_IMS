@@ -4138,3 +4138,90 @@ def fee_reminder_dashboard(request):
         'reminders': reminder_page,
         'r_paginator': r_paginator,
     })
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# GATEWAY PAYOUT TRACKER (Tabby / Tamara)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+@user_passes_test(is_admin_user)
+def gateway_payout_list(request):
+    import datetime as _dt
+    from .models import GatewayPayout
+
+    TABBY_RATE   = Decimal('0.0707')
+    TAMARA_RATE  = Decimal('0.0702')
+    TABBY_FEE    = Decimal('6')
+    TAMARA_FEE   = Decimal('0')
+    TABBY_MIN    = Decimal('2500')
+    VAT_RATE     = Decimal('0.05')
+
+    error = None
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'create':
+            try:
+                gateway      = request.POST.get('gateway')
+                week_start   = _dt.date.fromisoformat(request.POST.get('week_start'))
+                total_sales  = Decimal(request.POST.get('total_sales', '0') or '0')
+                notes        = request.POST.get('notes', '')
+
+                # Ensure week_start is Monday
+                if week_start.weekday() != 0:
+                    week_start = week_start - _dt.timedelta(days=week_start.weekday())
+
+                week_end = week_start + _dt.timedelta(days=6)
+
+                if gateway == 'tabby':
+                    rate        = TABBY_RATE
+                    fee         = TABBY_FEE
+                    payout_date = week_start + _dt.timedelta(days=7)   # next Monday
+                else:
+                    rate        = TAMARA_RATE
+                    fee         = TAMARA_FEE
+                    payout_date = week_start + _dt.timedelta(days=8)   # next Tuesday
+
+                commission = (total_sales * rate).quantize(Decimal('0.01'))
+                vat        = (commission * VAT_RATE).quantize(Decimal('0.01'))
+                net        = (total_sales - commission - vat - fee).quantize(Decimal('0.01'))
+
+                GatewayPayout.objects.create(
+                    gateway=gateway, week_start=week_start, week_end=week_end,
+                    payout_date=payout_date, total_sales=total_sales,
+                    commission_rate=rate, commission_amount=commission,
+                    vat_on_commission=vat, payout_fee=fee, net_payout=net,
+                    status='pending', notes=notes, created_by=request.user,
+                )
+            except Exception as ex:
+                error = str(ex)
+
+        elif action == 'mark_received':
+            payout = get_object_or_404(GatewayPayout, pk=request.POST.get('pk'))
+            actual_str = request.POST.get('actual_received', '').strip()
+            if actual_str:
+                actual = Decimal(actual_str)
+                payout.actual_received = actual
+                payout.status = 'received' if actual >= payout.net_payout - Decimal('0.01') else 'short'
+                payout.save()
+
+        elif action == 'delete':
+            get_object_or_404(GatewayPayout, pk=request.POST.get('pk')).delete()
+
+        if not error:
+            return redirect('gateway_payout_list')
+
+    payouts  = GatewayPayout.objects.select_related('created_by').all()
+    pending  = payouts.filter(status='pending')
+    total_pending_net = sum(p.net_payout for p in pending)
+
+    return render(request, 'finance/gateway_payout.html', {
+        'payouts': payouts,
+        'total_pending_net': total_pending_net,
+        'tabby_rate': TABBY_RATE * 100,
+        'tamara_rate': TAMARA_RATE * 100,
+        'tabby_min': TABBY_MIN,
+        'error': error,
+    })
