@@ -19,9 +19,23 @@
 .gen-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:rgba(255,255,255,.6); display:block; margin-bottom:5px; }
 .result-box { margin-top:14px; background:rgba(255,255,255,.1); border-radius:8px; padding:10px 14px; display:none; }
 .result-url { font-size:12px; color:#93c5fd; font-family:monospace; word-break:break-all; }
-.price-input { background:rgba(255,255,255,.08) !important; border:1px solid rgba(255,255,255,.2) !important; color:#fff !important; border-radius:6px !important; font-size:12px !important; padding:6px 8px !important; width:110px; }
-.price-input::placeholder { color:rgba(255,255,255,.4) !important; }
-.course-row { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:8px 10px; margin-bottom:8px; }
+
+/* Course rows */
+.course-row { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+.sm-input { background:rgba(255,255,255,.1) !important; border:1px solid rgba(255,255,255,.2) !important; color:#fff !important; border-radius:6px !important; font-size:12px !important; padding:6px 8px !important; }
+.sm-input::placeholder { color:rgba(255,255,255,.38) !important; }
+.auto-price-badge { font-size:11px; color:rgba(255,255,255,.45); white-space:nowrap; }
+
+/* Price preview card */
+.preview-card { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:14px 16px; margin-top:14px; display:none; }
+.preview-card table { width:100%; border-collapse:collapse; }
+.preview-card th { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:rgba(255,255,255,.45); padding:4px 8px; text-align:left; border-bottom:1px solid rgba(255,255,255,.12); }
+.preview-card td { font-size:12px; color:rgba(255,255,255,.85); padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.07); }
+.preview-card td.num { text-align:right; font-family:monospace; }
+.preview-card .total-row td { font-weight:700; color:#fff; font-size:13px; border-top:1px solid rgba(255,255,255,.2); border-bottom:none; padding-top:8px; }
+.discount-col { color:#fbbf24 !important; }
+.final-col { color:#34d399 !important; font-weight:600 !important; }
+
 .level-badge-opt { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; }
 .level-badge-opt.intermediate { background:#dbeafe; color:#1d4ed8; }
 .level-badge-opt.professional { background:#d1fae5; color:#065f46; }
@@ -33,20 +47,20 @@
 <div class="page-header d-flex align-items-center justify-content-between mb-3">
     <div>
         <div class="page-title"><i class="fas fa-link me-2 text-primary"></i>Student Registration Links</div>
-        <div class="page-subtitle">Generate shareable links — consultant pre-sets level &amp; prices, student fills personal info</div>
+        <div class="page-subtitle">Consultant sets level, discount &amp; courses — student fills personal info only</div>
     </div>
     <a href="{% url 'student_dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Students</a>
 </div>
 
 <!-- Generator Bar -->
 <div class="gen-bar">
+
+    <!-- Row 1: meta fields -->
     <div class="row g-3 align-items-end mb-3">
-        <!-- Notes -->
-        <div class="col-md-3">
+        <div class="col-md-4">
             <label class="gen-label">Note (optional)</label>
             <input type="text" id="linkNotes" class="form-control" placeholder="e.g. ABC Company intake">
         </div>
-        <!-- CRM Lead -->
         <div class="col-md-2">
             <label class="gen-label">CRM Lead # <span style="color:#10b981;font-size:9px;">(hidden)</span></label>
             <div class="input-group">
@@ -54,16 +68,14 @@
                 <input type="number" id="linkCrmLead" class="form-control" placeholder="Lead ID" min="1" style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff;">
             </div>
         </div>
-        <!-- Level -->
         <div class="col-md-2">
             <label class="gen-label">Training Level</label>
-            <select id="linkLevel" class="form-select">
+            <select id="linkLevel" class="form-select" onchange="onLevelChange()">
                 <option value="intermediate">Intermediate</option>
                 <option value="professional">Professional</option>
                 <option value="advanced">Advanced</option>
             </select>
         </div>
-        <!-- Generate Button -->
         <div class="col-md-2 ms-auto">
             <button id="genBtn" class="btn btn-primary w-100" style="border-radius:8px;font-weight:700;">
                 <i class="fas fa-plus me-1"></i>Generate Link
@@ -72,24 +84,47 @@
     </div>
 
     <!-- Course rows -->
-    <div>
-        <label class="gen-label mb-2"><i class="fas fa-graduation-cap me-1"></i>Pre-select courses &amp; set discounted prices <span style="color:rgba(255,255,255,.4);font-weight:400;font-size:10px;">(optional — student won't see prices)</span></label>
-        <div id="courseRows"></div>
-        <button type="button" id="addCourseRow" style="font-size:12px;color:rgba(255,255,255,.7);background:none;border:1px dashed rgba(255,255,255,.3);border-radius:7px;padding:5px 14px;cursor:pointer;margin-top:4px;">
-            <i class="fas fa-plus me-1"></i>Add Course
-        </button>
+    <label class="gen-label mb-2">
+        <i class="fas fa-graduation-cap me-1"></i>Pre-select courses
+        <span style="color:rgba(255,255,255,.35);font-weight:400;font-size:10px;margin-left:6px;">Price auto-fetched · enter discount if applicable</span>
+    </label>
+    <div id="courseRows"></div>
+    <button type="button" id="addCourseRow" style="font-size:12px;color:rgba(255,255,255,.7);background:none;border:1px dashed rgba(255,255,255,.3);border-radius:7px;padding:5px 14px;cursor:pointer;margin-top:4px;">
+        <i class="fas fa-plus me-1"></i>Add Course
+    </button>
+
+    <!-- Price Preview -->
+    <div class="preview-card" id="pricePreview">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.45);margin-bottom:10px;">
+            <i class="fas fa-receipt me-1"></i>Price Preview
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Course</th>
+                    <th class="text-end">Original</th>
+                    <th class="text-end">Discount</th>
+                    <th class="text-end">Final Price</th>
+                </tr>
+            </thead>
+            <tbody id="previewRows"></tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td>Total</td>
+                    <td class="num" id="prevTotalOrig">—</td>
+                    <td class="num discount-col" id="prevTotalDisc">—</td>
+                    <td class="num final-col" id="prevTotalFinal">—</td>
+                </tr>
+            </tfoot>
+        </table>
     </div>
 
     <div class="result-box" id="resultBox">
         <div style="font-size:10px;color:rgba(255,255,255,.55);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;">Share this link with the student</div>
         <div class="d-flex align-items-center gap-2">
             <div class="result-url flex-fill" id="resultUrl"></div>
-            <button onclick="copyResult()" class="btn btn-sm btn-outline-light" style="border-radius:6px;white-space:nowrap;font-size:12px;">
-                <i class="fas fa-copy me-1"></i>Copy
-            </button>
-            <button onclick="waResult()" class="btn btn-sm btn-success" style="border-radius:6px;white-space:nowrap;font-size:12px;">
-                <i class="fab fa-whatsapp me-1"></i>WhatsApp
-            </button>
+            <button onclick="copyResult()" class="btn btn-sm btn-outline-light" style="border-radius:6px;white-space:nowrap;font-size:12px;"><i class="fas fa-copy me-1"></i>Copy</button>
+            <button onclick="waResult()" class="btn btn-sm btn-success" style="border-radius:6px;white-space:nowrap;font-size:12px;"><i class="fab fa-whatsapp me-1"></i>WhatsApp</button>
         </div>
         <div id="copiedMsg" style="font-size:11px;color:#10b981;margin-top:4px;display:none;"><i class="fas fa-check me-1"></i>Copied!</div>
     </div>
@@ -154,71 +189,106 @@
 
 {% block extra_js %}
 <script>
-const COURSES_DATA = [
-  {% for c in courses %}
-  { id: {{ c.id }}, nm: "{{ c.name|escapejs }}" },
-  {% endfor %}
+const PRICE_DATA = {{ course_price_json|safe }};
+const COURSES_LIST = [
+  {% for c in courses %}{ id: {{ c.id }}, nm: "{{ c.name|escapejs }}" },{% endfor %}
 ];
 
 let _url = '';
 
-/* Build a single course row element */
-function makeCourseRow(removable) {
-    const div = document.createElement('div');
-    div.className = 'course-row d-flex align-items-center gap-2';
+/* Get standard price for a course + level (offline/online pricing) */
+function getCoursePrice(courseId, level) {
+    const d = PRICE_DATA[courseId];
+    if (!d) return 0;
+    return d['oo_' + level] || 0;
+}
 
-    // Course select
-    const sel = document.createElement('select');
-    sel.className = 'form-select course-dd';
-    sel.style.flex = '1';
+function fmtAED(v) {
+    if (!v && v !== 0) return '—';
+    return 'AED ' + parseFloat(v).toLocaleString('en-AE', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+/* ── Course row builder ── */
+function makeCourseRow(removable) {
+    const wrap = document.createElement('div');
+    wrap.className = 'course-row';
+
+    // Inner layout: [select flex-1] [auto price badge] [discount] [final] [remove]
+    wrap.innerHTML = `
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <select class="form-select course-dd" style="flex:1;min-width:160px;"></select>
+        <div class="d-flex align-items-center gap-1 auto-price-wrap" style="display:none!important;">
+          <span class="auto-price-badge">List:</span>
+          <span class="auto-price-val" style="font-size:12px;color:rgba(255,255,255,.75);font-family:monospace;white-space:nowrap;min-width:80px;">—</span>
+        </div>
+        <div class="d-flex align-items-center gap-1 discount-wrap" style="display:none!important;">
+          <span style="font-size:11px;color:#fbbf24;white-space:nowrap;">Discount AED</span>
+          <input type="number" min="0" step="0.01" placeholder="0" class="sm-input discount-in" style="width:80px;">
+        </div>
+        <div class="d-flex align-items-center gap-1 final-wrap" style="display:none!important;">
+          <span style="font-size:11px;color:rgba(255,255,255,.45);white-space:nowrap;">Final:</span>
+          <span class="final-price-val" style="font-size:12px;color:#34d399;font-weight:700;font-family:monospace;white-space:nowrap;min-width:80px;">—</span>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm remove-row" style="display:${removable?'':'none'}"><i class="fas fa-times"></i></button>
+      </div>`;
+
+    const sel    = wrap.querySelector('.course-dd');
+    const priceW = wrap.querySelector('.auto-price-wrap');
+    const discW  = wrap.querySelector('.discount-wrap');
+    const finalW = wrap.querySelector('.final-wrap');
+    const priceV = wrap.querySelector('.auto-price-val');
+    const discIn = wrap.querySelector('.discount-in');
+    const finalV = wrap.querySelector('.final-price-val');
+
+    // Populate select
     const blank = document.createElement('option');
     blank.value = ''; blank.textContent = '— Select course —';
     sel.appendChild(blank);
-    COURSES_DATA.forEach(c => {
+    COURSES_LIST.forEach(c => {
         const o = document.createElement('option');
         o.value = c.id; o.textContent = c.nm;
         sel.appendChild(o);
     });
 
-    // Price label + input (hidden until course selected)
-    const priceWrap = document.createElement('div');
-    priceWrap.className = 'd-flex align-items-center gap-1';
-    priceWrap.style.display = 'none !important';
-    priceWrap.innerHTML = '<span style="font-size:11px;color:rgba(255,255,255,.5);white-space:nowrap;">AED</span>';
-    const priceIn = document.createElement('input');
-    priceIn.type = 'number';
-    priceIn.min = '0';
-    priceIn.step = '0.01';
-    priceIn.placeholder = 'Price';
-    priceIn.className = 'price-input course-price';
-    priceWrap.appendChild(priceIn);
-    priceWrap.style.display = 'none';
-
-    sel.addEventListener('change', function() {
-        if (this.value) {
-            priceWrap.style.display = 'flex';
-            priceIn.dataset.courseId = this.value;
-        } else {
-            priceWrap.style.display = 'none';
-            priceIn.dataset.courseId = '';
+    function updateRow() {
+        const cid = sel.value;
+        if (!cid) {
+            priceW.style.display = 'none';
+            discW.style.display  = 'none';
+            finalW.style.display = 'none';
+            sel.dataset.autoPrice = '';
+            updatePreview();
+            return;
         }
-    });
+        const level = document.getElementById('linkLevel').value;
+        const auto  = getCoursePrice(parseInt(cid), level);
+        sel.dataset.autoPrice = auto;
+        priceV.textContent    = fmtAED(auto);
+        priceW.style.display  = 'flex';
+        discW.style.display   = 'flex';
+        finalW.style.display  = 'flex';
+        recalcFinal();
+    }
 
-    // Remove button
-    const rm = document.createElement('button');
-    rm.type = 'button';
-    rm.className = 'btn btn-outline-danger btn-sm remove-course-row';
-    rm.innerHTML = '<i class="fas fa-times"></i>';
-    rm.style.display = removable ? '' : 'none';
-    rm.addEventListener('click', function() {
-        div.remove();
+    function recalcFinal() {
+        const auto = parseFloat(sel.dataset.autoPrice) || 0;
+        const disc = parseFloat(discIn.value) || 0;
+        const fin  = Math.max(0, auto - disc);
+        finalV.textContent = fmtAED(fin);
+        sel.dataset.finalPrice = fin;
+        updatePreview();
+    }
+
+    sel.addEventListener('change', updateRow);
+    discIn.addEventListener('input', recalcFinal);
+    wrap.querySelector('.remove-row').addEventListener('click', () => {
+        wrap.remove();
         updateRemoveButtons();
+        updatePreview();
     });
 
-    div.appendChild(sel);
-    div.appendChild(priceWrap);
-    div.appendChild(rm);
-    return div;
+    wrap._updateRow = updateRow; // expose for level change
+    return wrap;
 }
 
 const courseRowsEl = document.getElementById('courseRows');
@@ -226,38 +296,76 @@ courseRowsEl.appendChild(makeCourseRow(false));
 
 function updateRemoveButtons() {
     const rows = courseRowsEl.querySelectorAll('.course-row');
-    rows.forEach((r, i) => {
-        r.querySelector('.remove-course-row').style.display = rows.length > 1 ? '' : 'none';
+    rows.forEach(r => {
+        r.querySelector('.remove-row').style.display = rows.length > 1 ? '' : 'none';
     });
 }
 
-document.getElementById('addCourseRow').addEventListener('click', function() {
+document.getElementById('addCourseRow').addEventListener('click', () => {
     courseRowsEl.appendChild(makeCourseRow(true));
     updateRemoveButtons();
 });
 
-/* Generate link */
+function onLevelChange() {
+    courseRowsEl.querySelectorAll('.course-row').forEach(r => {
+        if (r._updateRow) r._updateRow();
+    });
+}
+
+/* ── Price preview ── */
+function updatePreview() {
+    const rows = [...courseRowsEl.querySelectorAll('.course-row')];
+    const items = [];
+    rows.forEach(r => {
+        const sel = r.querySelector('.course-dd');
+        const cid = sel && sel.value;
+        if (!cid) return;
+        const auto = parseFloat(sel.dataset.autoPrice) || 0;
+        const fin  = parseFloat(sel.dataset.finalPrice);
+        const disc = auto - (isNaN(fin) ? auto : fin);
+        const opt  = sel.options[sel.selectedIndex];
+        items.push({ name: opt ? opt.textContent : '?', auto, disc, fin: isNaN(fin) ? auto : fin });
+    });
+
+    const preview = document.getElementById('pricePreview');
+    if (!items.length) { preview.style.display = 'none'; return; }
+    preview.style.display = 'block';
+
+    const tbody = document.getElementById('previewRows');
+    tbody.innerHTML = '';
+    let totOrig = 0, totDisc = 0, totFin = 0;
+    items.forEach(it => {
+        totOrig += it.auto; totDisc += it.disc; totFin += it.fin;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${it.name}</td>
+          <td class="num">${fmtAED(it.auto)}</td>
+          <td class="num discount-col">${it.disc > 0 ? '− ' + fmtAED(it.disc) : '—'}</td>
+          <td class="num final-col">${fmtAED(it.fin)}</td>`;
+        tbody.appendChild(tr);
+    });
+    document.getElementById('prevTotalOrig').textContent  = fmtAED(totOrig);
+    document.getElementById('prevTotalDisc').textContent  = totDisc > 0 ? '− ' + fmtAED(totDisc) : '—';
+    document.getElementById('prevTotalFinal').textContent = fmtAED(totFin);
+}
+
+/* ── Generate ── */
 document.getElementById('genBtn').addEventListener('click', function() {
     const btn = this;
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating…';
 
-    const notes = document.getElementById('linkNotes').value;
-    const level = document.getElementById('linkLevel').value;
     const fd = new FormData();
-    fd.append('notes', notes);
-    fd.append('level', level);
+    fd.append('notes', document.getElementById('linkNotes').value);
+    fd.append('level', document.getElementById('linkLevel').value);
 
-    // Collect course IDs and prices
-    document.querySelectorAll('#courseRows .course-dd').forEach(sel => {
-        const cid = sel.value;
+    courseRowsEl.querySelectorAll('.course-row').forEach(r => {
+        const sel = r.querySelector('.course-dd');
+        const cid = sel && sel.value;
         if (!cid) return;
         fd.append('courses', cid);
-        const row = sel.closest('.course-row');
-        const priceIn = row.querySelector('.course-price');
-        if (priceIn && priceIn.value) {
-            fd.append('price_' + cid, priceIn.value);
-        }
+        const fin = parseFloat(sel.dataset.finalPrice);
+        if (!isNaN(fin) && fin > 0) fd.append('price_' + cid, fin.toFixed(2));
     });
 
     fetch('{% url "generate_student_form_link" %}', {
@@ -289,11 +397,9 @@ function copyResult() {
         setTimeout(() => m.style.display = 'none', 2000);
     });
 }
-
 function waResult() {
     window.open('https://wa.me/?text=' + encodeURIComponent('Dear Student, please use this link to complete your registration: ' + _url), '_blank');
 }
-
 function copyLink(url, btn) {
     navigator.clipboard.writeText(url).then(() => {
         const orig = btn.innerHTML;
@@ -303,20 +409,19 @@ function copyLink(url, btn) {
     });
 }
 
-/* Pre-fill CRM Lead ID from URL param ?cli= */
+/* Pre-fill CRM Lead from ?cli= param */
 (function() {
-    const params = new URLSearchParams(window.location.search);
-    const cli = params.get('cli');
+    const cli = new URLSearchParams(window.location.search).get('cli');
     if (cli && /^\d+$/.test(cli)) {
-        const leadInput = document.getElementById('linkCrmLead');
-        if (leadInput) {
-            leadInput.value = cli;
-            leadInput.style.background = 'rgba(16,185,129,.25)';
-            leadInput.style.borderColor = '#10b981';
-            setTimeout(() => { leadInput.style.background = ''; leadInput.style.borderColor = ''; }, 3000);
+        const inp = document.getElementById('linkCrmLead');
+        if (inp) {
+            inp.value = cli;
+            inp.style.background = 'rgba(16,185,129,.25)';
+            inp.style.borderColor = '#10b981';
+            setTimeout(() => { inp.style.background = ''; inp.style.borderColor = ''; }, 3000);
             const bar = document.createElement('div');
             bar.style.cssText = 'position:fixed;top:70px;right:20px;z-index:9999;background:linear-gradient(135deg,#064e3b,#065f46);color:#d1fae5;padding:10px 16px;border-radius:10px;font-size:12px;box-shadow:0 4px 20px rgba(0,0,0,.3);max-width:300px;';
-            bar.innerHTML = '<i class="fas fa-link me-2" style="color:#10b981;"></i><strong>CRM Lead L-' + cli + '</strong> pre-filled<br><span style="opacity:.8;font-size:11px;">Click Generate to create the link for this lead</span>';
+            bar.innerHTML = '<i class="fas fa-link me-2" style="color:#10b981;"></i><strong>CRM Lead L-' + cli + '</strong> pre-filled';
             document.body.appendChild(bar);
             setTimeout(() => bar.remove(), 5000);
         }

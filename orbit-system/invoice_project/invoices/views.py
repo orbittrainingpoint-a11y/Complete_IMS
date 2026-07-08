@@ -3748,8 +3748,25 @@ def student_form_links(request):
         cfg_map = {}
     for lnk in links:
         lnk.link_config = cfg_map.get(lnk.pk)
-    courses = Course.objects.all().order_by('name')
-    return render(request, 'portal/student_form_links.html', {'links': links, 'courses': courses})
+    courses = list(Course.objects.all().order_by('name'))
+    import json as _json
+    course_price_data = {
+        c.id: {
+            'name': c.name,
+            'oo_intermediate':   float(c.oo_intermediate),
+            'oo_professional':   float(c.oo_professional),
+            'oo_advanced':       float(c.oo_advanced),
+            'priv_intermediate': float(c.priv_intermediate),
+            'priv_professional': float(c.priv_professional),
+            'priv_advanced':     float(c.priv_advanced),
+        }
+        for c in courses
+    }
+    return render(request, 'portal/student_form_links.html', {
+        'links': links,
+        'courses': courses,
+        'course_price_json': _json.dumps(course_price_data),
+    })
 
 
 @login_required
