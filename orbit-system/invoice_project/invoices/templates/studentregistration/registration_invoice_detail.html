@@ -74,6 +74,7 @@
   <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#certificateUploadModal"><i class="fas fa-upload me-1"></i>Upload Certificate</button>
   {% endif %}
   <a href="{% url 'create_invoice' %}" class="btn btn-outline-success btn-sm"><i class="fas fa-file-invoice me-1"></i>Create Tax Invoice</a>
+  <button type="button" class="btn btn-sm" style="background:#1e40af;color:#fff;" data-bs-toggle="modal" data-bs-target="#enrollmentLetterModal"><i class="fas fa-envelope me-1"></i>Send Enrollment Letter</button>
 </div>
 
 <!-- ── STUDENT INFO ── -->
@@ -215,6 +216,82 @@
           <button type="submit" class="btn btn-primary w-100">Upload Certificate</button>
         </form>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ENROLLMENT LETTER MODAL ── -->
+<div class="modal fade" id="enrollmentLetterModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1e40af;">
+        <h5 class="modal-title text-white"><i class="fas fa-envelope me-2"></i>Send Enrollment Confirmation Letter</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'send_enrollment_letter' registration.pk %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div style="font-size:12px;color:#64748b;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin-bottom:18px;">
+            <i class="fas fa-info-circle me-1"></i>
+            This will send a formal Enrollment Confirmation Letter to <strong>{{ registration.email }}</strong>.
+            Fill in the course schedule details below — leave blank if not yet confirmed.
+          </div>
+
+          <!-- auto-filled read-only info -->
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;">Student Name</label>
+              <input type="text" class="form-control form-control-sm" value="{{ registration.first_name }} {{ registration.last_name }}" readonly style="background:#f8fafc;">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;">Student ID</label>
+              <input type="text" class="form-control form-control-sm" value="{{ registration.registration_number }}" readonly style="background:#f8fafc;">
+            </div>
+            <div class="col-12">
+              <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;">Course(s)</label>
+              <input type="text" class="form-control form-control-sm" value="{% for c in unique_courses %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}" readonly style="background:#f8fafc;">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;">Mode of Training</label>
+              <input type="text" class="form-control form-control-sm" value="{{ registration.class_type|capfirst }}" readonly style="background:#f8fafc;">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;">Mode of Training (override)</label>
+              <input type="text" class="form-control form-control-sm" name="mode_override" placeholder="e.g. Classroom / Online / Hybrid">
+            </div>
+          </div>
+
+          <hr style="border-color:#e2e8f0;">
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#94a3b8;margin-bottom:12px;">Schedule Details (optional — leave blank if not yet set)</p>
+
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;">Course Duration</label>
+              <input type="text" class="form-control form-control-sm" name="duration" placeholder="e.g. 40 Hours / 4 Weeks">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;">Trainer Assigned</label>
+              <input type="text" class="form-control form-control-sm" name="trainer" placeholder="Trainer name">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;">Start Date</label>
+              <input type="date" class="form-control form-control-sm" name="start_date">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;">End Date</label>
+              <input type="date" class="form-control form-control-sm" name="end_date">
+            </div>
+            <div class="col-12">
+              <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;">Schedule (Days &amp; Timings)</label>
+              <input type="text" class="form-control form-control-sm" name="schedule" placeholder="e.g. Mon &amp; Wed, 9:00 AM – 1:00 PM">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm" style="background:#1e40af;color:#fff;"><i class="fas fa-paper-plane me-1"></i>Send Letter to {{ registration.email }}</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

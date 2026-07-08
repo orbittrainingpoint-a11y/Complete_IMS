@@ -134,4 +134,6 @@ urlpatterns = [
     path('api/crm-lead/<int:lead_id>/', views.api_crm_lead_lookup, name='api_crm_lead_lookup'),
     # Gateway Payouts (Tabby / Tamara)
     path('finance/gateway-payouts/', views.gateway_payout_list, name='gateway_payout_list'),
+    # Student emails
+    path('registration/<int:pk>/send-enrollment-letter/', views.send_enrollment_letter, name='send_enrollment_letter'),
 ]

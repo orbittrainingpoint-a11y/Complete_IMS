@@ -1166,6 +1166,10 @@ def registration_form(request):
                     )
             except Exception:
                 pass
+
+            # Send welcome email to student
+            _send_welcome_email(registration)
+
             return redirect('student_dashboard')
         else:
             print("Form errors:", form.errors)
@@ -4187,6 +4191,128 @@ def fee_reminder_dashboard(request):
         'reminders': reminder_page,
         'r_paginator': r_paginator,
     })
+
+
+def _send_welcome_email(registration):
+    """Send a welcome email to a newly registered student."""
+    from django.core.mail import EmailMultiAlternatives
+    from django.template.loader import render_to_string
+    from django.conf import settings as _s
+    if not registration.email:
+        return
+    courses = list(registration.courses.values_list('name', flat=True))
+    ctx = {
+        'first_name':        registration.first_name,
+        'last_name':         registration.last_name,
+        'registration_number': registration.registration_number,
+        'class_type':        registration.class_type,
+        'registration_date': registration.date.strftime('%d %B %Y') if registration.date else '',
+        'courses':           courses,
+    }
+    subject  = f"Welcome to Orbit Training Centre, {registration.first_name}!"
+    html_body = render_to_string('emails/welcome_email.html', ctx)
+    text_body = (
+        f"Dear {registration.first_name} {registration.last_name},\n\n"
+        f"Welcome to Orbit Training Centre! Your registration is confirmed.\n"
+        f"Registration No: {registration.registration_number}\n"
+        f"Courses: {', '.join(courses)}\n\n"
+        "For any queries contact training@orbittraining.ae or call +971-582274991.\n\n"
+        "Orbit Training Centre"
+    )
+    try:
+        msg = EmailMultiAlternatives(subject, text_body, _s.DEFAULT_FROM_EMAIL, [registration.email])
+        msg.attach_alternative(html_body, 'text/html')
+        msg.send(fail_silently=True)
+    except Exception:
+        pass
+
+
+@login_required
+def send_enrollment_letter(request, pk):
+    """Send a formal enrollment confirmation letter email to the student."""
+    from django.core.mail import EmailMultiAlternatives
+    from django.template.loader import render_to_string
+    from django.conf import settings as _s
+    from django.db.models import Sum as _Sum
+
+    registration = get_object_or_404(Registration, pk=pk)
+    if request.method != 'POST':
+        return redirect('registration_invoice_detail', registration_id=pk)
+
+    # Build ref number: ORBIT/ENR/YYYY/XXX
+    year = registration.date.strftime('%Y') if registration.date else timezone.now().strftime('%Y')
+    num  = registration.registration_number.split('/')[-1] if registration.registration_number else '001'
+    ref_number = f"ORBIT/ENR/{year}/{num}"
+
+    # Payment totals from linked invoices
+    invoices   = Invoice.objects.filter(registration=registration)
+    fee_paid   = invoices.aggregate(t=_Sum('amount_paid'))['t'] or 0
+    total_due  = (invoices.aggregate(t=_Sum('total_amount'))['t'] or 0) - fee_paid
+    if total_due <= 0:
+        payment_status = "Full Payment"
+    else:
+        payment_status = f"Installment — Balance Due: AED {total_due:,.2f}"
+
+    # Course names
+    course_names = ', '.join(registration.courses.values_list('name', flat=True))
+
+    # Mode of training — prefer admin override
+    mode = request.POST.get('mode_override', '').strip() or registration.class_type.capitalize()
+
+    # Optional schedule fields from modal
+    duration   = request.POST.get('duration', '').strip()
+    trainer    = request.POST.get('trainer', '').strip()
+    schedule   = request.POST.get('schedule', '').strip()
+    raw_start  = request.POST.get('start_date', '').strip()
+    raw_end    = request.POST.get('end_date', '').strip()
+
+    def _fmt_date(ds):
+        if not ds:
+            return ''
+        try:
+            import datetime as _dt
+            return _dt.date.fromisoformat(ds).strftime('%d %B %Y')
+        except ValueError:
+            return ds
+
+    ctx = {
+        'letter_date':    timezone.now().strftime('%d/%m/%Y'),
+        'ref_number':     ref_number,
+        'student_name':   f"{registration.first_name} {registration.last_name}",
+        'student_id':     registration.registration_number,
+        'course_names':   course_names,
+        'duration':       duration,
+        'mode_of_training': mode,
+        'start_date':     _fmt_date(raw_start),
+        'end_date':       _fmt_date(raw_end),
+        'schedule':       schedule,
+        'trainer':        trainer,
+        'fee_paid':       f"{float(fee_paid):,.2f}",
+        'payment_status': payment_status,
+    }
+    subject   = f"Enrollment Confirmation Letter — {registration.registration_number}"
+    html_body = render_to_string('emails/enrollment_letter_email.html', ctx)
+    text_body = (
+        f"Dear {registration.first_name} {registration.last_name},\n\n"
+        f"Please find your Enrollment Confirmation for {registration.registration_number}.\n"
+        f"Ref: {ref_number}\n"
+        f"Course(s): {course_names}\n"
+        f"Fee Paid: AED {float(fee_paid):,.2f}\n"
+        f"Payment Status: {payment_status}\n\n"
+        "Orbit Training Centre — training@orbittraining.ae"
+    )
+    sent = False
+    try:
+        msg = EmailMultiAlternatives(subject, text_body, _s.DEFAULT_FROM_EMAIL, [registration.email])
+        msg.attach_alternative(html_body, 'text/html')
+        msg.send(fail_silently=False)
+        sent = True
+    except Exception as e:
+        messages.error(request, f"Email could not be sent: {e}")
+
+    if sent:
+        messages.success(request, f"Enrollment letter sent to {registration.email}.")
+    return redirect('registration_invoice_detail', registration_id=pk)
 
 
 def _send_fee_reminder_email(inv, days_overdue, note, request):
