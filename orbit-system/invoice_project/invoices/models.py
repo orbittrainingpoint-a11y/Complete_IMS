@@ -199,7 +199,52 @@ class CorporateRegistration(models.Model):
 
     def __str__(self):
         return f"Corporate Registration for {self.registration.registration_number}"
-    
+
+
+class CorporateCompany(models.Model):
+    """Standalone company profile — created first, candidates added later."""
+    company_name        = models.CharField(max_length=255)
+    company_email       = models.EmailField(blank=True)
+    company_phone       = models.CharField(max_length=50, blank=True)
+    company_location    = models.CharField(max_length=255, blank=True)
+    company_address     = models.TextField(blank=True)
+    # Contact person
+    contact_name        = models.CharField(max_length=255, blank=True)
+    contact_email       = models.EmailField(blank=True)
+    contact_phone       = models.CharField(max_length=50, blank=True)
+    contact_designation = models.CharField(max_length=100, blank=True)
+    # Documents
+    tax_certificate     = models.FileField(upload_to='corporate_docs/tax/', blank=True, null=True)
+    trade_license       = models.FileField(upload_to='corporate_docs/trade/', blank=True, null=True)
+    # Meta
+    notes               = models.TextField(blank=True)
+    created_at          = models.DateTimeField(auto_now_add=True)
+    created_by          = models.ForeignKey(
+        'auth.User', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='created_corporate_companies'
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name_plural = 'Corporate Companies'
+
+    def __str__(self):
+        return self.company_name
+
+    def candidate_count(self):
+        return self.candidates.count()
+
+
+class CorporateCandidateLink(models.Model):
+    """Links a CorporateCompany to a Registration (the trainee)."""
+    company      = models.ForeignKey(CorporateCompany, on_delete=models.CASCADE, related_name='candidates')
+    registration = models.OneToOneField(Registration, on_delete=models.CASCADE, related_name='corp_company_link')
+    added_at     = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.registration.registration_number} → {self.company.company_name}"
+
+
 class Invoice(models.Model):
     FULL_PAYMENT = 'Full Payment'
     TERM_PAYMENT = 'Term Payment'

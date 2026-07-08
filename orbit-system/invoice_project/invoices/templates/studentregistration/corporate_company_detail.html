@@ -1,0 +1,191 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+{% block title %}{{ company.company_name }}{% endblock %}
+{% block breadcrumb_label %}
+  <a href="{% url 'corporate_company_list' %}">Corporate Companies</a> /
+  <span class="current">{{ company.company_name }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-section { background:#fff;border:1px solid var(--border);border-radius:12px;padding:22px 24px;margin-bottom:20px; }
+.detail-section h5 { font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border); }
+.info-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px 24px; }
+.info-item label { font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);display:block;margin-bottom:3px; }
+.info-item .val { font-size:14px;font-weight:600;color:#1a1a2e; }
+.doc-card { border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px; }
+.doc-card.ok { border-color:#86efac;background:#f0fdf4; }
+.doc-card.missing { border-color:#fca5a5;background:#fef2f2; }
+.course-chip { display:inline-block;background:#ede9fe;color:#6d28d9;font-size:11px;padding:3px 10px;border-radius:12px;font-weight:500;margin:2px 2px 0 0; }
+.candidate-row td { padding:12px 14px;font-size:13px;vertical-align:middle; }
+.action-strip { display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- PAGE HEADER -->
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <div class="page-title"><i class="fas fa-building me-2 text-primary"></i>{{ company.company_name }}</div>
+    <div class="page-subtitle">{{ company.company_location|default:"" }}{% if company.company_email %} &nbsp;·&nbsp; {{ company.company_email }}{% endif %}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'corporate_company_edit' company.pk %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-pen me-1"></i>Edit</a>
+    <a href="{% url 'corporate_add_candidate' company.pk %}" class="btn btn-primary btn-sm"><i class="fas fa-user-plus me-1"></i>Add Candidate</a>
+  </div>
+</div>
+
+{% if messages %}
+{% for msg in messages %}
+<div class="alert alert-{% if msg.tags == 'success' %}success{% elif msg.tags == 'error' %}danger{% else %}info{% endif %} alert-dismissible fade show mb-3" role="alert">
+  {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- COMPANY INFORMATION -->
+<div class="detail-section">
+  <h5><i class="fas fa-building me-2"></i>Company Information</h5>
+  <div class="info-grid">
+    <div class="info-item"><label>Company Name</label><div class="val">{{ company.company_name }}</div></div>
+    <div class="info-item"><label>Email</label><div class="val" style="word-break:break-all;">{{ company.company_email|default:"—" }}</div></div>
+    <div class="info-item"><label>Phone</label><div class="val">{{ company.company_phone|default:"—" }}</div></div>
+    <div class="info-item"><label>Location</label><div class="val">{{ company.company_location|default:"—" }}</div></div>
+    {% if company.company_address %}
+    <div class="info-item" style="grid-column:1/-1"><label>Address</label><div class="val">{{ company.company_address }}</div></div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- CONTACT PERSON -->
+<div class="detail-section">
+  <h5><i class="fas fa-user-tie me-2"></i>Contact Person</h5>
+  {% if company.contact_name %}
+  <div class="info-grid">
+    <div class="info-item"><label>Name</label><div class="val">{{ company.contact_name }}</div></div>
+    <div class="info-item"><label>Designation</label><div class="val">{{ company.contact_designation|default:"—" }}</div></div>
+    <div class="info-item"><label>Email</label><div class="val" style="word-break:break-all;">{{ company.contact_email|default:"—" }}</div></div>
+    <div class="info-item"><label>Phone</label><div class="val">{{ company.contact_phone|default:"—" }}</div></div>
+  </div>
+  {% else %}
+  <div style="font-size:13px;color:var(--text-muted);">No contact person on file. <a href="{% url 'corporate_company_edit' company.pk %}">Add one.</a></div>
+  {% endif %}
+</div>
+
+<!-- REQUIRED DOCUMENTS -->
+<div class="detail-section">
+  <h5><i class="fas fa-file-alt me-2"></i>Required Documents</h5>
+  <div class="row g-3">
+    <div class="col-md-6">
+      {% if company.tax_certificate %}
+      <div class="doc-card ok">
+        <i class="fas fa-file-pdf" style="font-size:24px;color:#166534;flex-shrink:0;"></i>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#166534;">Tax Certificate</div>
+          <div style="font-size:12px;color:#166534;opacity:.8;">Uploaded</div>
+        </div>
+        <a href="{{ company.tax_certificate.url }}" target="_blank" class="btn btn-sm btn-outline-success ms-auto"><i class="fas fa-eye me-1"></i>View</a>
+      </div>
+      {% else %}
+      <div class="doc-card missing">
+        <i class="fas fa-file-times" style="font-size:24px;color:#991b1b;flex-shrink:0;"></i>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#991b1b;">Tax Certificate</div>
+          <div style="font-size:12px;color:#991b1b;opacity:.8;">Not uploaded</div>
+        </div>
+        <a href="{% url 'corporate_company_edit' company.pk %}" class="btn btn-sm btn-outline-danger ms-auto"><i class="fas fa-upload me-1"></i>Upload</a>
+      </div>
+      {% endif %}
+    </div>
+    <div class="col-md-6">
+      {% if company.trade_license %}
+      <div class="doc-card ok">
+        <i class="fas fa-id-card-alt" style="font-size:24px;color:#166534;flex-shrink:0;"></i>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#166534;">Trade License</div>
+          <div style="font-size:12px;color:#166534;opacity:.8;">Uploaded</div>
+        </div>
+        <a href="{{ company.trade_license.url }}" target="_blank" class="btn btn-sm btn-outline-success ms-auto"><i class="fas fa-eye me-1"></i>View</a>
+      </div>
+      {% else %}
+      <div class="doc-card missing">
+        <i class="fas fa-id-card-alt" style="font-size:24px;color:#991b1b;flex-shrink:0;"></i>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#991b1b;">Trade License</div>
+          <div style="font-size:12px;color:#991b1b;opacity:.8;">Not uploaded</div>
+        </div>
+        <a href="{% url 'corporate_company_edit' company.pk %}" class="btn btn-sm btn-outline-danger ms-auto"><i class="fas fa-upload me-1"></i>Upload</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% if company.notes %}
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:13px;color:var(--text-muted);">
+    <i class="fas fa-sticky-note me-1"></i>{{ company.notes }}
+  </div>
+  {% endif %}
+</div>
+
+<!-- CANDIDATES / TRAINEES -->
+<div class="detail-section">
+  <div class="d-flex justify-content-between align-items-center mb-3" style="padding-bottom:10px;border-bottom:1px solid var(--border);">
+    <h5 style="margin:0;padding:0;border:none;"><i class="fas fa-users me-2"></i>Candidates / Trainees</h5>
+    <a href="{% url 'corporate_add_candidate' company.pk %}" class="btn btn-primary btn-sm"><i class="fas fa-user-plus me-1"></i>Add Candidate</a>
+  </div>
+
+  {% if candidates %}
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Reg #</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Name</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Email</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Courses</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Date</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for link in candidates %}
+        {% with reg=link.registration %}
+        <tr class="candidate-row">
+          <td style="font-weight:700;color:var(--primary);">{{ reg.registration_number }}</td>
+          <td style="font-weight:600;">{{ reg.first_name }} {{ reg.last_name }}</td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ reg.email|default:"—" }}</td>
+          <td>
+            {% for rc in reg.registration_courses.all %}
+              <span class="course-chip">{{ rc.course.name }}</span>
+            {% empty %}
+              <span style="color:var(--text-muted);font-size:12px;">—</span>
+            {% endfor %}
+          </td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ reg.date|date:"d M Y" }}</td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{% url 'corporate_invoice_detail' reg.id %}" class="btn btn-outline-primary btn-sm" title="View"><i class="fas fa-eye"></i></a>
+              <a href="{% url 'edit_corporate_registration' reg.pk %}" class="btn btn-outline-secondary btn-sm" title="Edit"><i class="fas fa-pen"></i></a>
+              <a href="{% url 'print_corporate_registration' reg.pk %}" class="btn btn-outline-dark btn-sm" title="Print" target="_blank"><i class="fas fa-print"></i></a>
+            </div>
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-4" style="color:var(--text-muted);">
+    <i class="fas fa-users fa-2x mb-3 d-block opacity-25"></i>
+    No candidates yet.
+    <a href="{% url 'corporate_add_candidate' company.pk %}">Add the first candidate.</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- META INFO -->
+<div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+  Registered {{ company.created_at|date:"d M Y" }}
+  {% if company.created_by %} by <strong>{{ company.created_by.get_full_name|default:company.created_by.username }}</strong>{% endif %}
+</div>
+{% endblock %}

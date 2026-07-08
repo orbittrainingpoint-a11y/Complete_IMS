@@ -136,4 +136,10 @@ urlpatterns = [
     path('finance/gateway-payouts/', views.gateway_payout_list, name='gateway_payout_list'),
     # Student emails
     path('registration/<int:pk>/send-enrollment-letter/', views.send_enrollment_letter, name='send_enrollment_letter'),
+    # Corporate Company (company-first flow)
+    path('corporate-companies/', views.corporate_company_list, name='corporate_company_list'),
+    path('corporate-companies/create/', views.corporate_company_create, name='corporate_company_create'),
+    path('corporate-companies/<int:pk>/', views.corporate_company_detail, name='corporate_company_detail'),
+    path('corporate-companies/<int:pk>/edit/', views.corporate_company_edit, name='corporate_company_edit'),
+    path('corporate-companies/<int:pk>/add-candidate/', views.corporate_add_candidate, name='corporate_add_candidate'),
 ]

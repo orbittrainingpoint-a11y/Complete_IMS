@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User
-from .models import Invoice, InvoiceItem, Client, Course, InvoicePurchase, Quotation, QuotationItem, Registration, RegistrationCourse, CorporateRegistration, CourseContent, Certificate, Proposal, TrainerProfile, CompanyProfile, Coupon
+from .models import Invoice, InvoiceItem, Client, Course, InvoicePurchase, Quotation, QuotationItem, Registration, RegistrationCourse, CorporateRegistration, CourseContent, Certificate, Proposal, TrainerProfile, CompanyProfile, Coupon, CorporateCompany
 from django.forms.models import inlineformset_factory
 from django.forms.widgets import Select
 from django.forms.models import ModelChoiceField
@@ -596,4 +596,30 @@ class CouponForm(forms.ModelForm):
             'expiry_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'max_uses': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'placeholder': 'Leave blank for unlimited'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+
+class CorporateCompanyForm(forms.ModelForm):
+    class Meta:
+        _p = ' '
+        model = CorporateCompany
+        fields = [
+            'company_name', 'company_email', 'company_phone',
+            'company_location', 'company_address',
+            'contact_name', 'contact_email', 'contact_phone', 'contact_designation',
+            'tax_certificate', 'trade_license', 'notes',
+        ]
+        widgets = {
+            'company_name':        forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'company_email':       forms.EmailInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'company_phone':       forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'company_location':    forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'company_address':     forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': _p}),
+            'contact_name':        forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'contact_email':       forms.EmailInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'contact_phone':       forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'contact_designation': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'notes':               forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': _p}),
+            'tax_certificate':     forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png'}),
+            'trade_license':       forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png'}),
         }

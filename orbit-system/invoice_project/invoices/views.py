@@ -3,8 +3,8 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse, HttpResponseServerError
 from django.contrib.auth.decorators import login_required
 from django.forms import formset_factory
-from .models import Client, Invoice, InvoiceItem, InvoicePurchase, Course, Quotation, QuotationItem ,InvoicePurchaseItem, Course, Registration, RegistrationCourse, CorporateRegistration, CourseContent, Certificate, CertificateUpload, FormUpload, Proposal, TrainerProfile, CompanyProfile, Coupon, Notification, FeeReminderLog
-from .forms import InvoiceForm, InvoiceItemForm, ClientForm, SignUpForm, PurchaseInvoiceForm, QuotationForm, QuotationItemForm, RegistrationForm, RegistrationCourseForm, CorporateRegistrationForm, CorporateDetailsForm, RegistrationCourseFormSet, CourseForm, CourseContentForm, CertificateForm, KHDACertificateForm, ProposalForm, TrainerProfileForm, CompanyProfileForm, CouponForm
+from .models import Client, Invoice, InvoiceItem, InvoicePurchase, Course, Quotation, QuotationItem ,InvoicePurchaseItem, Course, Registration, RegistrationCourse, CorporateRegistration, CourseContent, Certificate, CertificateUpload, FormUpload, Proposal, TrainerProfile, CompanyProfile, Coupon, Notification, FeeReminderLog, CorporateCompany, CorporateCandidateLink
+from .forms import InvoiceForm, InvoiceItemForm, ClientForm, SignUpForm, PurchaseInvoiceForm, QuotationForm, QuotationItemForm, RegistrationForm, RegistrationCourseForm, CorporateRegistrationForm, CorporateDetailsForm, RegistrationCourseFormSet, CourseForm, CourseContentForm, CertificateForm, KHDACertificateForm, ProposalForm, TrainerProfileForm, CompanyProfileForm, CouponForm, CorporateCompanyForm
 from django.core.paginator import Paginator
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import user_passes_test
@@ -1787,6 +1787,147 @@ def edit_corporate_registration(request, pk):
         'courses':           courses,
     }
     return render(request, 'studentregistration/edit_corporate_registration.html', context)
+
+
+# ─────────────────────────────────────────────────────────────
+#  CORPORATE COMPANY (new company-first flow)
+# ─────────────────────────────────────────────────────────────
+
+@login_required
+def corporate_company_list(request):
+    q = request.GET.get('q', '').strip()
+    qs = CorporateCompany.objects.all()
+    if q:
+        qs = qs.filter(company_name__icontains=q)
+    paginator  = Paginator(qs, 20)
+    companies  = paginator.get_page(request.GET.get('page', 1))
+    return render(request, 'studentregistration/corporate_company_list.html', {
+        'companies': companies,
+        'q': q,
+    })
+
+
+@login_required
+def corporate_company_create(request):
+    if request.method == 'POST':
+        form = CorporateCompanyForm(request.POST, request.FILES)
+        if form.is_valid():
+            company = form.save(commit=False)
+            company.created_by = request.user
+            company.save()
+            messages.success(request, f"Company '{company.company_name}' registered successfully.")
+            return redirect('corporate_company_detail', pk=company.pk)
+    else:
+        form = CorporateCompanyForm()
+    return render(request, 'studentregistration/corporate_company_form.html', {'form': form, 'action': 'create'})
+
+
+@login_required
+def corporate_company_detail(request, pk):
+    company   = get_object_or_404(CorporateCompany, pk=pk)
+    candidates = company.candidates.select_related('registration').prefetch_related(
+        'registration__registration_courses__course'
+    ).order_by('-added_at')
+    return render(request, 'studentregistration/corporate_company_detail.html', {
+        'company':    company,
+        'candidates': candidates,
+    })
+
+
+@login_required
+def corporate_company_edit(request, pk):
+    company = get_object_or_404(CorporateCompany, pk=pk)
+    if request.method == 'POST':
+        form = CorporateCompanyForm(request.POST, request.FILES, instance=company)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Company profile updated.")
+            return redirect('corporate_company_detail', pk=company.pk)
+    else:
+        form = CorporateCompanyForm(instance=company)
+    return render(request, 'studentregistration/corporate_company_form.html', {'form': form, 'company': company, 'action': 'edit'})
+
+
+@login_required
+def corporate_add_candidate(request, pk):
+    company = get_object_or_404(CorporateCompany, pk=pk)
+    RegistrationCourseFormSet = formset_factory(RegistrationCourseForm, extra=1)
+    courses = Course.objects.all()
+
+    if request.method == 'POST':
+        reg_form = CorporateRegistrationForm(request.POST, user=request.user)
+        formset  = RegistrationCourseFormSet(request.POST, prefix='form')
+
+        if reg_form.is_valid() and formset.is_valid():
+            try:
+                with transaction.atomic():
+                    reg = reg_form.save(commit=False)
+                    reg.registration_type = 'OC'
+                    reg.save()
+
+                    valid_forms = [
+                        f for f in formset
+                        if f.cleaned_data and not f.cleaned_data.get('DELETE', False) and f.cleaned_data.get('course')
+                    ]
+                    base_cap = Decimal('30') if len(valid_forms) >= 2 else Decimal('20')
+                    for cf in valid_forms:
+                        course   = cf.cleaned_data['course']
+                        discount = min(cf.cleaned_data.get('discount') or Decimal('0'), base_cap)
+                        price    = cf.cleaned_data.get('price', Decimal('0')) or Decimal('0')
+                        RegistrationCourse.objects.create(
+                            registration=reg, course=course, discount=discount, price=price,
+                        )
+
+                    CorporateCandidateLink.objects.create(company=company, registration=reg)
+
+                    # Also create legacy CorporateRegistration for backward compat
+                    CorporateRegistration.objects.get_or_create(
+                        registration=reg,
+                        defaults={
+                            'company_name':    company.company_name,
+                            'company_email':   company.company_email,
+                            'company_phone':   company.company_phone,
+                            'company_location': company.company_location,
+                            'company_address': company.company_address,
+                        }
+                    )
+
+                    # Notify admins
+                    try:
+                        admin_users = User.objects.filter(
+                            profile__role__in=['admin', 'accounts', 'sales_manager']
+                        ).exclude(id=request.user.id)
+                        student_name = f"{reg.first_name} {reg.last_name}"
+                        for admin in admin_users:
+                            Notification.objects.create(
+                                recipient=admin,
+                                notif_type='registration_new',
+                                title=f"New Candidate: {company.company_name}",
+                                message=f"{student_name} ({reg.registration_number}) added under {company.company_name}.",
+                                link=f"/corporate-companies/{company.pk}/"
+                            )
+                    except Exception:
+                        pass
+
+                    _send_welcome_email(reg)
+
+                messages.success(request, f"Candidate {reg.first_name} {reg.last_name} added successfully.")
+                return redirect('corporate_company_detail', pk=company.pk)
+            except Exception as e:
+                messages.error(request, f"An error occurred: {str(e)}")
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        reg_form = CorporateRegistrationForm(user=request.user)
+        formset  = RegistrationCourseFormSet(prefix='form')
+
+    return render(request, 'studentregistration/corporate_add_candidate.html', {
+        'company':   company,
+        'reg_form':  reg_form,
+        'formset':   formset,
+        'courses':   courses,
+    })
+
 
 @login_required
 def course_list(request):

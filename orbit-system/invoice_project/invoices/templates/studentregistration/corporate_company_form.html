@@ -1,0 +1,271 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+{% block title %}{% if action == 'edit' %}Edit{% else %}Register{% endif %} Company{% endblock %}
+{% block breadcrumb_label %}
+  <a href="{% url 'corporate_company_list' %}">Corporate Companies</a> /
+  {% if action == 'edit' %}
+    <a href="{% url 'corporate_company_detail' company.pk %}">{{ company.company_name }}</a> /
+    <span class="current">Edit</span>
+  {% else %}
+    <span class="current">Register Company</span>
+  {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.ff { position:relative; margin-bottom:16px; }
+.ff .ff-icon { position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;pointer-events:none;z-index:6; }
+.ff textarea ~ .ff-icon { top:20px;transform:none; }
+.ff.has-icon .form-control { padding-left:38px; }
+.ff.has-icon .form-floating > label { padding-left:38px; }
+.form-floating > .form-control { height:56px;padding-top:22px;padding-bottom:6px; }
+.form-floating > textarea.form-control { height:auto;min-height:80px;padding-top:26px; }
+.form-floating > label { padding-top:14px;font-size:14px;color:var(--text-muted); }
+.form-floating > .form-control:focus ~ label,
+.form-floating > .form-control:not(:placeholder-shown) ~ label { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--primary);padding-top:5px; }
+.sec-head { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);border-bottom:1px solid var(--border);padding-bottom:6px;margin:6px 0 18px; }
+.req { color:#ef4444; }
+.doc-upload-box { border:2px dashed var(--border);border-radius:12px;padding:18px;text-align:center;transition:border-color .2s;cursor:pointer; }
+.doc-upload-box:hover,.doc-upload-box.has-file { border-color:var(--primary);background:rgba(37,99,235,.03); }
+.doc-upload-box .doc-icon { font-size:28px;color:var(--text-muted);margin-bottom:8px; }
+.doc-upload-box input[type=file] { opacity:0;position:absolute;inset:0;cursor:pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <div class="page-title">
+      <i class="fas fa-{% if action == 'edit' %}pen{% else %}building{% endif %} me-2 text-primary"></i>
+      {% if action == 'edit' %}Edit Company Profile{% else %}Register New Company{% endif %}
+    </div>
+    <div class="page-subtitle">
+      {% if action == 'edit' %}Update company details and documents{% else %}Add company profile with contact person and required documents{% endif %}
+    </div>
+  </div>
+  <a href="{% if action == 'edit' %}{% url 'corporate_company_detail' company.pk %}{% else %}{% url 'corporate_company_list' %}{% endif %}" class="btn btn-outline-secondary btn-sm">
+    <i class="fas fa-arrow-left me-1"></i>Back
+  </a>
+</div>
+
+{% if form.errors %}
+<div class="d-flex align-items-start gap-3 mb-4" style="background:rgba(239,68,68,.08);border:1.5px solid rgba(239,68,68,.3);border-radius:12px;padding:14px 18px;">
+  <i class="fas fa-circle-exclamation" style="font-size:22px;color:#ef4444;flex-shrink:0;margin-top:2px;"></i>
+  <div>
+    <div style="font-weight:700;color:#ef4444;font-size:14px;">Please fix the following before submitting</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.9;">
+      {% for field in form %}{% if field.errors %}<span><strong>{{ field.label }}</strong>: {{ field.errors.0 }}</span><br>{% endif %}{% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" novalidate>
+{% csrf_token %}
+<div class="row g-4">
+
+<div class="col-xl-8">
+
+  <!-- ── COMPANY DETAILS ── -->
+  <div class="form-section">
+    <div class="form-section-header">
+      <div class="form-section-icon"><i class="fas fa-building"></i></div>
+      <div>
+        <div class="form-section-title">Company Details</div>
+        <div style="font-size:12px;opacity:.7">Official company information</div>
+      </div>
+    </div>
+    <div class="form-section-body">
+      <div class="row g-3">
+        <div class="col-12">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-building"></i>
+            <div class="form-floating">
+              {{ form.company_name }}
+              <label>Company Name <span class="req">*</span></label>
+            </div>
+            {% if form.company_name.errors %}<div style="font-size:12px;color:#ef4444;margin-top:3px;font-weight:600;"><i class="fas fa-exclamation-circle me-1"></i>{{ form.company_name.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-envelope"></i>
+            <div class="form-floating">{{ form.company_email }}<label>Company Email</label></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-phone"></i>
+            <div class="form-floating">{{ form.company_phone }}<label>Company Phone</label></div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-map-marker-alt"></i>
+            <div class="form-floating">{{ form.company_location }}<label>Location / City</label></div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-home" style="top:20px;transform:none;"></i>
+            <div class="form-floating">{{ form.company_address }}<label>Full Address</label></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CONTACT PERSON ── -->
+  <div class="form-section">
+    <div class="form-section-header">
+      <div class="form-section-icon"><i class="fas fa-user-tie"></i></div>
+      <div>
+        <div class="form-section-title">Contact Person</div>
+        <div style="font-size:12px;opacity:.7">Primary point of contact at the company</div>
+      </div>
+    </div>
+    <div class="form-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-user"></i>
+            <div class="form-floating">{{ form.contact_name }}<label>Contact Person Name</label></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-briefcase"></i>
+            <div class="form-floating">{{ form.contact_designation }}<label>Designation / Role</label></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-envelope"></i>
+            <div class="form-floating">{{ form.contact_email }}<label>Contact Email</label></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-phone"></i>
+            <div class="form-floating">{{ form.contact_phone }}<label>Contact Phone</label></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── REQUIRED DOCUMENTS ── -->
+  <div class="form-section">
+    <div class="form-section-header">
+      <div class="form-section-icon"><i class="fas fa-file-alt"></i></div>
+      <div>
+        <div class="form-section-title">Required Documents</div>
+        <div style="font-size:12px;opacity:.7">PDF, JPG or PNG — max 10 MB each</div>
+      </div>
+    </div>
+    <div class="form-section-body">
+      <div class="row g-4">
+        <!-- Tax Certificate -->
+        <div class="col-md-6">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px;">
+            Tax Registration Certificate
+          </div>
+          {% if action == 'edit' and company.tax_certificate %}
+          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#166534;display:flex;align-items:center;gap:8px;">
+            <i class="fas fa-check-circle"></i>
+            <a href="{{ company.tax_certificate.url }}" target="_blank" class="text-success text-decoration-none fw-semibold">View current file</a>
+            <span style="color:#94a3b8;margin-left:auto;">Upload new to replace</span>
+          </div>
+          {% endif %}
+          <div class="doc-upload-box position-relative" id="taxBox">
+            <div class="doc-icon"><i class="fas fa-file-certificate"></i></div>
+            <div style="font-size:13px;font-weight:600;color:#1a1a2e;margin-bottom:4px;">Tax Certificate</div>
+            <div style="font-size:12px;color:var(--text-muted);">Click to upload or drag &amp; drop</div>
+            <div id="taxName" style="font-size:11px;color:var(--primary);margin-top:6px;font-weight:600;display:none;"></div>
+            {{ form.tax_certificate }}
+          </div>
+        </div>
+        <!-- Trade License -->
+        <div class="col-md-6">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px;">
+            Trade License
+          </div>
+          {% if action == 'edit' and company.trade_license %}
+          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#166534;display:flex;align-items:center;gap:8px;">
+            <i class="fas fa-check-circle"></i>
+            <a href="{{ company.trade_license.url }}" target="_blank" class="text-success text-decoration-none fw-semibold">View current file</a>
+            <span style="color:#94a3b8;margin-left:auto;">Upload new to replace</span>
+          </div>
+          {% endif %}
+          <div class="doc-upload-box position-relative" id="tradeBox">
+            <div class="doc-icon"><i class="fas fa-id-card-alt"></i></div>
+            <div style="font-size:13px;font-weight:600;color:#1a1a2e;margin-bottom:4px;">Trade License</div>
+            <div style="font-size:12px;color:var(--text-muted);">Click to upload or drag &amp; drop</div>
+            <div id="tradeName" style="font-size:11px;color:var(--primary);margin-top:6px;font-weight:600;display:none;"></div>
+            {{ form.trade_license }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NOTES ── -->
+  <div class="form-section">
+    <div class="form-section-header">
+      <div class="form-section-icon"><i class="fas fa-sticky-note"></i></div>
+      <div><div class="form-section-title">Internal Notes</div></div>
+    </div>
+    <div class="form-section-body">
+      <div class="ff has-icon">
+        <i class="ff-icon fas fa-pen" style="top:20px;transform:none;"></i>
+        <div class="form-floating">{{ form.notes }}<label>Notes (optional)</label></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /col-xl-8 -->
+
+<!-- RIGHT SIDEBAR -->
+<div class="col-xl-4" style="align-self:flex-start;position:sticky;top:80px;">
+  <div style="background:linear-gradient(135deg,#0f1b2d,#1a2d47);border-radius:16px;padding:22px;color:#fff;margin-bottom:16px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.5);margin-bottom:16px;">Quick Guide</div>
+    <div style="font-size:13px;line-height:1.8;color:rgba(255,255,255,.8);">
+      <div class="mb-2"><i class="fas fa-check-circle me-2" style="color:#6ee7b7;"></i>Fill in company details</div>
+      <div class="mb-2"><i class="fas fa-check-circle me-2" style="color:#6ee7b7;"></i>Add contact person info</div>
+      <div class="mb-2"><i class="fas fa-check-circle me-2" style="color:#6ee7b7;"></i>Upload Tax Certificate</div>
+      <div class="mb-2"><i class="fas fa-check-circle me-2" style="color:#6ee7b7;"></i>Upload Trade License</div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.15);font-size:12px;color:rgba(255,255,255,.5);">
+        After saving, go to the company detail page to add candidates for training.
+      </div>
+    </div>
+  </div>
+  <button type="submit" class="btn btn-primary w-100" style="height:50px;font-size:15px;font-weight:700;border-radius:12px;">
+    <i class="fas fa-{% if action == 'edit' %}save{% else %}building{% endif %} me-2"></i>
+    {% if action == 'edit' %}Save Changes{% else %}Register Company{% endif %}
+  </button>
+  <a href="{% if action == 'edit' %}{% url 'corporate_company_detail' company.pk %}{% else %}{% url 'corporate_company_list' %}{% endif %}" class="btn btn-outline-secondary w-100 mt-2">Cancel</a>
+</div>
+
+</div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function wireUpload(inputId, boxId, nameId) {
+  const inp = document.getElementById(inputId);
+  const box = document.getElementById(boxId);
+  const nm  = document.getElementById(nameId);
+  if (!inp || !box) return;
+  inp.addEventListener('change', () => {
+    if (inp.files && inp.files[0]) {
+      nm.textContent = inp.files[0].name;
+      nm.style.display = 'block';
+      box.classList.add('has-file');
+    }
+  });
+}
+wireUpload('{{ form.tax_certificate.id_for_label }}', 'taxBox', 'taxName');
+wireUpload('{{ form.trade_license.id_for_label }}', 'tradeBox', 'tradeName');
+</script>
+{% endblock %}
