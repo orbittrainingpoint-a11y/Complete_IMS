@@ -239,7 +239,20 @@
       </div>
     </div>
   </div>
-  <button type="submit" class="btn btn-primary w-100" style="height:50px;font-size:15px;font-weight:700;border-radius:12px;">
+  {% if action != 'edit' %}
+  <!-- T&C checkbox (only on registration, not on edit) -->
+  <div style="background:linear-gradient(135deg,#0f1b2d,#1a2d47);border-radius:12px;padding:14px;margin-bottom:14px;">
+    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:0;">
+      <input type="checkbox" id="tcCheckCorp" style="width:16px;height:16px;flex-shrink:0;margin-top:2px;accent-color:#2563eb;cursor:pointer;" required>
+      <span style="font-size:12px;color:rgba(255,255,255,.75);line-height:1.6;">
+        I confirm this company's details are accurate and I agree to the
+        <a href="#" data-bs-toggle="modal" data-bs-target="#tcCorpModal" style="color:#93c5fd;font-weight:600;text-decoration:underline;" onclick="return false;">Terms &amp; Conditions</a>
+        of Orbit Training Centre.
+      </span>
+    </label>
+  </div>
+  {% endif %}
+  <button type="submit" id="corpSubmitBtn" class="btn btn-primary w-100" style="height:50px;font-size:15px;font-weight:700;border-radius:12px;"{% if action != 'edit' %} disabled{% endif %}>
     <i class="fas fa-{% if action == 'edit' %}save{% else %}building{% endif %} me-2"></i>
     {% if action == 'edit' %}Save Changes{% else %}Register Company{% endif %}
   </button>
@@ -267,5 +280,68 @@ function wireUpload(inputId, boxId, nameId) {
 }
 wireUpload('{{ form.tax_certificate.id_for_label }}', 'taxBox', 'taxName');
 wireUpload('{{ form.trade_license.id_for_label }}', 'tradeBox', 'tradeName');
+
+const tcCheck = document.getElementById('tcCheckCorp');
+if (tcCheck) {
+  tcCheck.addEventListener('change', function() {
+    document.getElementById('corpSubmitBtn').disabled = !this.checked;
+  });
+}
 </script>
 {% endblock %}
+
+<!-- ── TERMS & CONDITIONS MODAL (Corporate) ── -->
+<div class="modal fade" id="tcCorpModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1e40af;">
+        <h5 class="modal-title text-white"><i class="fas fa-file-contract me-2"></i>Terms &amp; Conditions — Orbit Training Centre</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="font-size:13px;line-height:1.9;color:#1e293b;">
+
+        <p style="color:#64748b;font-size:12px;margin-bottom:20px;">These terms apply to corporate clients registering trainees at Orbit Training Centre.</p>
+
+        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">1. Company Registration &amp; Authorization</h6>
+        <p>By registering, the company representative confirms they are authorized to enter into this agreement on behalf of the company. The company is responsible for ensuring all candidate information submitted is accurate and up to date. Orbit Training Centre reserves the right to verify company credentials including Trade License and VAT Registration Certificate.</p>
+
+        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">2. Payment Terms</h6>
+        <p>All training fees are quoted in UAE Dirhams (AED) and are subject to 5% VAT. Corporate invoices are payable within 30 days of the invoice date unless otherwise agreed in writing. Orbit Training Centre reserves the right to withhold certificates or suspend training in the event of outstanding payments. Late payments may incur an administrative charge.</p>
+
+        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">3. Cancellation &amp; Substitution Policy</h6>
+        <p>Cancellations or substitutions of nominated trainees must be communicated in writing at least <strong>7 working days</strong> before the course start date. Cancellations within 7 working days are non-refundable but may be transferred to a future intake subject to availability. No-shows on the day of training forfeit the full course fee.</p>
+
+        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">4. Trainee Conduct &amp; Attendance</h6>
+        <p>A minimum attendance of 80% is required for each trainee to receive a certificate. The company is responsible for ensuring nominated trainees attend all scheduled sessions. Orbit Training Centre reserves the right to remove any trainee whose conduct is deemed disruptive, without refund to the company.</p>
+
+        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">5. Course Modifications</h6>
+        <p>Orbit Training Centre reserves the right to modify course content, schedule, trainer, or delivery mode with reasonable prior notice. In the event of course cancellation by Orbit Training Centre, a full refund or free transfer to another intake will be offered.</p>
+
+        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">6. Intellectual Property</h6>
+        <p>All course materials, content, and resources provided during training remain the intellectual property of Orbit Training Centre. Reproduction, distribution, or sharing of materials without written permission is strictly prohibited.</p>
+
+        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">7. Confidentiality &amp; Data Privacy</h6>
+        <p>Company and trainee information is used solely for the delivery of training services and administrative purposes. Orbit Training Centre will not disclose company information to third parties without consent, except as required by UAE law. By registering, the company consents to receiving training-related communications from Orbit Training Centre.</p>
+
+        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">8. Liability</h6>
+        <p>Orbit Training Centre shall not be liable for any indirect, consequential, or business losses arising from training activities. The company is responsible for any property damage caused by their nominated trainees while on Orbit Training Centre premises. Maximum liability shall not exceed the total fees paid for the relevant course.</p>
+
+        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">9. Governing Law</h6>
+        <p>These terms are governed by the laws of the United Arab Emirates. Any disputes shall be subject to the exclusive jurisdiction of the courts of Dubai, UAE.</p>
+
+        <p style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;">
+          <strong>Orbit Training Centre</strong> — Max Orbit Education and Training Computer Software<br>
+          211, Pinnacle Sheikh Zayed Road, Al Barsha 1, Dubai, UAE<br>
+          Email: HR@orbittraining.ae &nbsp;|&nbsp; Website: orbittraining.ae
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal"
+          onclick="const c=document.getElementById('tcCheckCorp');if(c){c.checked=true;document.getElementById('corpSubmitBtn').disabled=false;}">
+          <i class="fas fa-check me-1"></i>I Agree
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
