@@ -69,8 +69,7 @@ body { background:var(--bg); font-family:'Segoe UI',system-ui,sans-serif; min-he
     </div>
     {% endif %}
 
-    <p style="color:#334155;margin:0 0 12px;">Your consultant will contact you shortly to confirm your schedule.</p>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;"><i class="fas fa-envelope me-1"></i>A welcome email has been sent to your inbox.</div>
+    <p style="color:#334155;margin:0 0 16px;">Your consultant will contact you shortly to confirm your schedule.</p>
 
     {% if letter_url %}
     <a href="{{ letter_url }}" target="_blank"
@@ -94,7 +93,7 @@ body { background:var(--bg); font-family:'Segoe UI',system-ui,sans-serif; min-he
         <div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Your Sales Consultant</div>
         <div style="font-weight:700;font-size:14px;color:var(--text);">{{ link.consultant_name_locked }}</div>
     </div>
-    {% if courses_locked %}
+    {% if level_label %}
     <div class="level-badge"><i class="fas fa-layer-group"></i>{{ level_label }}</div>
     {% endif %}
     <i class="fas fa-lock" style="color:#2563eb;opacity:.5;"></i>

@@ -3918,8 +3918,6 @@ def student_self_register(request, token):
                     )
                 except Exception:
                     pass
-                # Send welcome email
-                _send_welcome_email(reg, request)
                 success = True
 
     # For success screen: show enrolled courses with prices

@@ -214,19 +214,20 @@ function makeCourseRow(removable) {
     wrap.className = 'course-row';
 
     // Inner layout: [select] [List price] [Discount %] [Final price] [remove]
+    // NOTE: avoid Bootstrap d-flex on hidden wrappers — d-flex uses !important and overrides display:none
     wrap.innerHTML = `
-      <div class="d-flex align-items-center gap-2 flex-wrap">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <select class="form-select course-dd" style="flex:1;min-width:160px;"></select>
-        <div class="d-flex align-items-center gap-1 auto-price-wrap" style="display:none;">
+        <div class="auto-price-wrap" style="display:none;align-items:center;gap:4px;">
           <span class="auto-price-badge">List:</span>
           <span class="auto-price-val" style="font-size:12px;color:rgba(255,255,255,.75);font-family:monospace;white-space:nowrap;min-width:80px;">—</span>
         </div>
-        <div class="d-flex align-items-center gap-1 discount-wrap" style="display:none;">
+        <div class="discount-wrap" style="display:none;align-items:center;gap:4px;">
           <span style="font-size:11px;color:#fbbf24;white-space:nowrap;">Disc %</span>
-          <input type="number" min="0" max="100" step="0.1" placeholder="0" class="sm-input discount-in" style="width:64px;">
-          <span style="font-size:11px;color:#fbbf24;">%</span>
+          <input type="number" min="0" max="20" step="0.5" placeholder="0" class="sm-input discount-in" style="width:60px;">
+          <span class="disc-pct-label" style="font-size:11px;color:#fbbf24;">% (max 20)</span>
         </div>
-        <div class="d-flex align-items-center gap-1 final-wrap" style="display:none;">
+        <div class="final-wrap" style="display:none;align-items:center;gap:4px;">
           <span style="font-size:11px;color:rgba(255,255,255,.45);white-space:nowrap;">Final:</span>
           <span class="final-price-val" style="font-size:12px;color:#34d399;font-weight:700;font-family:monospace;white-space:nowrap;min-width:80px;">—</span>
         </div>
@@ -273,18 +274,22 @@ function makeCourseRow(removable) {
 
     function recalcFinal() {
         const auto = parseFloat(sel.dataset.autoPrice) || 0;
-        const pct  = Math.min(100, Math.max(0, parseFloat(discIn.value) || 0));
+        const cap  = parseInt(discIn.max) || 20;
+        let   pct  = parseFloat(discIn.value) || 0;
+        if (pct > cap) { pct = cap; discIn.value = cap; }
+        if (pct < 0)   { pct = 0;  discIn.value = 0; }
         const fin  = Math.max(0, auto * (1 - pct / 100));
         finalV.textContent = fmtAED(fin);
         sel.dataset.finalPrice = fin;
         updatePreview();
     }
 
-    sel.addEventListener('change', updateRow);
+    sel.addEventListener('change', () => { updateRow(); updateDiscountCaps(); });
     discIn.addEventListener('input', recalcFinal);
     wrap.querySelector('.remove-row').addEventListener('click', () => {
         wrap.remove();
         updateRemoveButtons();
+        updateDiscountCaps();
         updatePreview();
     });
 
@@ -302,9 +307,27 @@ function updateRemoveButtons() {
     });
 }
 
+/* Adjust discount cap: 20% for 1 course, 30% for 2+ (matches registration form) */
+function updateDiscountCaps() {
+    const selected = [...courseRowsEl.querySelectorAll('.course-dd')].filter(s => s.value).length;
+    const cap = selected >= 2 ? 30 : 20;
+    courseRowsEl.querySelectorAll('.discount-in').forEach(inp => {
+        inp.max = cap;
+        const lbl = inp.closest('.discount-wrap') && inp.closest('.discount-wrap').querySelector('.disc-pct-label');
+        if (lbl) lbl.textContent = `% (max ${cap})`;
+        // Clamp existing value if over new cap
+        if (parseFloat(inp.value) > cap) { inp.value = cap; }
+    });
+    // Recalculate all finals after cap change
+    courseRowsEl.querySelectorAll('.course-row').forEach(r => {
+        if (r._updateRow) r._updateRow();
+    });
+}
+
 document.getElementById('addCourseRow').addEventListener('click', () => {
     courseRowsEl.appendChild(makeCourseRow(true));
     updateRemoveButtons();
+    updateDiscountCaps();
 });
 
 function onLevelChange() {
