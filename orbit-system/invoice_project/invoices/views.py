@@ -1735,9 +1735,35 @@ def corporate_company_list(request):
         qs = qs.filter(company_name__icontains=q)
     paginator  = Paginator(qs, 20)
     companies  = paginator.get_page(request.GET.get('page', 1))
+
+    # Legacy corporate registrations — group by company_name from CorporateRegistration
+    from django.db.models import Count, Max
+    legacy_qs = CorporateRegistration.objects.values(
+        'company_name', 'company_email', 'company_phone', 'company_location'
+    ).annotate(
+        candidate_count=Count('registration'),
+        last_date=Max('registration__date'),
+    ).order_by('-last_date')
+    if q:
+        legacy_qs = legacy_qs.filter(company_name__icontains=q)
+
     return render(request, 'studentregistration/corporate_company_list.html', {
         'companies': companies,
+        'legacy_companies': list(legacy_qs),
         'q': q,
+    })
+
+
+@login_required
+def corporate_legacy_registrations(request):
+    """Show legacy corporate registrations (CorporateRegistration model) for a given company name."""
+    company_name = request.GET.get('company', '').strip()
+    registrations = CorporateRegistration.objects.filter(
+        company_name=company_name
+    ).select_related('registration').order_by('-registration__date') if company_name else CorporateRegistration.objects.none()
+    return render(request, 'studentregistration/corporate_legacy_registrations.html', {
+        'company_name': company_name,
+        'registrations': registrations,
     })
 
 
