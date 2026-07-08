@@ -199,7 +199,7 @@
           <td>{{ r.due_date|date:"d M Y" }}
             {% if r.days_overdue > 0 %}<br><small class="overdue-badge">{{ r.days_overdue }}d overdue</small>{% endif %}
           </td>
-          <td>{{ r.sent_by.get_full_name|default:r.sent_by.username if r.sent_by else '—' }}</td>
+          <td>{% if r.sent_by %}{{ r.sent_by.get_full_name|default:r.sent_by.username }}{% else %}—{% endif %}</td>
           <td><span class="pill pill-blue">{{ r.get_channel_display }}</span></td>
           <td style="font-size:12px;color:var(--text-muted);white-space:nowrap;">{{ r.sent_at|date:"d M Y H:i" }}</td>
           <td style="max-width:180px;font-size:12px;">{{ r.note|default:"—" }}</td>
