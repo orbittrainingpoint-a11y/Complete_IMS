@@ -1544,111 +1544,13 @@ def get_invoice_details(request):
 
 @login_required
 def corporate_registration(request):
-    RegistrationCourseFormSet = formset_factory(RegistrationCourseForm, extra=1)
-
-    if request.method == 'POST':
-        registration_form = CorporateRegistrationForm(request.POST, user=request.user)
-        corporate_form    = CorporateDetailsForm(request.POST)
-        formset           = RegistrationCourseFormSet(request.POST, prefix='form')
-
-        if registration_form.is_valid() and corporate_form.is_valid() and formset.is_valid():
-            with transaction.atomic():
-                registration = registration_form.save(commit=False)
-                registration.registration_type = 'OC'
-                registration.save()
-
-                corporate = corporate_form.save(commit=False)
-                corporate.registration = registration
-                corporate.save()
-
-                valid_forms = [
-                    f for f in formset
-                    if f.cleaned_data and not f.cleaned_data.get('DELETE', False) and f.cleaned_data.get('course')
-                ]
-                base_cap = Decimal('30') if len(valid_forms) >= 2 else Decimal('20')
-                for cf in valid_forms:
-                    course   = cf.cleaned_data['course']
-                    discount = min(cf.cleaned_data.get('discount') or Decimal('0'), base_cap)
-                    price    = cf.cleaned_data.get('price', Decimal('0')) or Decimal('0')
-                    RegistrationCourse.objects.create(
-                        registration=registration, course=course, discount=discount, price=price,
-                    )
-
-                # Save CRM lead link if provided
-                crm_lead_id = request.POST.get('crm_lead_id', '').strip()
-                if crm_lead_id and crm_lead_id.isdigit():
-                    _save_reg_crm_link(registration.pk, int(crm_lead_id), request.user.username)
-
-                # Sync to CRM
-                sync_registration_to_crm(registration, consultant_username=request.user.username)
-
-                # Notify admins
-                try:
-                    admin_users = User.objects.filter(
-                        profile__role__in=['admin', 'accounts', 'sales_manager']
-                    ).exclude(id=request.user.id)
-                    corp_name = corporate.company_name
-                    student_name = f"{registration.first_name} {registration.last_name}"
-                    for admin in admin_users:
-                        Notification.objects.create(
-                            recipient=admin,
-                            notif_type='registration_new',
-                            title=f"New Corporate Registration: {corp_name}",
-                            message=f"{student_name} ({registration.registration_number}) registered under {corp_name}.",
-                            link="/corporate_dashboard/"
-                        )
-                except Exception:
-                    pass
-
-                # Welcome email
-                _send_welcome_email(registration)
-
-            return redirect('corporate_dashboard')
-        else:
-            pass  # fall through to re-render with errors
-    else:
-        registration_form = CorporateRegistrationForm(user=request.user)
-        corporate_form    = CorporateDetailsForm()
-        formset           = RegistrationCourseFormSet(prefix='form')
-
-    courses = Course.objects.all()
-    return render(request, 'studentregistration/corporate_registration.html', {
-        'registration_form': registration_form,
-        'corporate_form':    corporate_form,
-        'formset':           formset,
-        'courses':           courses,
-    })
+    # Redirect to the new company-first flow
+    return redirect('corporate_company_create')
 
 @login_required
 def corporate_dashboard(request):
-    qs = Registration.objects.filter(
-        registration_type='OC'
-    ).select_related('corporate_details').prefetch_related(
-        'registration_courses__course'
-    ).order_by('-registration_number')
-
-    registration_number = request.GET.get('registration_number', '')
-    company_name        = request.GET.get('company_name', '')
-    consultant          = request.GET.get('consultant', '')
-
-    if registration_number:
-        qs = qs.filter(registration_number__icontains=registration_number)
-    if company_name:
-        qs = qs.filter(corporate_details__company_name__icontains=company_name)
-    if consultant:
-        qs = qs.filter(consultant_name__icontains=consultant)
-
-    paginator     = Paginator(qs, 20)
-    registrations = paginator.get_page(request.GET.get('page', 1))
-
-    context = {
-        'registrations': registrations,
-        'paginator': paginator,
-        'registration_number': registration_number,
-        'company_name': company_name,
-        'consultant': consultant,
-    }
-    return render(request, 'studentregistration/corporate_dashboard.html', context)
+    # Redirect to the new company list
+    return redirect('corporate_company_list')
 
 @login_required
 def corporate_invoice_detail(request, registration_id):
