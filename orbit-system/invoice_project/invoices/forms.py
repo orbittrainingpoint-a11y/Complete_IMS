@@ -620,6 +620,6 @@ class CorporateCompanyForm(forms.ModelForm):
             'contact_phone':       forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
             'contact_designation': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
             'notes':               forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': _p}),
-            'tax_certificate':     forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png'}),
+            'tax_certificate':     forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png,.webp'}),
             'trade_license':       forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png'}),
         }
