@@ -222,6 +222,73 @@
     </div>
 </div>
 
+<!-- ── PAYMENT GATEWAY BREAKDOWN ──────────────────────────────── -->
+{% if tabby_count or tamara_count %}
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-credit-card me-2" style="color:#7c3aed;"></i>BNPL Gateway Summary — {{ current_month_label }}</span>
+                <a href="{% url 'gateway_payout_list' %}" class="btn btn-sm btn-outline-secondary">Payout Records</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0" style="font-size:13px;">
+                        <thead>
+                            <tr style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">
+                                <th>Gateway</th>
+                                <th>Transactions</th>
+                                <th>Total Sales</th>
+                                <th>Commission</th>
+                                <th>VAT on Comm.</th>
+                                <th>Gateway Fee</th>
+                                <th style="font-weight:800;">Net Payout</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if tabby_count %}
+                            <tr>
+                                <td>
+                                    <span style="display:inline-flex;align-items:center;gap:6px;">
+                                        <span style="width:10px;height:10px;border-radius:50%;background:#8b5cf6;display:inline-block;"></span>
+                                        <strong>Tabby</strong>
+                                        <small style="color:var(--text-muted);">7.07% + AED 6/txn</small>
+                                    </span>
+                                </td>
+                                <td>{{ tabby_count }}</td>
+                                <td>AED {{ tabby_sales|floatformat:2 }}</td>
+                                <td style="color:#dc2626;">− AED {{ tabby_comm|floatformat:2 }}</td>
+                                <td style="color:#dc2626;">− AED {{ tabby_vat|floatformat:2 }}</td>
+                                <td style="color:#dc2626;">− AED {{ tabby_fee|floatformat:2 }}</td>
+                                <td style="font-weight:800;color:#10b981;">AED {{ tabby_net|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if tamara_count %}
+                            <tr>
+                                <td>
+                                    <span style="display:inline-flex;align-items:center;gap:6px;">
+                                        <span style="width:10px;height:10px;border-radius:50%;background:#0ea5e9;display:inline-block;"></span>
+                                        <strong>Tamara</strong>
+                                        <small style="color:var(--text-muted);">7.02% commission</small>
+                                    </span>
+                                </td>
+                                <td>{{ tamara_count }}</td>
+                                <td>AED {{ tamara_sales|floatformat:2 }}</td>
+                                <td style="color:#dc2626;">− AED {{ tamara_comm|floatformat:2 }}</td>
+                                <td style="color:#dc2626;">− AED {{ tamara_vat|floatformat:2 }}</td>
+                                <td style="color:var(--text-muted);">—</td>
+                                <td style="font-weight:800;color:#10b981;">AED {{ tamara_net|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- ── UNATTRIBUTED REGISTRATIONS ALERT ──────────────────────── -->
 {% if unattributed_count > 0 %}
 <div class="alert d-flex align-items-center gap-3 mb-4" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:12px;color:#92400e;">

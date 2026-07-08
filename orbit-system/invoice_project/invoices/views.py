@@ -2019,6 +2019,26 @@ def _admin_dashboard(request):
         })
         exec_perf.sort(key=lambda x: x['month_revenue'], reverse=True)
 
+    # ── Tabby / Tamara payment gateway breakdown (this month) ──
+    from .models import InvoicePayment as _IP
+    _D   = Decimal
+    _TAB = _D('0.0707'); _TAM = _D('0.0702'); _VAT = _D('0.05')
+
+    tabby_pmts  = _IP.objects.filter(payment_method='tabby',  paid_at__gte=first, paid_at__lte=last)
+    tabby_sales = _D(str(tabby_pmts.aggregate(t=Sum('amount'))['t'] or 0))
+    tabby_count = tabby_pmts.count()
+    tabby_comm  = (tabby_sales * _TAB).quantize(_D('0.01'))
+    tabby_vat   = (tabby_comm * _VAT).quantize(_D('0.01'))
+    tabby_fee   = _D(str(tabby_count * 6))
+    tabby_net   = tabby_sales - tabby_comm - tabby_vat - tabby_fee
+
+    tamara_pmts  = _IP.objects.filter(payment_method='tamara', paid_at__gte=first, paid_at__lte=last)
+    tamara_sales = _D(str(tamara_pmts.aggregate(t=Sum('amount'))['t'] or 0))
+    tamara_count = tamara_pmts.count()
+    tamara_comm  = (tamara_sales * _TAM).quantize(_D('0.01'))
+    tamara_vat   = (tamara_comm * _VAT).quantize(_D('0.01'))
+    tamara_net   = tamara_sales - tamara_comm - tamara_vat
+
     ctx = {
         'greeting': _get_greeting(),
         'current_month_label': _month_label(today),
@@ -2040,6 +2060,13 @@ def _admin_dashboard(request):
         'recent_invoices': recent_invoices,
         'unattributed_count': unattributed_count,
         'unattributed_revenue': unattributed_revenue,
+        # gateway stats
+        'tabby_sales': float(tabby_sales), 'tabby_count': tabby_count,
+        'tabby_comm': float(tabby_comm), 'tabby_vat': float(tabby_vat),
+        'tabby_fee': float(tabby_fee), 'tabby_net': float(tabby_net),
+        'tamara_sales': float(tamara_sales), 'tamara_count': tamara_count,
+        'tamara_comm': float(tamara_comm), 'tamara_vat': float(tamara_vat),
+        'tamara_net': float(tamara_net),
     }
     return render(request, 'dashboard/admin_dashboard.html', ctx)
 
@@ -4079,26 +4106,32 @@ def fee_reminder_dashboard(request):
     from .models import FeeReminderLog
     from decimal import Decimal
 
-    today = timezone.now().date()
+    today    = timezone.now().date()
+    week_end = today + datetime.timedelta(days=7)
 
-    # Invoices where amount_paid < total_amount (outstanding balance), must have a due_date
-    all_invoices = Invoice.objects.select_related('client', 'registration', 'user') \
-                        .filter(amount_paid__lt=F('total_amount'), due_date__isnull=False) \
-                        .order_by('due_date')
+    _base = Invoice.objects.select_related('client', 'user')
 
-    overdue   = [i for i in all_invoices if i.due_date < today]
-    due_today = [i for i in all_invoices if i.due_date == today]
-    upcoming  = [i for i in all_invoices if today < i.due_date <= today + datetime.timedelta(days=7)]
+    # Separate querysets per section
+    overdue_qs   = _base.filter(amount_paid__lt=F('total_amount'), due_date__lt=today).order_by('due_date')
+    due_today_qs = _base.filter(amount_paid__lt=F('total_amount'), due_date=today).order_by('id')
+    upcoming_qs  = _base.filter(amount_paid__lt=F('total_amount'), due_date__gt=today, due_date__lte=week_end).order_by('due_date')
 
-    overdue_amount  = sum(i.total_amount - i.amount_paid for i in overdue)
-    upcoming_amount = sum(i.total_amount - i.amount_paid for i in upcoming)
+    # KPI totals (aggregate, not paginated)
+    _expr = lambda: ExpressionWrapper(F('total_amount') - F('amount_paid'), output_field=DecimalField())
+    overdue_amount  = Invoice.objects.filter(amount_paid__lt=F('total_amount'), due_date__lt=today) \
+                          .aggregate(t=Sum(_expr()))['t'] or 0
+    upcoming_amount = Invoice.objects.filter(amount_paid__lt=F('total_amount'), due_date__gt=today, due_date__lte=week_end) \
+                          .aggregate(t=Sum(_expr()))['t'] or 0
+    overdue_count  = overdue_qs.count()
+    today_count    = due_today_qs.count()
+    upcoming_count = upcoming_qs.count()
 
     # Handle "Send Reminder" POST
     if request.method == 'POST':
         invoice_id = request.POST.get('invoice_id')
         channel    = request.POST.get('channel', 'system')
         note       = request.POST.get('note', '').strip()
-        inv = get_object_or_404(Invoice, pk=invoice_id)
+        inv  = get_object_or_404(Invoice, pk=invoice_id)
         days = (today - inv.due_date).days
         FeeReminderLog.objects.create(
             invoice=inv,
@@ -4111,7 +4144,6 @@ def fee_reminder_dashboard(request):
             sent_by=request.user,
             note=note,
         )
-        # Also create in-app notification for the invoice owner (if they have a user)
         if inv.user:
             try:
                 Notification.objects.create(
@@ -4124,24 +4156,74 @@ def fee_reminder_dashboard(request):
                 )
             except Exception:
                 pass
+        if channel == 'email' and inv.client and inv.client.email:
+            _send_fee_reminder_email(inv, days, note, request)
         messages.success(request, f"Reminder logged for invoice {inv.invoice_number}.")
         return redirect('fee_reminder_dashboard')
 
+    # Paginate each section
+    o_pag = Paginator(overdue_qs, 20)
+    d_pag = Paginator(due_today_qs, 20)
+    u_pag = Paginator(upcoming_qs, 20)
+    overdue   = o_pag.get_page(request.GET.get('opage', 1))
+    due_today = d_pag.get_page(request.GET.get('dpage', 1))
+    upcoming  = u_pag.get_page(request.GET.get('upage', 1))
+
     # Reminder history (paginated)
     reminder_qs = FeeReminderLog.objects.select_related('sent_by').all()
-    r_paginator = Paginator(reminder_qs, 25)
+    r_paginator = Paginator(reminder_qs, 20)
     reminder_page = r_paginator.get_page(request.GET.get('rpage', 1))
 
     return render(request, 'invoices/fee_reminder_dashboard.html', {
         'overdue': overdue,
         'due_today': due_today,
         'upcoming': upcoming,
+        'overdue_count': overdue_count,
+        'today_count': today_count,
+        'upcoming_count': upcoming_count,
         'overdue_amount': overdue_amount,
         'upcoming_amount': upcoming_amount,
         'today': today,
         'reminders': reminder_page,
         'r_paginator': r_paginator,
     })
+
+
+def _send_fee_reminder_email(inv, days_overdue, note, request):
+    from django.core.mail import EmailMultiAlternatives
+    from django.template.loader import render_to_string
+    from django.conf import settings as _s
+    client_email = inv.client.email if inv.client else None
+    if not client_email:
+        return
+    is_overdue = days_overdue > 0
+    subject = (f"Overdue Payment Reminder — Invoice {inv.invoice_number}"
+               if is_overdue else f"Payment Reminder — Invoice {inv.invoice_number}")
+    ctx = {
+        'client_name':     inv.client.name,
+        'invoice_number':  inv.invoice_number,
+        'amount_due':      inv.total_amount - inv.amount_paid,
+        'due_date':        inv.due_date,
+        'days_overdue':    days_overdue,
+        'is_overdue':      is_overdue,
+        'note':            note,
+        'sent_by':         request.user.get_full_name() or request.user.username,
+    }
+    html_body  = render_to_string('emails/fee_reminder_email.html', ctx)
+    text_body  = (
+        f"Dear {inv.client.name},\n\n"
+        f"This is a reminder for Invoice {inv.invoice_number}.\n"
+        f"Amount Due: AED {inv.total_amount - inv.amount_paid:,.2f}\n"
+        f"Due Date: {inv.due_date.strftime('%d %b %Y')}\n"
+        + (f"\n{note}" if note else "")
+        + "\n\nOrbit Training Point"
+    )
+    try:
+        msg = EmailMultiAlternatives(subject, text_body, _s.DEFAULT_FROM_EMAIL, [client_email])
+        msg.attach_alternative(html_body, 'text/html')
+        msg.send(fail_silently=True)
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════

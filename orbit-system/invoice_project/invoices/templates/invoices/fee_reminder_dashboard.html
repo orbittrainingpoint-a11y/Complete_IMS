@@ -16,9 +16,11 @@
 .head-overdue  { background:#fef2f2;color:#991b1b;border-bottom:1px solid #fecaca; }
 .head-today    { background:#fffbeb;color:#92400e;border-bottom:1px solid #fde68a; }
 .head-upcoming { background:#eff6ff;color:#1e40af;border-bottom:1px solid #bfdbfe; }
+.head-history  { background:#f0fdf4;color:#166534;border-bottom:1px solid #bbf7d0; }
 .reminder-modal-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1055;align-items:center;justify-content:center; }
 .reminder-modal-overlay.show { display:flex; }
 .reminder-modal { background:#fff;border-radius:16px;padding:28px;width:460px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.25); }
+.pag-wrap { display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted); }
 </style>
 {% endblock %}
 
@@ -44,21 +46,21 @@
   <div class="col-xl-3 col-sm-6">
     <div class="kpi-card">
       <div class="kpi-icon icon-red"><i class="fas fa-exclamation-triangle"></i></div>
-      <div class="kpi-value">{{ overdue|length }}</div>
+      <div class="kpi-value">{{ overdue_count }}</div>
       <div class="kpi-label">Overdue Invoices</div>
     </div>
   </div>
   <div class="col-xl-3 col-sm-6">
     <div class="kpi-card">
       <div class="kpi-icon icon-orange"><i class="fas fa-clock"></i></div>
-      <div class="kpi-value">{{ due_today|length }}</div>
+      <div class="kpi-value">{{ today_count }}</div>
       <div class="kpi-label">Due Today</div>
     </div>
   </div>
   <div class="col-xl-3 col-sm-6">
     <div class="kpi-card">
       <div class="kpi-icon icon-blue"><i class="fas fa-calendar-alt"></i></div>
-      <div class="kpi-value">{{ upcoming|length }}</div>
+      <div class="kpi-value">{{ upcoming_count }}</div>
       <div class="kpi-label">Due This Week</div>
     </div>
   </div>
@@ -71,77 +73,11 @@
   </div>
 </div>
 
-<!-- ── OVERDUE ── -->
-{% if overdue %}
-<div class="section-card">
-  <div class="section-head head-overdue">
-    <i class="fas fa-exclamation-circle"></i>
-    Overdue — {{ overdue|length }} invoice{{ overdue|length|pluralize }}
-    <span class="ms-auto" style="font-weight:500;">Total AED {{ overdue_amount|floatformat:0 }}</span>
-  </div>
-  <div class="table-responsive">
-    <table class="table mb-0">
-      <thead><tr style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">
-        <th>Invoice</th><th>Client</th><th>Due Date</th><th>Days Overdue</th><th>Balance Due</th><th></th>
-      </tr></thead>
-      <tbody>
-        {% for inv in overdue %}
-        {% with balance=inv.total_amount|add:"-0"|add:inv.amount_paid overdue_days=today|timeuntil:inv.due_date %}
-        <tr class="inv-row">
-          <td><span style="font-family:monospace;font-weight:700;color:var(--primary);">{{ inv.invoice_number }}</span></td>
-          <td style="font-weight:600;">{{ inv.client.name }}</td>
-          <td style="color:#dc2626;font-weight:700;">{{ inv.due_date|date:"d M Y" }}</td>
-          <td><span class="overdue-badge">{{ today|timeuntil:inv.due_date }} ago</span></td>
-          <td style="font-weight:800;color:#dc2626;">AED {{ inv.total_amount|floatformat:2 }}</td>
-          <td>
-            <button class="btn btn-sm btn-outline-danger" onclick="openReminderModal({{ inv.pk }},'{{ inv.invoice_number }}','{{ inv.client.name }}')">
-              <i class="fas fa-bell me-1"></i>Send Reminder
-            </button>
-          </td>
-        </tr>
-        {% endwith %}
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
-
-<!-- ── DUE TODAY ── -->
-{% if due_today %}
-<div class="section-card">
-  <div class="section-head head-today">
-    <i class="fas fa-clock"></i>Due Today — {{ due_today|length }} invoice{{ due_today|length|pluralize }}
-  </div>
-  <div class="table-responsive">
-    <table class="table mb-0">
-      <thead><tr style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">
-        <th>Invoice</th><th>Client</th><th>Amount Due</th><th></th>
-      </tr></thead>
-      <tbody>
-        {% for inv in due_today %}
-        <tr class="inv-row">
-          <td><span style="font-family:monospace;font-weight:700;color:var(--primary);">{{ inv.invoice_number }}</span></td>
-          <td style="font-weight:600;">{{ inv.client.name }}</td>
-          <td style="font-weight:800;color:#d97706;">AED {{ inv.total_amount|floatformat:2 }}</td>
-          <td>
-            <button class="btn btn-sm btn-outline-warning" onclick="openReminderModal({{ inv.pk }},'{{ inv.invoice_number }}','{{ inv.client.name }}')">
-              <i class="fas fa-bell me-1"></i>Send Reminder
-            </button>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
-
-<!-- ── UPCOMING THIS WEEK ── -->
+<!-- ── 1. DUE THIS WEEK ── -->
 {% if upcoming %}
 <div class="section-card">
   <div class="section-head head-upcoming">
-    <i class="fas fa-calendar-check"></i>Due This Week — {{ upcoming|length }} invoice{{ upcoming|length|pluralize }}
+    <i class="fas fa-calendar-check"></i>Due This Week — {{ upcoming_count }} invoice{{ upcoming_count|pluralize }}
     <span class="ms-auto" style="font-weight:500;">Total AED {{ upcoming_amount|floatformat:0 }}</span>
   </div>
   <div class="table-responsive">
@@ -155,7 +91,7 @@
           <td><span style="font-family:monospace;font-weight:700;color:var(--primary);">{{ inv.invoice_number }}</span></td>
           <td style="font-weight:600;">{{ inv.client.name }}</td>
           <td>{{ inv.due_date|date:"d M Y" }}</td>
-          <td><span class="upcoming-badge">{{ today|timesince:inv.due_date }}</span></td>
+          <td><span class="upcoming-badge">{{ inv.due_date|timeuntil:today }}</span></td>
           <td style="font-weight:700;">AED {{ inv.total_amount|floatformat:2 }}</td>
           <td>
             <button class="btn btn-sm btn-outline-primary" onclick="openReminderModal({{ inv.pk }},'{{ inv.invoice_number }}','{{ inv.client.name }}')">
@@ -167,22 +103,28 @@
       </tbody>
     </table>
   </div>
+  {% if upcoming.has_other_pages %}
+  <div class="pag-wrap">
+    <small>Showing {{ upcoming.start_index }}–{{ upcoming.end_index }} of {{ upcoming.paginator.count }}</small>
+    <nav><ul class="pagination pagination-sm mb-0 gap-1">
+      {% if upcoming.has_previous %}<li class="page-item"><a class="page-link" href="?upage={{ upcoming.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>{% endif %}
+      {% for num in upcoming.paginator.page_range %}
+        {% if num == upcoming.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num >= upcoming.number|add:"-2" and num <= upcoming.number|add:"2" %}<li class="page-item"><a class="page-link" href="?upage={{ num }}">{{ num }}</a></li>{% endif %}
+      {% endfor %}
+      {% if upcoming.has_next %}<li class="page-item"><a class="page-link" href="?upage={{ upcoming.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>{% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 
-{% if not overdue and not due_today and not upcoming %}
-<div class="card" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
-  <i class="fas fa-check-circle" style="font-size:48px;margin-bottom:16px;color:#10b981;opacity:.7;"></i>
-  <h5 style="color:var(--text);">All caught up!</h5>
-  <p>No overdue or upcoming invoices at the moment.</p>
-</div>
-{% endif %}
-
-<!-- ── REMINDER HISTORY ── -->
-<div class="page-header mt-4 mb-3">
-  <div class="page-title" style="font-size:18px;">Reminder History</div>
-</div>
-<div class="card">
+<!-- ── 2. REMINDER HISTORY ── -->
+<div class="section-card">
+  <div class="section-head head-history">
+    <i class="fas fa-history"></i>Reminder History
+    <span class="ms-auto" style="font-weight:500;font-size:12px;">{{ r_paginator.count }} reminder{{ r_paginator.count|pluralize }} total</span>
+  </div>
   <div class="table-responsive">
     <table class="table mb-0" style="font-size:13px;">
       <thead>
@@ -211,24 +153,117 @@
     </table>
   </div>
   {% if reminders.has_other_pages %}
-  <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top">
-    <small class="text-muted">Showing {{ reminders.start_index }}–{{ reminders.end_index }} of {{ r_paginator.count }}</small>
+  <div class="pag-wrap">
+    <small>Showing {{ reminders.start_index }}–{{ reminders.end_index }} of {{ r_paginator.count }}</small>
     <nav><ul class="pagination pagination-sm mb-0 gap-1">
-      {% if reminders.has_previous %}
-      <li class="page-item"><a class="page-link" href="?rpage={{ reminders.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
-      {% endif %}
+      {% if reminders.has_previous %}<li class="page-item"><a class="page-link" href="?rpage={{ reminders.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>{% endif %}
       {% for num in reminders.paginator.page_range %}
         {% if num == reminders.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
-        {% elif num >= reminders.number|add:"-2" and num <= reminders.number|add:"2" %}<li class="page-item"><a class="page-link" href="?rpage={{ num }}">{{ num }}</a></li>
-        {% endif %}
+        {% elif num >= reminders.number|add:"-2" and num <= reminders.number|add:"2" %}<li class="page-item"><a class="page-link" href="?rpage={{ num }}">{{ num }}</a></li>{% endif %}
       {% endfor %}
-      {% if reminders.has_next %}
-      <li class="page-item"><a class="page-link" href="?rpage={{ reminders.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
-      {% endif %}
+      {% if reminders.has_next %}<li class="page-item"><a class="page-link" href="?rpage={{ reminders.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>{% endif %}
     </ul></nav>
   </div>
   {% endif %}
 </div>
+
+<!-- ── 3. DUE TODAY ── -->
+{% if due_today %}
+<div class="section-card">
+  <div class="section-head head-today">
+    <i class="fas fa-clock"></i>Due Today — {{ today_count }} invoice{{ today_count|pluralize }}
+  </div>
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead><tr style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">
+        <th>Invoice</th><th>Client</th><th>Amount Due</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for inv in due_today %}
+        <tr class="inv-row">
+          <td><span style="font-family:monospace;font-weight:700;color:var(--primary);">{{ inv.invoice_number }}</span></td>
+          <td style="font-weight:600;">{{ inv.client.name }}</td>
+          <td style="font-weight:800;color:#d97706;">AED {{ inv.total_amount|floatformat:2 }}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-warning" onclick="openReminderModal({{ inv.pk }},'{{ inv.invoice_number }}','{{ inv.client.name }}')">
+              <i class="fas fa-bell me-1"></i>Send Reminder
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if due_today.has_other_pages %}
+  <div class="pag-wrap">
+    <small>Showing {{ due_today.start_index }}–{{ due_today.end_index }} of {{ due_today.paginator.count }}</small>
+    <nav><ul class="pagination pagination-sm mb-0 gap-1">
+      {% if due_today.has_previous %}<li class="page-item"><a class="page-link" href="?dpage={{ due_today.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>{% endif %}
+      {% for num in due_today.paginator.page_range %}
+        {% if num == due_today.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num >= due_today.number|add:"-2" and num <= due_today.number|add:"2" %}<li class="page-item"><a class="page-link" href="?dpage={{ num }}">{{ num }}</a></li>{% endif %}
+      {% endfor %}
+      {% if due_today.has_next %}<li class="page-item"><a class="page-link" href="?dpage={{ due_today.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>{% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ── 4. OVERDUE ── -->
+{% if overdue %}
+<div class="section-card">
+  <div class="section-head head-overdue">
+    <i class="fas fa-exclamation-circle"></i>
+    Overdue — {{ overdue_count }} invoice{{ overdue_count|pluralize }}
+    <span class="ms-auto" style="font-weight:500;">Total AED {{ overdue_amount|floatformat:0 }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead><tr style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">
+        <th>Invoice</th><th>Client</th><th>Due Date</th><th>Days Overdue</th><th>Balance Due</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for inv in overdue %}
+        <tr class="inv-row">
+          <td><span style="font-family:monospace;font-weight:700;color:var(--primary);">{{ inv.invoice_number }}</span></td>
+          <td style="font-weight:600;">{{ inv.client.name }}</td>
+          <td style="color:#dc2626;font-weight:700;">{{ inv.due_date|date:"d M Y" }}</td>
+          <td><span class="overdue-badge">{{ inv.due_date|timesince:today }} ago</span></td>
+          <td style="font-weight:800;color:#dc2626;">AED {{ inv.total_amount|floatformat:2 }}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-danger" onclick="openReminderModal({{ inv.pk }},'{{ inv.invoice_number }}','{{ inv.client.name }}')">
+              <i class="fas fa-bell me-1"></i>Send Reminder
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if overdue.has_other_pages %}
+  <div class="pag-wrap">
+    <small>Showing {{ overdue.start_index }}–{{ overdue.end_index }} of {{ overdue.paginator.count }}</small>
+    <nav><ul class="pagination pagination-sm mb-0 gap-1">
+      {% if overdue.has_previous %}<li class="page-item"><a class="page-link" href="?opage={{ overdue.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>{% endif %}
+      {% for num in overdue.paginator.page_range %}
+        {% if num == overdue.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num >= overdue.number|add:"-2" and num <= overdue.number|add:"2" %}<li class="page-item"><a class="page-link" href="?opage={{ num }}">{{ num }}</a></li>{% endif %}
+      {% endfor %}
+      {% if overdue.has_next %}<li class="page-item"><a class="page-link" href="?opage={{ overdue.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>{% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if not overdue and not due_today and not upcoming %}
+<div class="card" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+  <i class="fas fa-check-circle" style="font-size:48px;margin-bottom:16px;color:#10b981;opacity:.7;"></i>
+  <h5 style="color:var(--text);">All caught up!</h5>
+  <p>No overdue or upcoming invoices at the moment.</p>
+</div>
+{% endif %}
 
 <!-- Reminder Modal -->
 <div class="reminder-modal-overlay" id="reminderOverlay">
@@ -240,15 +275,18 @@
       <input type="hidden" name="invoice_id" id="rmInvoiceId">
       <div class="mb-3">
         <label style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#374151;display:block;margin-bottom:6px;">Channel</label>
-        <select name="channel" class="form-select form-select-sm">
+        <select name="channel" id="rmChannel" class="form-select form-select-sm" onchange="toggleEmailNote(this.value)">
           <option value="system">System Notification</option>
-          <option value="email">Email</option>
+          <option value="email">Email (sends to client)</option>
           <option value="manual">Manual Note</option>
         </select>
       </div>
       <div class="mb-4">
         <label style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#374151;display:block;margin-bottom:6px;">Note (optional)</label>
         <textarea name="note" rows="3" class="form-control form-control-sm" placeholder="Add a note about this reminder…" style="border-radius:8px;"></textarea>
+      </div>
+      <div id="emailNote" style="display:none;font-size:12px;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:12px;">
+        <i class="fas fa-envelope me-1"></i>An HTML email will be sent to the client's registered email address.
       </div>
       <div class="d-flex gap-2 justify-content-end">
         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="closeReminderModal()">Cancel</button>
@@ -265,9 +303,13 @@ function openReminderModal(id, inv, client) {
   document.getElementById('rmInvoiceId').value = id;
   document.getElementById('rmInvoiceLabel').textContent = `Invoice ${inv} — ${client}`;
   document.getElementById('reminderOverlay').classList.add('show');
+  toggleEmailNote(document.getElementById('rmChannel').value);
 }
 function closeReminderModal() {
   document.getElementById('reminderOverlay').classList.remove('show');
+}
+function toggleEmailNote(val) {
+  document.getElementById('emailNote').style.display = val === 'email' ? '' : 'none';
 }
 document.getElementById('reminderOverlay').addEventListener('click', function(e) {
   if (e.target === this) closeReminderModal();
