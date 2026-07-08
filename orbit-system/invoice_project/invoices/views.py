@@ -4530,9 +4530,38 @@ def welcome_letter_printable(request, pk):
         'registration_date':   registration.date.strftime('%d %B %Y') if registration.date else '',
         'courses':             courses,
         'reg_courses':         reg_courses,
-        'logo_data_uri':       _logo_data_uri(),
     }
     return render(request, 'portal/welcome_letter_printable.html', ctx)
+
+
+def enrollment_letter_printable(request, pk):
+    """Public printable enrollment confirmation letter — no login required."""
+    from django.db.models import Sum as _Sum
+    registration = get_object_or_404(Registration, pk=pk)
+    year = registration.date.strftime('%Y') if registration.date else timezone.now().strftime('%Y')
+    num  = registration.registration_number.split('/')[-1] if registration.registration_number else '001'
+    ref_number   = f"ORBIT/ENR/{year}/{num}"
+    invoices_qs  = Invoice.objects.filter(registration=registration)
+    fee_paid     = invoices_qs.aggregate(t=_Sum('amount_paid'))['t'] or 0
+    total_due    = (invoices_qs.aggregate(t=_Sum('total_amount'))['t'] or 0) - fee_paid
+    payment_status = "Full Payment" if total_due <= 0 else f"Installment — Balance Due: AED {total_due:,.2f}"
+    course_names = ', '.join(registration.courses.values_list('name', flat=True))
+    ctx = {
+        'letter_date':      timezone.now().strftime('%d %B %Y'),
+        'ref_number':       ref_number,
+        'student_name':     f"{registration.first_name} {registration.last_name}",
+        'student_id':       registration.registration_number,
+        'course_names':     course_names,
+        'mode_of_training': registration.class_type.capitalize(),
+        'duration':         '',
+        'start_date':       '',
+        'end_date':         '',
+        'schedule':         '',
+        'trainer':          '',
+        'fee_paid':         f"{float(fee_paid):,.2f}",
+        'payment_status':   payment_status,
+    }
+    return render(request, 'portal/enrollment_letter_printable.html', ctx)
 
 
 @login_required
@@ -4598,6 +4627,7 @@ def send_enrollment_letter(request, pk):
         'fee_paid':       f"{float(fee_paid):,.2f}",
         'payment_status': payment_status,
         'logo_data_uri':  _logo_data_uri(),
+        'print_url':      request.build_absolute_uri(f'/portal/enrollment-letter/{registration.pk}/'),
     }
     subject   = f"Enrollment Confirmation Letter — {registration.registration_number}"
     html_body = render_to_string('emails/enrollment_letter_email.html', ctx)

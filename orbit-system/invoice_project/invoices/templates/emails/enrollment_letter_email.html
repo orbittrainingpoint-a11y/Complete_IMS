@@ -141,6 +141,14 @@
 
     <p><em>Welcome to Orbit Training Centre. We wish you a rewarding and successful learning experience.</em></p>
 
+    {% if print_url %}
+    <p style="margin-top:24px;">You can print or save this letter as a PDF using the button below:</p>
+    <a href="{{ print_url }}"
+       style="display:inline-block;background:#1e40af;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 28px;border-radius:8px;margin:8px 0 20px;">
+      &#x1F5A8; Print / Save as PDF
+    </a>
+    {% endif %}
+
     <p>Sincerely,</p>
   </div>
 

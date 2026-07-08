@@ -1,0 +1,149 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enrollment Letter — {{ student_id }}</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#f1f5f9; font-family:'Segoe UI', Arial, sans-serif; }
+
+.print-bar {
+    background:linear-gradient(135deg,#0f1b2d,#1a2d47);
+    padding:12px 24px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+.print-bar .brand { color:#fff; font-size:13px; font-weight:700; opacity:.8; }
+.btn-print {
+    background:#2563eb; color:#fff; border:none;
+    padding:9px 22px; border-radius:8px; font-size:14px; font-weight:700;
+    cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+}
+.btn-print:hover { background:#1d4ed8; }
+
+.page { max-width:720px; margin:24px auto 40px; background:#fff; box-shadow:0 4px 32px rgba(0,0,0,.12); }
+
+.letterhead {
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:28px 44px 18px; border-bottom:3px solid #1e40af;
+}
+.lh-logo img { height:56px; width:auto; object-fit:contain; }
+.lh-contact { text-align:right; font-size:11px; color:#475569; line-height:1.8; }
+.lh-contact strong { display:block; font-size:14px; font-weight:800; color:#1e40af; margin-bottom:2px; }
+
+.doc-meta { padding:20px 44px 0; }
+.doc-meta p { font-size:13px; color:#1e293b; margin-bottom:5px; }
+.doc-title { font-size:15px; font-weight:800; text-decoration:underline; color:#1e293b; margin-top:6px; display:block; text-transform:uppercase; letter-spacing:.5px; }
+
+.letter-body { padding:20px 44px; font-size:13px; color:#1e293b; line-height:1.8; }
+.letter-body p { margin-bottom:14px; }
+
+.enrol-section { margin:20px 0 24px; }
+.enrol-section > strong { font-size:13px; font-weight:700; display:block; margin-bottom:10px; text-decoration:underline; }
+.enrol-table { width:100%; border-collapse:collapse; }
+.enrol-table td { padding:9px 4px; font-size:13px; border-bottom:1px solid #f1f5f9; }
+.enrol-table tr:last-child td { border-bottom:none; }
+.enrol-table .lbl { font-weight:700; width:200px; color:#1e293b; }
+.enrol-table .val { color:#374151; padding-left:16px; }
+.enrol-table .val em { color:#94a3b8; font-style:normal; font-size:12px; }
+
+.signature { padding:16px 44px 24px; }
+.sig-line { width:180px; border-top:1px solid #1e293b; margin-top:36px; margin-bottom:6px; }
+.sig-name { font-size:13px; font-weight:700; color:#1e293b; }
+.sig-title { font-size:12px; color:#64748b; }
+
+.footer { border-top:2px solid #1e40af; background:#f8fafc; padding:14px 44px; }
+.footer p { font-size:11px; color:#64748b; line-height:1.8; }
+
+@media print {
+    body { background:#fff; }
+    .print-bar { display:none !important; }
+    .page { box-shadow:none; margin:0; max-width:100%; }
+    @page { margin:18mm 16mm; }
+}
+</style>
+</head>
+<body>
+
+<div class="print-bar">
+    <div class="brand">&#x1F4C4; Enrollment Confirmation Letter — {{ student_id }}</div>
+    <button class="btn-print" onclick="window.print()">&#x1F5A8;&nbsp; Print / Save as PDF</button>
+</div>
+
+<div class="page">
+
+    <div class="letterhead">
+        <div class="lh-logo">
+            <img src="{% static 'Orbit-Logo-1.png' %}" alt="Orbit Training Centre">
+        </div>
+        <div class="lh-contact">
+            <strong>Orbit Training Centre</strong>
+            Max Orbit Education and Training Computer Software<br>
+            211, Pinnacle Sheikh Zayed Road, Al Barsha 1, Dubai, UAE<br>
+            Email: HR@orbittraining.ae &nbsp;|&nbsp; Tel: +971-582274991<br>
+            Website: orbittraining.ae
+        </div>
+    </div>
+
+    <div class="doc-meta">
+        <p><strong>Date:</strong> {{ letter_date }}</p>
+        <p><strong>Ref No:</strong> {{ ref_number }}</p>
+        <span class="doc-title">Enrollment Confirmation Letter</span>
+    </div>
+
+    <div class="letter-body">
+        <p>Dear {{ student_name }},</p>
+        <p>We are pleased to confirm your enrollment at <strong>Orbit Training Centre, Dubai</strong>. This letter serves as official confirmation of your admission into the program detailed below, and welcomes you to our community of learners.</p>
+
+        <div class="enrol-section">
+            <strong>Enrollment Details</strong>
+            <table class="enrol-table">
+                <tr><td class="lbl">Student Name:</td><td class="val">{{ student_name }}</td></tr>
+                <tr><td class="lbl">Student ID:</td><td class="val" style="color:#2563eb;font-weight:800;">{{ student_id }}</td></tr>
+                <tr><td class="lbl">Course Name:</td><td class="val">{{ course_names }}</td></tr>
+                <tr>
+                    <td class="lbl">Course Duration:</td>
+                    <td class="val">{% if duration %}{{ duration }}{% else %}<em>To be confirmed</em>{% endif %}</td>
+                </tr>
+                <tr><td class="lbl">Mode of Training:</td><td class="val">{{ mode_of_training }}</td></tr>
+                <tr>
+                    <td class="lbl">Start Date:</td>
+                    <td class="val">{% if start_date %}{{ start_date }}{% else %}<em>To be confirmed</em>{% endif %}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">End Date:</td>
+                    <td class="val">{% if end_date %}{{ end_date }}{% else %}<em>To be confirmed</em>{% endif %}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Schedule:</td>
+                    <td class="val">{% if schedule %}{{ schedule }}{% else %}<em>To be confirmed</em>{% endif %}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Trainer Assigned:</td>
+                    <td class="val">{% if trainer %}{{ trainer }}{% else %}<em>To be confirmed</em>{% endif %}</td>
+                </tr>
+                <tr><td class="lbl">Fee Paid:</td><td class="val">AED {{ fee_paid }}</td></tr>
+                <tr><td class="lbl">Payment Status:</td><td class="val">{{ payment_status }}</td></tr>
+            </table>
+        </div>
+
+        <p>Kindly ensure that you arrive on time for your first session and bring a valid form of identification for verification purposes. Our administrative team will share the classroom location or online session link, along with any required course materials, prior to your start date.</p>
+        <p>Should you need to reschedule, request a transfer, or have any questions, please reach out at <strong>training@orbittraining.ae</strong> or call <strong>+971-582274991</strong>.</p>
+        <p><em>Welcome to Orbit Training Centre. We wish you a rewarding and successful learning experience.</em></p>
+        <p>Sincerely,</p>
+    </div>
+
+    <div class="signature">
+        <div class="sig-line"></div>
+        <div class="sig-name"><strong>Mukesh Raiya</strong></div>
+        <div class="sig-title">Centre Manager — Orbit Training Centre</div>
+    </div>
+
+    <div class="footer">
+        <p>Orbit Training Centre &nbsp;|&nbsp; 211, Pinnacle Sheikh Zayed Road, Al Barsha 1, Dubai, UAE<br>
+        Email: HR@orbittraining.ae &nbsp;|&nbsp; Tel: +971-582274991 &nbsp;|&nbsp; Website: orbittraining.ae</p>
+    </div>
+</div>
+</body>
+</html>
