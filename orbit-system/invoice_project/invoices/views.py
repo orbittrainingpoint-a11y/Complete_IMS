@@ -1832,6 +1832,26 @@ def corporate_add_candidate(request, pk):
 
 
 @login_required
+@require_POST
+def corporate_company_generate_portal(request, pk):
+    """Generate a company portal self-registration link pre-filled from a CorporateCompany record."""
+    from .models import CompanyPortalRequest
+    company = get_object_or_404(CorporateCompany, pk=pk)
+    portal = CompanyPortalRequest.objects.create(
+        generated_by=request.user,
+        company_name=company.company_name,
+        contact_person=company.contact_name or '',
+        designation=company.contact_designation or '',
+        email=company.contact_email or company.company_email or '',
+        phone=company.contact_phone or company.company_phone or '',
+        address=company.company_address or '',
+        emirate=company.company_location or '',
+    )
+    portal_url = request.build_absolute_uri(f'/portal/company/{portal.token}/')
+    return JsonResponse({'url': portal_url, 'token': portal.token})
+
+
+@login_required
 def course_list(request):
     from django.db.models import Count as CourseCount, Q
     q = request.GET.get('q', '').strip()

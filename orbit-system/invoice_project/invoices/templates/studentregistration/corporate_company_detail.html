@@ -183,9 +183,111 @@
   {% endif %}
 </div>
 
+<!-- PORTAL REGISTRATION LINK -->
+<div class="detail-section">
+  <h5><i class="fas fa-link me-2"></i>Portal Registration Link</h5>
+  <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+    Generate a unique self-registration link to send to this company. They can open it and fill in their full registration details without needing a system account.
+  </p>
+
+  <!-- Generated link display (hidden until generated) -->
+  <div id="portalLinkResult" style="display:none;margin-bottom:14px;">
+    <div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#0369a1;margin-bottom:8px;"><i class="fas fa-check-circle me-1"></i>Link Generated Successfully</div>
+      <div class="d-flex align-items-center gap-2">
+        <input type="text" id="portalLinkInput" class="form-control form-control-sm" readonly
+               style="font-size:12px;font-family:monospace;background:#fff;color:#0f172a;">
+        <button type="button" class="btn btn-sm btn-outline-primary flex-shrink-0" onclick="copyPortalLink()" title="Copy link" style="white-space:nowrap;">
+          <i class="fas fa-copy me-1" id="copyIcon"></i><span id="copyLabel">Copy</span>
+        </button>
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a id="portalEmailBtn" href="#" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-envelope me-1"></i>Send via Email
+      </a>
+      <a id="portalWhatsappBtn" href="#" target="_blank" class="btn btn-sm btn-outline-success">
+        <i class="fab fa-whatsapp me-1"></i>Share via WhatsApp
+      </a>
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="generateAnotherLink()">
+        <i class="fas fa-refresh me-1"></i>Generate New Link
+      </button>
+    </div>
+  </div>
+
+  <button type="button" id="generatePortalBtn" class="btn btn-primary btn-sm" onclick="generatePortalLink()">
+    <i class="fas fa-link me-1"></i>Generate Portal Link
+  </button>
+</div>
+
 <!-- META INFO -->
 <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
   Registered {{ company.created_at|date:"d M Y" }}
   {% if company.created_by %} by <strong>{{ company.created_by.get_full_name|default:company.created_by.username }}</strong>{% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PORTAL_GENERATE_URL = "{% url 'corporate_company_generate_portal' company.pk %}";
+const CSRF_TOKEN = "{{ csrf_token }}";
+const COMPANY_NAME = "{{ company.company_name|escapejs }}";
+const CONTACT_NAME = "{{ company.contact_name|default:'Sir/Madam'|escapejs }}";
+const CONTACT_EMAIL = "{{ company.contact_email|default:company.company_email|escapejs }}";
+
+function generatePortalLink() {
+  const btn = document.getElementById('generatePortalBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating…';
+
+  fetch(PORTAL_GENERATE_URL, {
+    method: 'POST',
+    headers: {'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/x-www-form-urlencoded'},
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.url) {
+      const linkInput = document.getElementById('portalLinkInput');
+      linkInput.value = data.url;
+
+      const emailSubject = `Company Registration Portal – ${COMPANY_NAME}`;
+      const emailBody = `Dear ${CONTACT_NAME},\n\nPlease use the link below to complete your company registration on our portal:\n\n${data.url}\n\nIf you have any questions, please don't hesitate to contact us.\n\nBest regards,\nOrbit Training Point`;
+      document.getElementById('portalEmailBtn').href =
+        `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+
+      const waText = `Dear ${CONTACT_NAME}, please use this link to complete your company registration with Orbit Training: ${data.url}`;
+      document.getElementById('portalWhatsappBtn').href =
+        `https://wa.me/?text=${encodeURIComponent(waText)}`;
+
+      document.getElementById('portalLinkResult').style.display = 'block';
+      btn.style.display = 'none';
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-link me-1"></i>Generate Portal Link';
+    alert('Failed to generate link. Please try again.');
+  });
+}
+
+function generateAnotherLink() {
+  document.getElementById('portalLinkResult').style.display = 'none';
+  const btn = document.getElementById('generatePortalBtn');
+  btn.style.display = '';
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-link me-1"></i>Generate Portal Link';
+}
+
+function copyPortalLink() {
+  const val = document.getElementById('portalLinkInput').value;
+  navigator.clipboard.writeText(val).then(() => {
+    document.getElementById('copyIcon').className = 'fas fa-check me-1';
+    document.getElementById('copyLabel').textContent = 'Copied!';
+    setTimeout(() => {
+      document.getElementById('copyIcon').className = 'fas fa-copy me-1';
+      document.getElementById('copyLabel').textContent = 'Copy';
+    }, 2500);
+  });
+}
+</script>
 {% endblock %}
