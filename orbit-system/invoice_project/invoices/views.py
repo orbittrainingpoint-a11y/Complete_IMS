@@ -1337,7 +1337,7 @@ def edit_registration(request, pk):
         
         # Initialize formset with existing courses
         initial_courses = [
-            {'course': rc.course.id, 'discount': rc.discount}
+            {'course': rc.course.id, 'discount': rc.discount, 'price': rc.price}
             for rc in registration.registration_courses.all()
         ]
         formset = RegistrationCourseFormSet(initial=initial_courses, prefix='courses')
@@ -3919,11 +3919,21 @@ def student_self_register(request, token):
                     selected_course_ids = [str(c.id) for c in pre_courses]
                 else:
                     selected_course_ids = request.POST.getlist('course_ids')
+                _class_type = reg.class_type or 'offline'
                 for cid in selected_course_ids:
                     try:
                         c = Course.objects.get(id=int(cid))
-                        price = config_prices.get(int(cid), c.get_rate('offline', config_level))
-                        RegistrationCourse.objects.create(registration=reg, course=c, discount=0, price=price)
+                        list_price = c.get_rate(_class_type, config_level)
+                        final_price = config_prices.get(int(cid), list_price)
+                        # Compute discount % from list vs final price
+                        if list_price and list_price > 0 and final_price < list_price:
+                            discount_pct = round((1 - float(final_price) / float(list_price)) * 100, 2)
+                        else:
+                            discount_pct = 0
+                        RegistrationCourse.objects.create(
+                            registration=reg, course=c,
+                            discount=discount_pct, price=final_price,
+                        )
                     except Exception:
                         pass
                 # Save CRM lead link (hidden from student, set by consultant via link URL)
