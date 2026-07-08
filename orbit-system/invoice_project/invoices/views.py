@@ -3787,19 +3787,9 @@ def generate_student_form_link(request):
     if level not in ('intermediate', 'professional', 'advanced'):
         level = 'intermediate'
     notes_raw = request.POST.get('notes', '').strip()
-    # Embed level in notes as a fallback for when migration 0061 hasn't been applied
-    notes_stored = f"{notes_raw}||LVL:{level}" if notes_raw else f"||LVL:{level}"
 
-    link = StudentFormLink.objects.create(
-        consultant=request.user,
-        consultant_name_locked=consultant_name,
-        notes=notes_stored,
-    )
+    # Build per-course prices before creating the link so they can be embedded in notes
     course_ids = request.POST.getlist('courses')
-    if course_ids:
-        link.pre_selected_courses.set(Course.objects.filter(id__in=course_ids))
-
-    # Save level and per-course discounted prices to StudentFormLinkConfig
     course_prices = {}
     for cid in course_ids:
         price_val = request.POST.get(f'price_{cid}', '').strip()
@@ -3809,6 +3799,21 @@ def generate_student_form_link(request):
                 course_prices[cid] = p
         except (ValueError, TypeError):
             pass
+
+    # Embed level + prices in notes as a fallback for when migration 0061 hasn't been applied
+    prices_json = _json.dumps(course_prices, separators=(',', ':'))
+    meta_suffix = f"||LVL:{level}||PRC:{prices_json}"
+    notes_stored = f"{notes_raw}{meta_suffix}" if notes_raw else meta_suffix
+
+    link = StudentFormLink.objects.create(
+        consultant=request.user,
+        consultant_name_locked=consultant_name,
+        notes=notes_stored,
+    )
+    if course_ids:
+        link.pre_selected_courses.set(Course.objects.filter(id__in=course_ids))
+
+    # Also save to StudentFormLinkConfig (primary; used when migration 0061 is applied)
     try:
         StudentFormLinkConfig.objects.create(
             link=link,
@@ -3839,11 +3844,19 @@ def student_self_register(request, token):
         config_level = cfg.level
         config_prices = cfg.get_course_prices()
     except Exception:
-        # Fallback: parse level from notes
+        # Fallback: parse level and prices from notes field (||LVL:xxx||PRC:{json})
+        import json as _json
         if link.notes and '||LVL:' in link.notes:
-            lvl = link.notes.split('||LVL:')[-1].strip()
-            if lvl in ('intermediate', 'professional', 'advanced'):
-                config_level = lvl
+            try:
+                meta = link.notes.split('||LVL:')[1]
+                lvl_part, *prc_parts = meta.split('||PRC:')
+                lvl = lvl_part.strip()
+                if lvl in ('intermediate', 'professional', 'advanced'):
+                    config_level = lvl
+                if prc_parts:
+                    config_prices = {int(k): float(v) for k, v in _json.loads(prc_parts[0]).items()}
+            except Exception:
+                pass
 
     LEVEL_LABELS = {'intermediate': 'Intermediate', 'professional': 'Professional', 'advanced': 'Advanced'}
 
@@ -3921,6 +3934,11 @@ def student_self_register(request, token):
                 link.save()
                 # Sync to CRM student list
                 sync_registration_to_crm(reg, consultant_username=link.consultant.username)
+                # Send welcome email to student
+                try:
+                    _send_welcome_email(reg, request)
+                except Exception:
+                    pass
                 # Notify consultant
                 try:
                     from .models import Notification
