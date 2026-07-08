@@ -1,259 +1,623 @@
 {% extends 'base_generic.html' %}
+{% load static %}
+{% block title %}New Corporate Registration{% endblock %}
+{% block breadcrumb_label %}
+  <a href="{% url 'corporate_dashboard' %}">Corporate</a> / <span class="current">New Registration</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.ff { position:relative; margin-bottom:16px; }
+.ff .ff-icon { position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;pointer-events:none;z-index:6; }
+.ff textarea ~ .ff-icon { top:20px;transform:none; }
+.ff.has-icon .form-control,.ff.has-icon .form-select { padding-left:38px; }
+.ff.has-icon .form-floating > label { padding-left:38px; }
+.form-floating > .form-control,.form-floating > .form-select { height:56px;padding-top:22px;padding-bottom:6px; }
+.form-floating > textarea.form-control { height:auto;min-height:80px;padding-top:26px; }
+.form-floating > label { padding-top:14px;font-size:14px;color:var(--text-muted);transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.form-floating > .form-control:focus ~ label,
+.form-floating > .form-control:not(:placeholder-shown) ~ label,
+.form-floating > .form-select ~ label { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--primary);padding-top:5px; }
+.field-error-msg { font-size:12px;color:#ef4444;margin-top:3px;display:flex;align-items:center;gap:5px;font-weight:600; }
+.req { color:#ef4444; }
+.sec-head { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);border-bottom:1px solid var(--border);padding-bottom:6px;margin:6px 0 18px; }
+.course-entry { background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:16px 16px 16px 28px;margin-bottom:10px;position:relative;transition:border-color .2s; }
+.course-entry:hover { border-color:var(--primary); }
+.course-entry-num { position:absolute;left:-12px;top:16px;width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center; }
+.btn-del-course { position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:8px;border:none;background:rgba(239,68,68,.1);color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px; }
+.btn-del-course:hover { background:#ef4444;color:#fff; }
+.btn-add-course { border:1.5px dashed var(--primary);background:rgba(37,99,235,.05);color:var(--primary);border-radius:10px;padding:10px;font-size:13px;font-weight:600;width:100%;transition:all .2s;cursor:pointer; }
+.btn-add-course:hover { background:var(--primary);color:#fff; }
+.course-label { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px;display:block; }
+.price-card { background:linear-gradient(135deg,#0f1b2d,#1a2d47);border-radius:16px;padding:22px;color:#fff; }
+.price-row-i { display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.09);font-size:13px; }
+.price-row-i:last-child { border-bottom:none; }
+.price-row-i.grand { font-size:19px;font-weight:800;border-top:1px solid rgba(255,255,255,.2);padding-top:12px; }
+.pl { color:rgba(255,255,255,.65); }
+.field-invalid .form-control,.field-invalid .form-select { border:2px dashed #ef4444!important;border-radius:8px!important;background:rgba(239,68,68,.04)!important; }
+</style>
+{% endblock %}
 
 {% block content %}
-{% load custom_filters %}
-<h2>Corporate Registration Form</h2>
-<form method="post" id="corporateRegistrationForm">
-    {% csrf_token %}
-    
-    <!-- Corporate Information -->
-    <div class="card mb-3">
-        <div class="card-header">
-            <h3>Corporate Information</h3>
-        </div>
-        <div class="card-body">
-            {{ corporate_form.as_p }}
-            {{ registration_form.as_p }}
-        </div>
-    </div>
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <div class="page-title"><i class="fas fa-building me-2 text-primary"></i>New Corporate Registration</div>
+    <div class="page-subtitle">Register a company and assign courses for attendees</div>
+  </div>
+  <a href="{% url 'corporate_dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Corporate List</a>
+</div>
 
-    <!-- Course Selection -->
-    <div class="card mb-3">
-        <div class="card-header">
-            <h3>Course Selection</h3>
-        </div>
-        <div class="card-body">
-            <div id="courseFormset">
-                {{ formset.management_form }}
-                {% for form in formset %}
-                    <div class="course-form mb-3">
-                        <div class="form-group">
-                            {{ form.course.label_tag }}
-                            {{ form.course|add_required_attribute }}
-                        </div>
-                        <div class="form-group">
-                            {{ form.discount.label_tag }}
-                            <div class="input-group">
-                                {{ form.discount|add_required_attribute }}
-                                <button type="button" class="btn btn-outline-secondary validate-coupon">Validate Coupon</button>
-                            </div>
-                            <small class="form-text text-muted">Enter discount % (max 20) or coupon code</small>
-                            <div class="coupon-message mt-1"></div>
-                        </div>
-                        <div class="course-price"></div>
-                        {% if not forloop.first %}
-                            <button type="button" class="btn btn-danger btn-sm delete-course">Delete Course</button>
-                        {% endif %}
-                    </div>
-                {% endfor %}
+{% if registration_form.errors or corporate_form.errors or formset.errors %}
+<div class="d-flex align-items-start gap-3 mb-4" style="background:rgba(239,68,68,.08);border:1.5px solid rgba(239,68,68,.3);border-radius:12px;padding:14px 18px;">
+  <i class="fas fa-circle-exclamation" style="font-size:22px;color:#ef4444;flex-shrink:0;margin-top:2px;"></i>
+  <div>
+    <div style="font-weight:700;color:#ef4444;font-size:14px;">Please fix the following before submitting</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;line-height:1.9;">
+      {% for field in corporate_form %}{% if field.errors %}<span><strong>{{ field.label }}</strong>: {{ field.errors.0 }}</span><br>{% endif %}{% endfor %}
+      {% for field in registration_form %}{% if field.errors %}<span><strong>{{ field.label }}</strong>: {{ field.errors.0 }}</span><br>{% endif %}{% endfor %}
+      {% for fe in formset.errors %}{% if fe %}{% for k,v in fe.items %}<span><strong>Course — {{ k }}</strong>: {{ v.0 }}</span><br>{% endfor %}{% endif %}{% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<form method="post" id="corpForm" novalidate>
+{% csrf_token %}
+{{ formset.management_form }}
+<div class="row g-4">
+
+<!-- LEFT COLUMN -->
+<div class="col-xl-8">
+
+  <!-- ── COMPANY INFORMATION ── -->
+  <div class="form-section">
+    <div class="form-section-header">
+      <div class="form-section-icon"><i class="fas fa-building"></i></div>
+      <div>
+        <div class="form-section-title">Company Information</div>
+        <div style="font-size:12px;opacity:.7">Corporate entity details</div>
+      </div>
+    </div>
+    <div class="form-section-body">
+      <div class="row g-3">
+        <div class="col-md-6{% if corporate_form.company_name.errors %} field-invalid{% endif %}">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-building"></i>
+            <div class="form-floating">
+              {{ corporate_form.company_name }}
+              <label>Company Name <span class="req">*</span></label>
             </div>
-            <button type="button" id="addCourse" class="btn btn-secondary">Add Course</button>
+            {% if corporate_form.company_name.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ corporate_form.company_name.errors.0 }}</div>{% endif %}
+          </div>
         </div>
+        <div class="col-md-6{% if corporate_form.company_email.errors %} field-invalid{% endif %}">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-envelope"></i>
+            <div class="form-floating">
+              {{ corporate_form.company_email }}
+              <label>Company Email <span class="req">*</span></label>
+            </div>
+            {% if corporate_form.company_email.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ corporate_form.company_email.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-phone"></i>
+            <div class="form-floating">
+              {{ corporate_form.company_phone }}
+              <label>Company Phone</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-map-marker-alt"></i>
+            <div class="form-floating">
+              {{ corporate_form.company_location }}
+              <label>Company Location</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-home" style="top:20px;transform:none;"></i>
+            <div class="form-floating">
+              {{ corporate_form.company_address }}
+              <label>Company Address</label>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <!-- Invoicing Details -->
-    <div class="card mb-3">
-        <div class="card-header">
-            <h3>Invoicing Details</h3>
+  <!-- ── CONTACT PERSON / ATTENDEE ── -->
+  <div class="form-section">
+    <div class="form-section-header">
+      <div class="form-section-icon"><i class="fas fa-user-tie"></i></div>
+      <div>
+        <div class="form-section-title">Contact Person / Attendee</div>
+        <div style="font-size:12px;opacity:.7">Primary attendee personal details</div>
+      </div>
+    </div>
+    <div class="form-section-body">
+
+      <div class="sec-head">Name &amp; Contact</div>
+      <div class="row g-3">
+        <div class="col-md-6{% if registration_form.first_name.errors %} field-invalid{% endif %}">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-user"></i>
+            <div class="form-floating">
+              {{ registration_form.first_name }}
+              <label>First Name <span class="req">*</span></label>
+            </div>
+            {% if registration_form.first_name.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ registration_form.first_name.errors.0 }}</div>{% endif %}
+          </div>
         </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <p><strong>Total Course Price:</strong> <span id="totalCoursePrice">0.00</span></p>
-                    <p><strong>Total Discount:</strong> <span id="totalDiscount">0.00</span></p>
-                    <p><strong>Total VAT:</strong> <span id="totalVat">0.00</span></p>
-                    <p><strong>Grand Total:</strong> <span id="grandTotal">0.00</span></p>
+        <div class="col-md-6{% if registration_form.last_name.errors %} field-invalid{% endif %}">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-user"></i>
+            <div class="form-floating">
+              {{ registration_form.last_name }}
+              <label>Last Name <span class="req">*</span></label>
+            </div>
+            {% if registration_form.last_name.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ registration_form.last_name.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="col-md-6{% if registration_form.email.errors %} field-invalid{% endif %}">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-envelope"></i>
+            <div class="form-floating">
+              {{ registration_form.email }}
+              <label>Email Address <span class="req">*</span></label>
+            </div>
+            {% if registration_form.email.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ registration_form.email.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="col-md-6{% if registration_form.phone_no.errors %} field-invalid{% endif %}">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-phone"></i>
+            <div class="form-floating">
+              {{ registration_form.phone_no }}
+              <label>Phone Number <span class="req">*</span></label>
+            </div>
+            {% if registration_form.phone_no.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ registration_form.phone_no.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-phone-alt"></i>
+            <div class="form-floating">
+              {{ registration_form.alternative_no }}
+              <label>Alternative Number</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-birthday-cake"></i>
+            <div class="form-floating">
+              {{ registration_form.date_of_birth }}
+              <label>Date of Birth</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-head mt-3">Identification</div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-id-card"></i>
+            <div class="form-floating">{{ registration_form.emirates_id_no }}<label>Emirates ID</label></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-passport"></i>
+            <div class="form-floating">{{ registration_form.passport_no }}<label>Passport Number</label></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-fingerprint"></i>
+            <div class="form-floating">{{ registration_form.uid_no }}<label>UID Number</label></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-globe"></i>
+            <div class="form-floating">{{ registration_form.nationality }}<label>Nationality</label></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-graduation-cap"></i>
+            <div class="form-floating">{{ registration_form.education }}<label>Education Level</label></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-head mt-3">Address</div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-map-marker-alt"></i>
+            <div class="form-floating">{{ registration_form.emirates }}<label>Emirate</label></div>
+          </div>
+        </div>
+        <div class="col-md-6{% if registration_form.country.errors %} field-invalid{% endif %}">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-flag"></i>
+            <div class="form-floating">
+              {{ registration_form.country }}
+              <label>Country <span class="req">*</span></label>
+            </div>
+            {% if registration_form.country.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ registration_form.country.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-home" style="top:20px;transform:none;"></i>
+            <div class="form-floating">{{ registration_form.address }}<label>Full Address</label></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── REGISTRATION DETAILS ── -->
+  <div class="form-section">
+    <div class="form-section-header">
+      <div class="form-section-icon"><i class="fas fa-clipboard-list"></i></div>
+      <div>
+        <div class="form-section-title">Registration Details</div>
+        <div style="font-size:12px;opacity:.7">Class type, level and assignment</div>
+      </div>
+    </div>
+    <div class="form-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="form-floating">
+            {{ registration_form.class_type }}
+            <label>Class Type <span class="req">*</span></label>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-floating">
+            {{ registration_form.level }}
+            <label>Level</label>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-calendar"></i>
+            <div class="form-floating">
+              {{ registration_form.date }}
+              <label>Registration Date</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6{% if registration_form.consultant_name.errors %} field-invalid{% endif %}">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-user-tie"></i>
+            <div class="form-floating">
+              {{ registration_form.consultant_name }}
+              <label>Consultant <span class="req">*</span></label>
+            </div>
+            {% if registration_form.consultant_name.errors %}<div class="field-error-msg"><i class="fas fa-circle-exclamation"></i>{{ registration_form.consultant_name.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-building"></i>
+            <div class="form-floating">
+              {{ registration_form.company_or_university_name }}
+              <label>Dept / University (if applicable)</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="form-floating">
+            {{ registration_form.student_status }}
+            <label>Student Status</label>
+          </div>
+        </div>
+        <!-- CRM Lead Reference -->
+        <div class="col-12">
+          <div style="background:linear-gradient(135deg,rgba(37,99,235,.06),rgba(16,185,129,.04));border:1px solid rgba(37,99,235,.18);border-radius:12px;padding:16px 18px;">
+            <div class="d-flex align-items-center gap-2 mb-3">
+              <i class="fas fa-link" style="color:var(--primary);font-size:14px;"></i>
+              <span style="font-size:13px;font-weight:700;color:var(--primary);">CRM Lead Reference</span>
+              <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">— Optional, links this registration to a CRM sales lead</span>
+            </div>
+            <div class="row g-2 align-items-start">
+              <div class="col-md-4">
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;">CRM Lead #</label>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text" style="background:rgba(37,99,235,.06);border-color:rgba(37,99,235,.2);"><i class="fas fa-hashtag text-primary" style="font-size:11px;"></i></span>
+                  <input type="number" id="crm_lead_id" name="crm_lead_id" class="form-control" placeholder="Enter Lead ID (optional)" min="0" oninput="lookupCrmLead(this.value)" style="border-color:rgba(37,99,235,.2);">
+                  <button type="button" class="btn btn-outline-primary btn-sm" onclick="lookupCrmLead(document.getElementById('crm_lead_id').value)" title="Verify"><i class="fas fa-search" style="font-size:11px;"></i></button>
                 </div>
+              </div>
+              <div class="col-md-8">
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;">Lead Info</label>
+                <div id="crm_lead_info" style="min-height:31px;display:flex;align-items:center;padding:4px 10px;border-radius:8px;border:1px dashed rgba(100,116,139,.3);font-size:13px;color:var(--text-muted);">
+                  <span id="crm_lead_placeholder">Enter a Lead ID to verify and link the sale</span>
+                </div>
+              </div>
             </div>
+          </div>
         </div>
+      </div>
     </div>
+  </div>
 
-    <button type="submit" class="btn btn-primary">Submit Registration</button>
+  <!-- ── COURSE SELECTION ── -->
+  <div class="form-section">
+    <div class="form-section-header">
+      <div class="form-section-icon"><i class="fas fa-book-open"></i></div>
+      <div>
+        <div class="form-section-title">Course Selection</div>
+        <div style="font-size:12px;opacity:.7">Price auto-calculates from class type &amp; level</div>
+      </div>
+    </div>
+    <div class="form-section-body">
+      <div id="courseFormset" style="padding-left:14px;">
+        {% for course_form in formset %}
+        <div class="course-entry">
+          <div class="course-entry-num">{{ forloop.counter }}</div>
+          <div class="row g-3 align-items-start">
+            <div class="col-md-6">
+              <span class="course-label">Course <span class="req">*</span></span>
+              <select name="{{ course_form.course.html_name }}" class="form-select course-select" required>
+                <option value="">— Select course —</option>
+                {% for c in courses %}
+                <option value="{{ c.id }}"
+                  data-oo-intermediate="{{ c.oo_intermediate }}"
+                  data-oo-professional="{{ c.oo_professional }}"
+                  data-oo-advanced="{{ c.oo_advanced }}"
+                  data-priv-intermediate="{{ c.priv_intermediate }}"
+                  data-priv-professional="{{ c.priv_professional }}"
+                  data-priv-advanced="{{ c.priv_advanced }}">
+                  {{ c.name }}{% if c.code %} ({{ c.code }}){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <span class="course-label">Discount / Coupon</span>
+              <div class="input-group">
+                <input type="text" name="{{ course_form.discount.html_name }}" class="form-control discount-input" placeholder="0% or CODE" value="0">
+                <button type="button" class="btn btn-outline-secondary validate-coupon" title="Validate Coupon"><i class="fas fa-tag"></i></button>
+              </div>
+              <div class="coupon-msg mt-1"></div>
+              <div class="disc-cap-hint mt-1" style="font-size:11px;color:var(--text-muted);"></div>
+            </div>
+            <div class="col-md-2">
+              <span class="course-label">Price</span>
+              <div class="course-price-display" style="font-size:16px;font-weight:700;color:var(--primary);padding:8px 0;">AED 0</div>
+              <input type="hidden" name="{{ course_form.price.html_name }}" value="0" class="price-hidden">
+            </div>
+          </div>
+          {% if forloop.counter > 1 %}
+          <button type="button" class="btn-del-course" title="Remove"><i class="fas fa-times"></i></button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <button type="button" id="addCourse" class="btn-add-course mt-2"><i class="fas fa-plus-circle me-2"></i>Add Another Course</button>
+    </div>
+  </div>
+
+</div><!-- /col-xl-8 -->
+
+<!-- RIGHT COLUMN -->
+<div class="col-xl-4" style="position:sticky;top:80px;align-self:flex-start;">
+  <div class="price-card mb-4">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.5);margin-bottom:18px;">Invoice Summary</div>
+    <div class="price-row-i"><span class="pl">Subtotal</span><span id="pc-sub">AED 0.00</span></div>
+    <div class="price-row-i"><span class="pl">Discount</span><span id="pc-disc" style="color:#fbbf24;">— AED 0.00</span></div>
+    <div class="price-row-i"><span class="pl">After Discount</span><span id="pc-after">AED 0.00</span></div>
+    <div class="price-row-i"><span class="pl">VAT (5%)</span><span id="pc-vat" style="color:#6ee7b7;">AED 0.00</span></div>
+    <div class="price-row-i grand"><span class="pl">Grand Total</span><span id="pc-grand">AED 0.00</span></div>
+    <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:14px;line-height:1.5;">
+      Discount cap: 20% for 1 course, 30% for 2+ courses.<br>
+      All prices include 5% VAT.
+    </div>
+  </div>
+  <button type="submit" class="btn btn-primary w-100" style="height:50px;font-size:15px;font-weight:700;border-radius:12px;">
+    <i class="fas fa-building me-2"></i>Create Corporate Registration
+  </button>
+  <a href="{% url 'corporate_dashboard' %}" class="btn btn-outline-secondary w-100 mt-2">Cancel</a>
+</div>
+
+</div><!-- /row -->
 </form>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const courseFormset = document.getElementById('courseFormset');
-    const addCourseButton = document.getElementById('addCourse');
-    const totalCoursePriceSpan = document.getElementById('totalCoursePrice');
-    const totalVatSpan = document.getElementById('totalVat');
-    const totalDiscountSpan = document.getElementById('totalDiscount');
-    const grandTotalSpan = document.getElementById('grandTotal');
+const COURSES_DATA = {};
+{% for c in courses %}
+COURSES_DATA[{{ c.id }}] = {
+  oo_intermediate:   {{ c.oo_intermediate|default:0 }},
+  oo_professional:   {{ c.oo_professional|default:0 }},
+  oo_advanced:       {{ c.oo_advanced|default:0 }},
+  priv_intermediate: {{ c.priv_intermediate|default:0 }},
+  priv_professional: {{ c.priv_professional|default:0 }},
+  priv_advanced:     {{ c.priv_advanced|default:0 }},
+};
+{% endfor %}
 
-    function validateCoupon(discountInput, validateButton) {
-        const code = discountInput.value.trim();
-        const messageDiv = discountInput.closest('.form-group').querySelector('.coupon-message');
-        
-        if (!code || !isNaN(code)) {
-            messageDiv.innerHTML = '';
-            return;
-        }
-        
-        fetch(`/validate-coupon/?code=${encodeURIComponent(code)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.valid) {
-                    discountInput.value = data.discount;
-                    discountInput.setAttribute('data-coupon-applied', 'true');
-                    messageDiv.innerHTML = '<span class="text-success">✓ Coupon applied: ' + data.discount + '% discount</span>';
-                    updatePrices();
-                } else {
-                    messageDiv.innerHTML = '<span class="text-danger">✗ Invalid coupon code</span>';
-                    discountInput.setAttribute('data-coupon-applied', 'false');
-                }
-            });
+function getClassType() {
+  const el = document.querySelector('select[name="class_type"]') || document.querySelector('select[id$="_class_type"]');
+  return el ? el.value : '';
+}
+function getLevel() {
+  const el = document.querySelector('select[name="level"]') || document.querySelector('select[id$="_level"]');
+  return el ? el.value || 'intermediate' : 'intermediate';
+}
+function getCoursePrice(courseId) {
+  if (!courseId || !COURSES_DATA[courseId]) return 0;
+  const d   = COURSES_DATA[courseId];
+  const ct  = getClassType();
+  const lv  = getLevel() || 'intermediate';
+  const pfx = (ct === 'private') ? 'priv' : 'oo';
+  return parseFloat(d[`${pfx}_${lv}`]) || 0;
+}
+function getDiscountCap() {
+  const entries = document.querySelectorAll('.course-entry');
+  return entries.length >= 2 ? 30 : 20;
+}
+function updatePrices() {
+  let sub = 0, disc = 0;
+  const cap = getDiscountCap();
+  document.querySelectorAll('.course-entry').forEach(e => {
+    const sel  = e.querySelector('.course-select');
+    const di   = e.querySelector('.discount-input');
+    const ph   = e.querySelector('.price-hidden');
+    const disp = e.querySelector('.course-price-display');
+    const hint = e.querySelector('.disc-cap-hint');
+    if (!sel || !sel.value) return;
+    const base = getCoursePrice(sel.value);
+    let pct = parseFloat(di?.value) || 0;
+    if (!isNaN(pct) && di?.dataset.couponApplied !== 'true' && pct > cap) {
+      pct = cap;
+      if (di) di.value = cap;
     }
+    const after = base * (1 - pct / 100);
+    sub  += base;
+    disc += base - after;
+    if (ph)   ph.value = after.toFixed(2);
+    if (disp) disp.textContent = 'AED ' + after.toLocaleString('en-AE', {minimumFractionDigits:2,maximumFractionDigits:2});
+    if (hint) hint.textContent = `Max discount: ${cap}%`;
+  });
+  const after = sub - disc;
+  const vat   = after * 0.05;
+  const grand = after + vat;
+  document.getElementById('pc-sub').textContent   = 'AED ' + sub.toFixed(2);
+  document.getElementById('pc-disc').textContent  = '— AED ' + disc.toFixed(2);
+  document.getElementById('pc-after').textContent = 'AED ' + after.toFixed(2);
+  document.getElementById('pc-vat').textContent   = 'AED ' + vat.toFixed(2);
+  document.getElementById('pc-grand').textContent = 'AED ' + grand.toFixed(2);
+  // Renumber entries
+  document.querySelectorAll('.course-entry-num').forEach((n,i) => n.textContent = i+1);
+}
 
-    function updatePrices() {
-        let courseprice = 0;
-        let totalCoursePrice = 0;
-        let totalVat = 0;
-        let totalDiscount = 0;
+function attachEntry(entry) {
+  const sel = entry.querySelector('.course-select');
+  const di  = entry.querySelector('.discount-input');
+  const vb  = entry.querySelector('.validate-coupon');
+  const del = entry.querySelector('.btn-del-course');
 
-        document.querySelectorAll('.course-form').forEach(function(courseForm) {
-            const courseSelect = courseForm.querySelector('select[name$="-course"]');
-            const discountInput = courseForm.querySelector('input[name$="-discount"]');
-            const coursePriceDiv = courseForm.querySelector('.course-price');
+  if (sel) sel.addEventListener('change', updatePrices);
+  if (di)  di.addEventListener('input', () => {
+    if (!isNaN(di.value)) { di.dataset.couponApplied = 'false'; entry.querySelector('.coupon-msg').innerHTML = ''; }
+    updatePrices();
+  });
+  if (di)  di.addEventListener('blur', () => {
+    if (di.dataset.couponApplied === 'true' || isNaN(di.value)) return;
+    const v = parseFloat(di.value) || 0;
+    const cap = getDiscountCap();
+    if (v > cap) { di.value = cap; updatePrices(); }
+  });
+  if (vb) vb.addEventListener('click', () => validateCoupon(di, entry.querySelector('.coupon-msg')));
+  if (del) del.addEventListener('click', () => {
+    entry.remove();
+    reindexEntries();
+    updatePrices();
+  });
+}
 
-            if (courseSelect && courseSelect.value) {
-                const selectedOption = courseSelect.options[courseSelect.selectedIndex];
-                const price = parseFloat(selectedOption.getAttribute('data-rate') || 0);
-                const discountValue = discountInput.value.trim();
-                let discount = 0;
-                
-                if (!isNaN(discountValue)) {
-                    discount = parseFloat(discountValue) || 0;
-                    if (discountInput.getAttribute('data-coupon-applied') !== 'true' && discount > 20) {
-                        discount = 20;
-                        discountInput.value = 20;
-                    }
-                }
+function reindexEntries() {
+  const total = document.querySelector('[name$=TOTAL_FORMS]');
+  const entries = document.querySelectorAll('.course-entry');
+  if (total) total.value = entries.length;
+  entries.forEach((e, i) => {
+    e.querySelectorAll('input,select').forEach(el => {
+      if (el.name) el.name = el.name.replace(/form-\d+-/, `form-${i}-`);
+      if (el.id)   el.id   = el.id.replace(/form-\d+-/, `form-${i}-`);
+    });
+  });
+}
 
-                const discountedPrice = price * (1 - discount / 100);
-                courseprice += price;
-                totalCoursePrice += discountedPrice;
-                totalVat += discountedPrice * 0.05;
-                totalDiscount += price * discount / 100;
-
-                if (coursePriceDiv) {
-                    coursePriceDiv.textContent = `Course Price: ${discountedPrice.toFixed(2)}`;
-                }
-            }
-        });
-
-        const grandTotal = totalCoursePrice + totalVat;
-
-        if (totalCoursePriceSpan) totalCoursePriceSpan.textContent = courseprice.toFixed(2);
-        if (totalVatSpan) totalVatSpan.textContent = totalVat.toFixed(2);
-        if (totalDiscountSpan) totalDiscountSpan.textContent = totalDiscount.toFixed(2);
-        if (grandTotalSpan) grandTotalSpan.textContent = grandTotal.toFixed(2);
-    }
-
-    function addCourseForm() {
-        const formCount = document.querySelector('[name$=TOTAL_FORMS]');
-        if (!formCount) {
-            console.error('TOTAL_FORMS input not found');
-            return;
-        }
-        const newIndex = parseInt(formCount.value);
-        formCount.value = newIndex + 1;
-
-        const templateForm = courseFormset.querySelector('.course-form');
-        if (!templateForm) {
-            console.error('Template course form not found');
-            return;
-        }
-        const newForm = templateForm.cloneNode(true);
-        newForm.innerHTML = newForm.innerHTML.replace(/-(\d+)-/g, `-${newIndex}-`);
-        
-        newForm.querySelectorAll('input, select').forEach(input => {
-            input.value = '';
-            input.id = input.id.replace(/-\d+-/, `-${newIndex}-`);
-            input.name = input.name.replace(/-\d+-/, `-${newIndex}-`);
-            if (input.name.includes('discount')) {
-                input.removeAttribute('data-coupon-applied');
-            }
-        });
-        newForm.querySelector('.coupon-message').innerHTML = '';
-
-        // Add delete button to the new form
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.className = 'btn btn-danger btn-sm delete-course';
-        deleteButton.textContent = 'Delete Course';
-        newForm.appendChild(deleteButton);
-
-        courseFormset.appendChild(newForm);
-        attachEventListeners(newForm);
+function validateCoupon(di, msgDiv) {
+  const code = (di?.value || '').trim();
+  if (!code || !isNaN(code)) return;
+  fetch(`/validate-coupon/?code=${encodeURIComponent(code)}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.valid) {
+        di.value = data.discount;
+        di.dataset.couponApplied = 'true';
+        msgDiv.innerHTML = `<span class="text-success" style="font-size:11px;">✓ ${data.discount}% coupon applied</span>`;
         updatePrices();
-    }
+      } else {
+        msgDiv.innerHTML = `<span class="text-danger" style="font-size:11px;">✗ Invalid coupon code</span>`;
+        di.dataset.couponApplied = 'false';
+      }
+    });
+}
 
-    function attachEventListeners(form) {
-        const courseSelect = form.querySelector('select[name$="-course"]');
-        const discountInput = form.querySelector('input[name$="-discount"]');
-        const deleteButton = form.querySelector('.delete-course');
-        const validateButton = form.querySelector('.validate-coupon');
+document.getElementById('addCourse').addEventListener('click', () => {
+  const total = document.querySelector('[name$=TOTAL_FORMS]');
+  const idx = document.querySelectorAll('.course-entry').length;
+  if (total) total.value = idx + 1;
 
-        if (courseSelect) {
-            courseSelect.addEventListener('change', function() {
-                const selectedOption = this.options[this.selectedIndex];
-                const coursePriceDiv = form.querySelector('.course-price');
-                if (coursePriceDiv) {
-                    const price = parseFloat(selectedOption.getAttribute('data-rate') || 0);
-                    coursePriceDiv.textContent = `Course Price: ${price.toFixed(2)}`;
-                }
-                updatePrices();
-            });
-        }
-        if (discountInput) {
-            discountInput.addEventListener('input', function() {
-                if (!isNaN(this.value.trim())) {
-                    this.removeAttribute('data-coupon-applied');
-                    this.closest('.form-group').querySelector('.coupon-message').innerHTML = '';
-                }
-                updatePrices();
-            });
-        }
-        if (validateButton) {
-            validateButton.addEventListener('click', function() {
-                validateCoupon(discountInput, validateButton);
-            });
-        }
-        if (deleteButton) deleteButton.addEventListener('click', deleteCourseForm);
-    }
-
-    function deleteCourseForm(event) {
-        const courseForm = event.target.closest('.course-form');
-        if (courseForm) {
-            courseForm.remove();
-            updateFormIndexes();
-            updatePrices();
-        }
-    }
-
-    function updateFormIndexes() {
-        const formCount = document.querySelector('[name$=TOTAL_FORMS]');
-        const courseForms = document.querySelectorAll('.course-form');
-        formCount.value = courseForms.length;
-
-        courseForms.forEach((form, index) => {
-            form.querySelectorAll('input, select').forEach(input => {
-                input.id = input.id.replace(/-\d+-/, `-${index}-`);
-                input.name = input.name.replace(/-\d+-/, `-${index}-`);
-            });
-        });
-    }
-
-    if (addCourseButton) {
-        addCourseButton.addEventListener('click', addCourseForm);
-    } else {
-        console.error('Add Course button not found');
-    }
-
-    // Attach event listeners to all forms
-    document.querySelectorAll('.course-form').forEach(attachEventListeners);
-
-    updatePrices();  // Initial update
+  const tpl = document.querySelector('.course-entry');
+  const clone = tpl.cloneNode(true);
+  clone.querySelectorAll('input,select').forEach(el => {
+    if (el.name) el.name = el.name.replace(/form-\d+-/, `form-${idx}-`);
+    if (el.id)   el.id   = el.id.replace(/form-\d+-/, `form-${idx}-`);
+    if (el.tagName === 'INPUT') el.value = el.classList.contains('discount-input') ? '0' : '';
+    if (el.tagName === 'SELECT') el.selectedIndex = 0;
+    el.removeAttribute('data-coupon-applied');
+  });
+  clone.querySelectorAll('.coupon-msg,.disc-cap-hint').forEach(d => d.innerHTML = '');
+  clone.querySelector('.course-price-display').textContent = 'AED 0';
+  // Ensure delete button exists
+  if (!clone.querySelector('.btn-del-course')) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn-del-course'; b.title = 'Remove';
+    b.innerHTML = '<i class="fas fa-times"></i>';
+    clone.appendChild(b);
+  }
+  document.getElementById('courseFormset').appendChild(clone);
+  attachEntry(clone);
+  updatePrices();
 });
+
+// class_type / level change updates all prices
+document.querySelectorAll('select[name="class_type"],select[name="level"]').forEach(s => {
+  if (s) s.addEventListener('change', updatePrices);
+});
+// also by ID pattern for form-floating selects
+document.querySelectorAll('select').forEach(s => {
+  if ((s.id||'').includes('class_type') || (s.id||'').includes('level')) {
+    s.addEventListener('change', updatePrices);
+  }
+});
+
+document.querySelectorAll('.course-entry').forEach(attachEntry);
+updatePrices();
+
+// CRM lead lookup
+function lookupCrmLead(val) {
+  const box = document.getElementById('crm_lead_info');
+  if (!val || val < 1) { box.innerHTML = '<span id="crm_lead_placeholder">Enter a Lead ID to verify and link the sale</span>'; return; }
+  box.innerHTML = '<i class="fas fa-spinner fa-spin me-2" style="font-size:11px;color:var(--primary);"></i>Looking up lead #'+val+'…';
+  fetch(`/api/crm-lead/${val}/`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.name) {
+        box.innerHTML = `<span style="color:#10b981;font-weight:600;"><i class="fas fa-check-circle me-1"></i>${d.name}</span><span style="color:var(--text-muted);font-size:12px;margin-left:8px;">${d.company||''}</span>`;
+      } else {
+        box.innerHTML = '<span style="color:#ef4444;font-size:12px;"><i class="fas fa-times-circle me-1"></i>Lead not found</span>';
+      }
+    })
+    .catch(() => { box.innerHTML = '<span style="color:#ef4444;font-size:12px;">Could not reach CRM</span>'; });
+}
 </script>
 {% endblock %}

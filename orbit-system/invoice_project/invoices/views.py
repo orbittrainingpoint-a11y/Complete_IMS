@@ -1542,43 +1542,81 @@ def get_invoice_details(request):
         return JsonResponse({'error': 'Registration not found'}, status=404)
 
 
+@login_required
 def corporate_registration(request):
-    RegistrationCourseFormSet = inlineformset_factory(
-        Registration, 
-        RegistrationCourse, 
-        form=RegistrationCourseForm,
-        extra=1, 
-        can_delete=True
-    )
+    RegistrationCourseFormSet = formset_factory(RegistrationCourseForm, extra=1)
 
     if request.method == 'POST':
         registration_form = CorporateRegistrationForm(request.POST, user=request.user)
-        corporate_form = CorporateDetailsForm(request.POST)
-        formset = RegistrationCourseFormSet(request.POST)
-        
-        if registration_form.is_valid() and corporate_form.is_valid() and formset.is_valid():
-            
-            registration = registration_form.save(commit=False)
-            registration.registration_type = 'OC'  # Set the registration type to 'OC' for corporate
-            registration.save()
-            
-            corporate = corporate_form.save(commit=False)
-            corporate.registration = registration
-            corporate.save()
-            
-            formset.instance = registration
-            formset.save()
-            
-            return redirect('corporate_dashboard')
-    else:
-        registration_form = CorporateRegistrationForm(initial={'registration_type': 'OC'}, user=request.user)
-        corporate_form = CorporateDetailsForm()
-        formset = RegistrationCourseFormSet()
+        corporate_form    = CorporateDetailsForm(request.POST)
+        formset           = RegistrationCourseFormSet(request.POST, prefix='form')
 
+        if registration_form.is_valid() and corporate_form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                registration = registration_form.save(commit=False)
+                registration.registration_type = 'OC'
+                registration.save()
+
+                corporate = corporate_form.save(commit=False)
+                corporate.registration = registration
+                corporate.save()
+
+                valid_forms = [
+                    f for f in formset
+                    if f.cleaned_data and not f.cleaned_data.get('DELETE', False) and f.cleaned_data.get('course')
+                ]
+                base_cap = Decimal('30') if len(valid_forms) >= 2 else Decimal('20')
+                for cf in valid_forms:
+                    course   = cf.cleaned_data['course']
+                    discount = min(cf.cleaned_data.get('discount') or Decimal('0'), base_cap)
+                    price    = cf.cleaned_data.get('price', Decimal('0')) or Decimal('0')
+                    RegistrationCourse.objects.create(
+                        registration=registration, course=course, discount=discount, price=price,
+                    )
+
+                # Save CRM lead link if provided
+                crm_lead_id = request.POST.get('crm_lead_id', '').strip()
+                if crm_lead_id and crm_lead_id.isdigit():
+                    _save_reg_crm_link(registration.pk, int(crm_lead_id), request.user.username)
+
+                # Sync to CRM
+                sync_registration_to_crm(registration, consultant_username=request.user.username)
+
+                # Notify admins
+                try:
+                    admin_users = User.objects.filter(
+                        profile__role__in=['admin', 'accounts', 'sales_manager']
+                    ).exclude(id=request.user.id)
+                    corp_name = corporate.company_name
+                    student_name = f"{registration.first_name} {registration.last_name}"
+                    for admin in admin_users:
+                        Notification.objects.create(
+                            recipient=admin,
+                            notif_type='registration_new',
+                            title=f"New Corporate Registration: {corp_name}",
+                            message=f"{student_name} ({registration.registration_number}) registered under {corp_name}.",
+                            link="/corporate_dashboard/"
+                        )
+                except Exception:
+                    pass
+
+                # Welcome email
+                _send_welcome_email(registration)
+
+            return redirect('corporate_dashboard')
+        else:
+            pass  # fall through to re-render with errors
+    else:
+        registration_form = CorporateRegistrationForm(user=request.user)
+        corporate_form    = CorporateDetailsForm()
+        formset           = RegistrationCourseFormSet(prefix='form')
+
+    courses = Course.objects.all()
     return render(request, 'studentregistration/corporate_registration.html', {
         'registration_form': registration_form,
-        'corporate_form': corporate_form,
-        'formset': formset,
+        'corporate_form':    corporate_form,
+        'formset':           formset,
+        'courses':           courses,
     })
 
 @login_required
@@ -1645,25 +1683,26 @@ def print_corporate_registration(request, pk):
 
     course_details = []
     for rc in registration_courses:
-        course_fee = rc.course.rate
-        discount_amount = course_fee * (rc.discount / 100)
-        discounted_price = course_fee - discount_amount
-        course_vat = discounted_price * Decimal('0.05')
+        # Use stored price (rc.price) — falls back to course.rate for legacy records
+        base_price      = rc.price if rc.price else rc.course.rate
+        discount_amount = base_price * (rc.discount / 100)
+        discounted_price = base_price - discount_amount
+        course_vat   = discounted_price * Decimal('0.05')
         course_total = discounted_price + course_vat
 
         course_details.append({
             'name': rc.course.name,
-            'rate': course_fee,
+            'rate': base_price,
             'discount': rc.discount,
             'discount_amount': discount_amount,
             'vat': course_vat,
-            'total': course_total
+            'total': course_total,
         })
 
-        total_course_fee += course_fee
-        total_discount += discount_amount
-        total_vat += course_vat
-        grand_total += course_total
+        total_course_fee += base_price
+        total_discount   += discount_amount
+        total_vat        += course_vat
+        grand_total      += course_total
 
     context = {
         'registration': registration,
@@ -1680,72 +1719,72 @@ def print_corporate_registration(request, pk):
 @login_required
 def edit_corporate_registration(request, pk):
     registration = get_object_or_404(Registration, pk=pk, registration_type='OC')
-    
+
     try:
         corporate_details = registration.corporate_details
     except CorporateRegistration.DoesNotExist:
         corporate_details = CorporateRegistration(registration=registration)
 
-    RegistrationCourseFormSet = inlineformset_factory(
-        Registration, 
-        RegistrationCourse, 
-        form=RegistrationCourseForm,
-        extra=1, 
-        can_delete=True
-    )
-
     if request.method == 'POST':
-        registration_form = CorporateRegistrationForm(request.POST, instance=registration)
-        corporate_form = CorporateDetailsForm(request.POST, instance=corporate_details)
-        formset = RegistrationCourseFormSet(request.POST, instance=registration)
-        
+        registration_form = CorporateRegistrationForm(request.POST, instance=registration, user=request.user)
+        corporate_form    = CorporateDetailsForm(request.POST, instance=corporate_details)
+        formset           = formset_factory(RegistrationCourseForm, extra=0)(request.POST, prefix='form')
+
         if registration_form.is_valid() and corporate_form.is_valid() and formset.is_valid():
             try:
                 with transaction.atomic():
-                    registration = registration_form.save()
-                    registration.registration_type = 'OC'
-                    registration.save()
-                    
-                    corporate_details = corporate_form.save(commit=False)
-                    corporate_details.registration = registration
-                    corporate_details.save()
-                    
-                    # Handle the formset manually
-                    for form in formset:
-                        if form.cleaned_data.get('DELETE'):
-                            if form.instance.pk:
-                                form.instance.delete()
-                        else:
-                            course = form.cleaned_data.get('course')
-                            discount = form.cleaned_data.get('discount')
-                            if course:
-                                RegistrationCourse.objects.update_or_create(
-                                    registration=registration,
-                                    course=course,
-                                    defaults={'discount': discount}
-                                )
-                
+                    reg = registration_form.save(commit=False)
+                    reg.registration_type = 'OC'
+                    reg.save()
+
+                    corp = corporate_form.save(commit=False)
+                    corp.registration = reg
+                    corp.save()
+
+                    # Re-apply discount cap on edit
+                    valid_forms = [
+                        f for f in formset
+                        if f.cleaned_data and not f.cleaned_data.get('DELETE', False) and f.cleaned_data.get('course')
+                    ]
+                    base_cap = Decimal('30') if len(valid_forms) >= 2 else Decimal('20')
+                    seen = set()
+                    for cf in valid_forms:
+                        course   = cf.cleaned_data['course']
+                        discount = min(cf.cleaned_data.get('discount') or Decimal('0'), base_cap)
+                        price    = cf.cleaned_data.get('price', Decimal('0')) or Decimal('0')
+                        RegistrationCourse.objects.update_or_create(
+                            registration=reg, course=course,
+                            defaults={'discount': discount, 'price': price},
+                        )
+                        seen.add(course.pk)
+                    # Remove courses that were deleted
+                    for cf in formset:
+                        if cf.cleaned_data.get('DELETE') and cf.cleaned_data.get('course'):
+                            RegistrationCourse.objects.filter(
+                                registration=reg, course=cf.cleaned_data['course']
+                            ).delete()
+
                 messages.success(request, "Corporate registration updated successfully.")
-                return redirect('corporate_dashboard')
+                return redirect('corporate_invoice_detail', registration_id=reg.pk)
             except Exception as e:
                 messages.error(request, f"An error occurred: {str(e)}")
-                print(f"Error: {str(e)}")
         else:
             messages.error(request, "Please correct the errors below.")
-            
-            print("Registration Form Errors:", registration_form.errors)
-            print("Corporate Form Errors:", corporate_form.errors)
-            print("Formset Errors:", formset.errors)
     else:
-        registration_form = CorporateRegistrationForm(instance=registration)
-        corporate_form = CorporateDetailsForm(instance=corporate_details)
-        formset = RegistrationCourseFormSet(instance=registration)
+        registration_form = CorporateRegistrationForm(instance=registration, user=request.user)
+        corporate_form    = CorporateDetailsForm(instance=corporate_details)
+        existing = registration.registration_courses.all()
+        initial  = [{'course': rc.course, 'discount': rc.discount, 'price': rc.price} for rc in existing]
+        EditFormSet = formset_factory(RegistrationCourseForm, extra=0, can_delete=True)
+        formset = EditFormSet(prefix='form', initial=initial)
 
+    courses = Course.objects.all()
     context = {
         'registration_form': registration_form,
-        'corporate_form': corporate_form,
-        'formset': formset,
-        'registration': registration,
+        'corporate_form':    corporate_form,
+        'formset':           formset,
+        'registration':      registration,
+        'courses':           courses,
     }
     return render(request, 'studentregistration/edit_corporate_registration.html', context)
 

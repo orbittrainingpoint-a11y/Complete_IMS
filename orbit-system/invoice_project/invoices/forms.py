@@ -341,17 +341,40 @@ class RegistrationCourseForm(forms.ModelForm):
 class CorporateRegistrationForm(forms.ModelForm):
     class Meta:
         model = Registration
-        fields = ['country','consultant_name']
+        fields = [
+            'first_name', 'last_name', 'email', 'phone_no', 'alternative_no',
+            'date_of_birth', 'passport_no', 'uid_no', 'emirates_id_no',
+            'nationality', 'education', 'emirates', 'country', 'address',
+            'company_or_university_name', 'class_type', 'level', 'date',
+            'consultant_name', 'student_status',
+        ]
+        _p = ' '
         widgets = {
-
-            'country': forms.TextInput(attrs={'class': 'form-control'}),
-            'consultant_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'class_type':   forms.Select(attrs={'class': 'form-select'}),
+            'level':        forms.Select(attrs={'class': 'form-select'}),
+            'student_status': forms.Select(attrs={'class': 'form-select'}),
+            'date':         forms.DateInput(attrs={'type': 'date', 'class': 'form-control', 'placeholder': _p}),
+            'date_of_birth': forms.DateInput(attrs={'type': 'date', 'class': 'form-control', 'placeholder': _p}),
+            'first_name':   forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'last_name':    forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'passport_no':  forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'uid_no':       forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'emirates_id_no': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'nationality':  forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'education':    forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'phone_no':     forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'alternative_no': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'email':        forms.EmailInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'emirates':     forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'country':      forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'address':      forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': _p}),
+            'company_or_university_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'consultant_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
         }
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        # Pre-fill the consultant_name field with the user's username
         if user:
             self.fields['consultant_name'].initial = user.username
 
@@ -359,12 +382,13 @@ class CorporateDetailsForm(forms.ModelForm):
     class Meta:
         model = CorporateRegistration
         fields = ['company_name', 'company_address', 'company_location', 'company_phone', 'company_email']
+        _p = ' '
         widgets = {
-            'company_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'company_address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'company_location': forms.TextInput(attrs={'class': 'form-control'}),
-            'company_phone': forms.TextInput(attrs={'class': 'form-control'}),
-            'company_email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'company_name':     forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'company_address':  forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': _p}),
+            'company_location': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'company_phone':    forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'company_email':    forms.EmailInput(attrs={'class': 'form-control', 'placeholder': _p}),
         }
 
 RegistrationCourseFormSet = inlineformset_factory(
