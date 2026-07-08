@@ -3738,7 +3738,16 @@ def approve_company_portal(request, pk):
 def student_form_links(request):
     """List and manage student form links for the logged-in consultant."""
     from .models import StudentFormLink
-    links = StudentFormLink.objects.filter(consultant=request.user).order_by('-created_at')
+    links = list(StudentFormLink.objects.filter(consultant=request.user).order_by('-created_at'))
+    # Safely attach config to each link so template never touches the reverse descriptor
+    # (avoids OperationalError if migration hasn't been applied yet)
+    try:
+        from .models import StudentFormLinkConfig
+        cfg_map = {c.link_id: c for c in StudentFormLinkConfig.objects.filter(link_id__in=[l.pk for l in links])}
+    except Exception:
+        cfg_map = {}
+    for lnk in links:
+        lnk.link_config = cfg_map.get(lnk.pk)
     courses = Course.objects.all().order_by('name')
     return render(request, 'portal/student_form_links.html', {'links': links, 'courses': courses})
 
