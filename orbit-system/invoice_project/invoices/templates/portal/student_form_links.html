@@ -213,19 +213,20 @@ function makeCourseRow(removable) {
     const wrap = document.createElement('div');
     wrap.className = 'course-row';
 
-    // Inner layout: [select flex-1] [auto price badge] [discount] [final] [remove]
+    // Inner layout: [select] [List price] [Discount %] [Final price] [remove]
     wrap.innerHTML = `
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <select class="form-select course-dd" style="flex:1;min-width:160px;"></select>
-        <div class="d-flex align-items-center gap-1 auto-price-wrap" style="display:none!important;">
+        <div class="d-flex align-items-center gap-1 auto-price-wrap" style="display:none;">
           <span class="auto-price-badge">List:</span>
           <span class="auto-price-val" style="font-size:12px;color:rgba(255,255,255,.75);font-family:monospace;white-space:nowrap;min-width:80px;">—</span>
         </div>
-        <div class="d-flex align-items-center gap-1 discount-wrap" style="display:none!important;">
-          <span style="font-size:11px;color:#fbbf24;white-space:nowrap;">Discount AED</span>
-          <input type="number" min="0" step="0.01" placeholder="0" class="sm-input discount-in" style="width:80px;">
+        <div class="d-flex align-items-center gap-1 discount-wrap" style="display:none;">
+          <span style="font-size:11px;color:#fbbf24;white-space:nowrap;">Disc %</span>
+          <input type="number" min="0" max="100" step="0.1" placeholder="0" class="sm-input discount-in" style="width:64px;">
+          <span style="font-size:11px;color:#fbbf24;">%</span>
         </div>
-        <div class="d-flex align-items-center gap-1 final-wrap" style="display:none!important;">
+        <div class="d-flex align-items-center gap-1 final-wrap" style="display:none;">
           <span style="font-size:11px;color:rgba(255,255,255,.45);white-space:nowrap;">Final:</span>
           <span class="final-price-val" style="font-size:12px;color:#34d399;font-weight:700;font-family:monospace;white-space:nowrap;min-width:80px;">—</span>
         </div>
@@ -272,8 +273,8 @@ function makeCourseRow(removable) {
 
     function recalcFinal() {
         const auto = parseFloat(sel.dataset.autoPrice) || 0;
-        const disc = parseFloat(discIn.value) || 0;
-        const fin  = Math.max(0, auto - disc);
+        const pct  = Math.min(100, Math.max(0, parseFloat(discIn.value) || 0));
+        const fin  = Math.max(0, auto * (1 - pct / 100));
         finalV.textContent = fmtAED(fin);
         sel.dataset.finalPrice = fin;
         updatePreview();
@@ -320,11 +321,13 @@ function updatePreview() {
         const sel = r.querySelector('.course-dd');
         const cid = sel && sel.value;
         if (!cid) return;
-        const auto = parseFloat(sel.dataset.autoPrice) || 0;
-        const fin  = parseFloat(sel.dataset.finalPrice);
-        const disc = auto - (isNaN(fin) ? auto : fin);
-        const opt  = sel.options[sel.selectedIndex];
-        items.push({ name: opt ? opt.textContent : '?', auto, disc, fin: isNaN(fin) ? auto : fin });
+        const auto  = parseFloat(sel.dataset.autoPrice) || 0;
+        const fin   = parseFloat(sel.dataset.finalPrice);
+        const finV  = isNaN(fin) ? auto : fin;
+        const disc  = auto - finV;
+        const pct   = auto > 0 ? ((disc / auto) * 100) : 0;
+        const opt   = sel.options[sel.selectedIndex];
+        items.push({ name: opt ? opt.textContent : '?', auto, disc, fin: finV, pct });
     });
 
     const preview = document.getElementById('pricePreview');
@@ -340,12 +343,13 @@ function updatePreview() {
         tr.innerHTML = `
           <td>${it.name}</td>
           <td class="num">${fmtAED(it.auto)}</td>
-          <td class="num discount-col">${it.disc > 0 ? '− ' + fmtAED(it.disc) : '—'}</td>
+          <td class="num discount-col">${it.disc > 0 ? it.pct.toFixed(1) + '% (−' + fmtAED(it.disc) + ')' : '—'}</td>
           <td class="num final-col">${fmtAED(it.fin)}</td>`;
         tbody.appendChild(tr);
     });
     document.getElementById('prevTotalOrig').textContent  = fmtAED(totOrig);
-    document.getElementById('prevTotalDisc').textContent  = totDisc > 0 ? '− ' + fmtAED(totDisc) : '—';
+    const totalPct = totOrig > 0 ? ((totDisc / totOrig) * 100).toFixed(1) : '0';
+    document.getElementById('prevTotalDisc').textContent  = totDisc > 0 ? totalPct + '% (−' + fmtAED(totDisc) + ')' : '—';
     document.getElementById('prevTotalFinal').textContent = fmtAED(totFin);
 }
 

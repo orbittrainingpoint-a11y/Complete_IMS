@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welcome Letter — {{ registration_number }}</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#f1f5f9; font-family:'Segoe UI', Arial, sans-serif; }
+
+/* Print button bar — hidden when printing */
+.print-bar {
+    background:linear-gradient(135deg,#0f1b2d,#1a2d47);
+    padding:12px 24px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+}
+.print-bar .brand { color:#fff; font-size:13px; font-weight:700; opacity:.8; }
+.btn-print {
+    background:#2563eb; color:#fff; border:none;
+    padding:9px 22px; border-radius:8px; font-size:14px; font-weight:700;
+    cursor:pointer; display:flex; align-items:center; gap:8px;
+    text-decoration:none;
+}
+.btn-print:hover { background:#1d4ed8; }
+
+/* Letter page */
+.page {
+    max-width:720px;
+    margin:24px auto 40px;
+    background:#fff;
+    box-shadow:0 4px 32px rgba(0,0,0,.12);
+}
+
+/* Letterhead */
+.letterhead {
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    padding:28px 44px 18px;
+    border-bottom:3px solid #1e40af;
+}
+.lh-logo img { height:52px; width:auto; object-fit:contain; }
+.lh-logo-text { font-size:28px; font-weight:900; color:#1e40af; letter-spacing:2px; }
+.lh-contact { text-align:right; font-size:11px; color:#475569; line-height:1.8; }
+.lh-contact strong { display:block; font-size:14px; font-weight:800; color:#1e40af; margin-bottom:2px; }
+
+/* Document meta */
+.doc-meta { padding:20px 44px 0; }
+.doc-meta p { font-size:13px; color:#1e293b; margin-bottom:5px; }
+.doc-title {
+    font-size:15px; font-weight:800; text-decoration:underline;
+    color:#1e293b; margin-top:6px; display:block; text-transform:uppercase;
+    letter-spacing:.5px;
+}
+
+/* Letter body */
+.letter-body { padding:20px 44px; font-size:13px; color:#1e293b; line-height:1.8; }
+.letter-body p { margin-bottom:14px; }
+
+/* Details table */
+.detail-section { margin:20px 0 24px; }
+.detail-section > strong { font-size:13px; font-weight:700; display:block; margin-bottom:10px; text-decoration:underline; }
+.detail-table { width:100%; border-collapse:collapse; }
+.detail-table td { padding:8px 4px; font-size:13px; vertical-align:top; border-bottom:1px solid #f1f5f9; }
+.detail-table tr:last-child td { border-bottom:none; }
+.detail-table .lbl { font-weight:700; width:200px; color:#1e293b; }
+.detail-table .val { color:#374151; padding-left:16px; }
+
+/* Course fee table */
+.fee-table { width:100%; border-collapse:collapse; margin-top:6px; }
+.fee-table th { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#64748b; padding:7px 4px; border-bottom:2px solid #e2e8f0; text-align:left; }
+.fee-table th:last-child { text-align:right; }
+.fee-table td { font-size:13px; color:#1e293b; padding:9px 4px; border-bottom:1px solid #f1f5f9; }
+.fee-table td:last-child { text-align:right; font-weight:700; color:#2563eb; }
+.fee-table tr:last-child td { border-bottom:none; }
+
+/* Signature */
+.signature { padding:16px 44px 24px; }
+.sig-line { width:180px; border-top:1px solid #1e293b; margin-top:36px; margin-bottom:6px; }
+.sig-name { font-size:13px; font-weight:700; color:#1e293b; }
+.sig-title { font-size:12px; color:#64748b; }
+
+/* Footer */
+.footer { border-top:2px solid #1e40af; background:#f8fafc; padding:14px 44px; }
+.footer p { font-size:11px; color:#64748b; line-height:1.8; }
+
+/* Print styles */
+@media print {
+    body { background:#fff; }
+    .print-bar { display:none !important; }
+    .page { box-shadow:none; margin:0; max-width:100%; }
+    @page { margin:18mm 16mm; }
+}
+</style>
+</head>
+<body>
+
+<!-- Print bar (hidden when printing) -->
+<div class="print-bar">
+    <div class="brand">&#x1F4C4; Welcome Letter — {{ registration_number }}</div>
+    <button class="btn-print" onclick="window.print()">
+        &#x1F5A8; Print / Save as PDF
+    </button>
+</div>
+
+<!-- Letter -->
+<div class="page">
+
+    <!-- Letterhead -->
+    <div class="letterhead">
+        <div class="lh-logo">
+            {% if logo_data_uri %}
+            <img src="{{ logo_data_uri }}" alt="Orbit Training Centre">
+            {% else %}
+            <div class="lh-logo-text">ORBIT TRAINING</div>
+            {% endif %}
+        </div>
+        <div class="lh-contact">
+            <strong>Orbit Training Centre</strong>
+            Max Orbit Education and Training Computer Software<br>
+            211, Pinnacle Sheikh Zayed Road, Al Barsha 1, Dubai, UAE<br>
+            Email: HR@orbittraining.ae &nbsp;|&nbsp; Tel: +971-582274991<br>
+            Website: orbittraining.ae
+        </div>
+    </div>
+
+    <!-- Document Meta -->
+    <div class="doc-meta">
+        <p><strong>Date:</strong> {{ registration_date }}</p>
+        <span class="doc-title">Welcome Letter</span>
+    </div>
+
+    <!-- Letter Body -->
+    <div class="letter-body">
+        <p>Dear {{ first_name }} {{ last_name }},</p>
+
+        <p>We are delighted to welcome you to <strong>Orbit Training Centre, Dubai</strong>. Your registration has been successfully processed and we look forward to supporting your professional growth journey. Please find your registration details below for your records.</p>
+
+        <!-- Registration Details -->
+        <div class="detail-section">
+            <strong>Registration Details</strong>
+            <table class="detail-table">
+                <tr>
+                    <td class="lbl">Registration No.:</td>
+                    <td class="val" style="color:#2563eb;font-weight:800;">{{ registration_number }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Student Name:</td>
+                    <td class="val">{{ first_name }} {{ last_name }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Mode of Training:</td>
+                    <td class="val">{{ class_type|capfirst }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Registration Date:</td>
+                    <td class="val">{{ registration_date }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Course & Fee Details -->
+        <div class="detail-section">
+            <strong>Course Enrollment &amp; Fees</strong>
+            {% if reg_courses %}
+            <table class="fee-table">
+                <thead>
+                    <tr><th>Course</th><th>Fee (AED)</th></tr>
+                </thead>
+                <tbody>
+                {% for rc in reg_courses %}
+                <tr>
+                    <td>{{ rc.course.name }}</td>
+                    <td>{{ rc.price|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            {% for course in courses %}
+            <div style="padding:7px 4px;border-bottom:1px solid #f1f5f9;font-size:13px;">{{ course }}</div>
+            {% endfor %}
+            {% endif %}
+        </div>
+
+        <p>Our team will contact you shortly to confirm your course schedule, classroom details or online session link, and any required course materials. Kindly ensure you bring a valid form of identification for your first session.</p>
+
+        <p>Should you have any questions, please do not hesitate to contact us at <strong>training@orbittraining.ae</strong> or call <strong>+971-582274991</strong>. We are here to support you every step of the way.</p>
+
+        <p><em>We wish you a rewarding and successful learning experience at Orbit Training Centre.</em></p>
+
+        <p>Sincerely,</p>
+    </div>
+
+    <!-- Signature -->
+    <div class="signature">
+        <div class="sig-line"></div>
+        <div class="sig-name"><strong>Mukesh Raiya</strong></div>
+        <div class="sig-title">Centre Manager — Orbit Training Centre</div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>
+            Orbit Training Centre &nbsp;|&nbsp; 211, Pinnacle Sheikh Zayed Road, Al Barsha 1, Dubai, UAE<br>
+            Email: HR@orbittraining.ae &nbsp;|&nbsp; Tel: +971-582274991 &nbsp;|&nbsp; Website: orbittraining.ae
+        </p>
+    </div>
+
+</div>
+</body>
+</html>

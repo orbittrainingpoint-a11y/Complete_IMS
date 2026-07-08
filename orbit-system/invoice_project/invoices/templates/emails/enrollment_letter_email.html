@@ -56,8 +56,12 @@
   <!-- Letterhead -->
   <div class="letterhead">
     <div class="lh-logo">
+      {% if logo_data_uri %}
+      <img src="{{ logo_data_uri }}" alt="Orbit Training Centre" style="height:48px;width:auto;object-fit:contain;">
+      {% else %}
       <div class="logo-orbit"><span class="ring"></span>RBIT</div>
       <div class="logo-sub">Training Center</div>
+      {% endif %}
     </div>
     <div class="lh-contact">
       <strong>Orbit Training Centre</strong>

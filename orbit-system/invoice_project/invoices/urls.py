@@ -105,6 +105,7 @@ urlpatterns = [
     path('portal/student-links/', views.student_form_links, name='student_form_links'),
     path('portal/student-links/generate/', views.generate_student_form_link, name='generate_student_form_link'),
     path('portal/student/<str:token>/', views.student_self_register, name='student_self_register'),
+    path('portal/welcome-letter/<int:pk>/', views.welcome_letter_printable, name='welcome_letter_printable'),
     # Student status update
     path('student/<int:pk>/status/', views.update_student_status, name='update_student_status'),
     # Bulk invoice actions

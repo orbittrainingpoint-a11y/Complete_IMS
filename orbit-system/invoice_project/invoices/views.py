@@ -1200,7 +1200,7 @@ def registration_form(request):
                 pass
 
             # Send welcome email to student
-            _send_welcome_email(registration)
+            _send_welcome_email(registration, request)
 
             return redirect('student_dashboard')
         else:
@@ -1869,7 +1869,7 @@ def corporate_add_candidate(request, pk):
                     except Exception:
                         pass
 
-                    _send_welcome_email(reg)
+                    _send_welcome_email(reg, request)
 
                 messages.success(request, f"Candidate {reg.first_name} {reg.last_name} added successfully.")
                 return redirect('corporate_company_detail', pk=company.pk)
@@ -3842,6 +3842,7 @@ def student_self_register(request, token):
     courses_locked = bool(pre_courses)
     error = None
     success = False
+    reg = None
 
     if request.method == 'POST':
         first_name   = request.POST.get('first_name', '').strip()
@@ -3917,7 +3918,19 @@ def student_self_register(request, token):
                     )
                 except Exception:
                     pass
+                # Send welcome email
+                _send_welcome_email(reg, request)
                 success = True
+
+    # For success screen: show enrolled courses with prices
+    success_courses = []
+    letter_url = ''
+    if success and reg is not None:
+        try:
+            success_courses = list(reg.registration_courses.select_related('course').all())
+        except Exception:
+            pass
+        letter_url = request.build_absolute_uri(f'/portal/welcome-letter/{reg.pk}/')
 
     return render(request, 'portal/student_self_register.html', {
         'link': link,
@@ -3928,6 +3941,9 @@ def student_self_register(request, token):
         'error': error,
         'success': success,
         'crm_lead_id': crm_lead_id,
+        'success_courses': success_courses,
+        'success_reg': reg,
+        'letter_url': letter_url,
     })
 
 
@@ -4439,7 +4455,27 @@ def fee_reminder_dashboard(request):
     })
 
 
-def _send_welcome_email(registration):
+def _logo_data_uri():
+    """Return Orbit logo as base64 data URI for use in emails."""
+    import base64, os
+    from django.conf import settings as _s
+    paths = [
+        os.path.join(_s.BASE_DIR, 'invoices', 'static', 'Orbit-Logo-1.png'),
+        os.path.join(_s.BASE_DIR, 'invoice_project', 'static', 'Orbit-Logo-1.png'),
+        os.path.join(_s.BASE_DIR, 'static', 'images', 'Orbit-Logo-1.png'),
+    ]
+    for p in paths:
+        if os.path.exists(p):
+            try:
+                with open(p, 'rb') as f:
+                    data = base64.b64encode(f.read()).decode()
+                return f"data:image/png;base64,{data}"
+            except Exception:
+                pass
+    return ''
+
+
+def _send_welcome_email(registration, request=None):
     """Send a welcome email to a newly registered student."""
     from django.core.mail import EmailMultiAlternatives
     from django.template.loader import render_to_string
@@ -4447,15 +4483,25 @@ def _send_welcome_email(registration):
     if not registration.email:
         return
     courses = list(registration.courses.values_list('name', flat=True))
+    # Course details with prices for the email
+    reg_courses = list(registration.registration_courses.select_related('course').all())
+    # Printable letter URL
+    if request:
+        letter_url = request.build_absolute_uri(f'/portal/welcome-letter/{registration.pk}/')
+    else:
+        letter_url = ''
     ctx = {
-        'first_name':        registration.first_name,
-        'last_name':         registration.last_name,
+        'first_name':          registration.first_name,
+        'last_name':           registration.last_name,
         'registration_number': registration.registration_number,
-        'class_type':        registration.class_type,
-        'registration_date': registration.date.strftime('%d %B %Y') if registration.date else '',
-        'courses':           courses,
+        'class_type':          registration.class_type,
+        'registration_date':   registration.date.strftime('%d %B %Y') if registration.date else '',
+        'courses':             courses,
+        'reg_courses':         reg_courses,
+        'logo_data_uri':       _logo_data_uri(),
+        'letter_url':          letter_url,
     }
-    subject  = f"Welcome to Orbit Training Centre, {registration.first_name}!"
+    subject   = f"Welcome to Orbit Training Centre, {registration.first_name}!"
     html_body = render_to_string('emails/welcome_email.html', ctx)
     text_body = (
         f"Dear {registration.first_name} {registration.last_name},\n\n"
@@ -4471,6 +4517,24 @@ def _send_welcome_email(registration):
         msg.send(fail_silently=True)
     except Exception:
         pass
+
+
+def welcome_letter_printable(request, pk):
+    """Public printable welcome letter page — no login required."""
+    registration = get_object_or_404(Registration, pk=pk)
+    courses = list(registration.courses.values_list('name', flat=True))
+    reg_courses = list(registration.registration_courses.select_related('course').all())
+    ctx = {
+        'first_name':          registration.first_name,
+        'last_name':           registration.last_name,
+        'registration_number': registration.registration_number,
+        'class_type':          registration.class_type,
+        'registration_date':   registration.date.strftime('%d %B %Y') if registration.date else '',
+        'courses':             courses,
+        'reg_courses':         reg_courses,
+        'logo_data_uri':       _logo_data_uri(),
+    }
+    return render(request, 'portal/welcome_letter_printable.html', ctx)
 
 
 @login_required
@@ -4535,6 +4599,7 @@ def send_enrollment_letter(request, pk):
         'trainer':        trainer,
         'fee_paid':       f"{float(fee_paid):,.2f}",
         'payment_status': payment_status,
+        'logo_data_uri':  _logo_data_uri(),
     }
     subject   = f"Enrollment Confirmation Letter — {registration.registration_number}"
     html_body = render_to_string('emails/enrollment_letter_email.html', ctx)

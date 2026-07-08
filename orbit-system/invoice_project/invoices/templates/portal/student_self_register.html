@@ -52,8 +52,32 @@ body { background:var(--bg); font-family:'Segoe UI',system-ui,sans-serif; min-he
 <div class="success-box">
     <i class="fas fa-check-circle fa-3x mb-3" style="color:#10b981;"></i>
     <h3 style="font-weight:800;">Registration Submitted!</h3>
-    <p style="color:#334155;margin:12px 0;">Your registration has been received. Your consultant will contact you shortly with course details.</p>
-    <div style="font-size:13px;color:var(--muted);"><i class="fas fa-envelope me-1"></i>A confirmation will be sent to your email.</div>
+    {% if success_reg %}
+    <div style="font-size:12px;color:#64748b;margin:8px 0 4px;">Registration No.</div>
+    <div style="font-size:18px;font-weight:800;color:#2563eb;margin-bottom:14px;">{{ success_reg.registration_number }}</div>
+    {% endif %}
+
+    {% if success_courses %}
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 auto 16px;max-width:420px;text-align:left;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;margin-bottom:10px;">Your Enrolled Courses</div>
+        {% for rc in success_courses %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">
+            <span style="color:#1e293b;font-weight:600;">{{ rc.course.name }}</span>
+            <span style="color:#2563eb;font-weight:700;font-family:monospace;">AED {{ rc.price|floatformat:2 }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <p style="color:#334155;margin:0 0 12px;">Your consultant will contact you shortly to confirm your schedule.</p>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;"><i class="fas fa-envelope me-1"></i>A welcome email has been sent to your inbox.</div>
+
+    {% if letter_url %}
+    <a href="{{ letter_url }}" target="_blank"
+       style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;text-decoration:none;padding:11px 24px;border-radius:10px;font-weight:700;font-size:14px;">
+        <i class="fas fa-print"></i> Print Welcome Letter (PDF)
+    </a>
+    {% endif %}
 </div>
 {% else %}
 

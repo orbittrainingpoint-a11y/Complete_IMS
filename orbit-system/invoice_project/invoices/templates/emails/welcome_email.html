@@ -7,33 +7,35 @@
 <style>
   body { margin:0; padding:0; background:#f1f5f9; font-family:'Segoe UI',Arial,sans-serif; }
   .wrapper { max-width:600px; margin:32px auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.08); }
-  .header { background:linear-gradient(135deg,#1e3a8a,#2563eb); padding:0; }
-  .header-top { padding:28px 36px 20px; display:flex; align-items:center; gap:16px; }
-  .header-brand { font-size:26px; font-weight:900; color:#ffffff; letter-spacing:1px; }
-  .header-brand span { color:#93c5fd; }
-  .header-tagline { font-size:12px; color:rgba(255,255,255,0.7); margin-top:2px; letter-spacing:.5px; text-transform:uppercase; }
-  .header-wave { background:#1e40af; height:4px; }
-  .hero { background:linear-gradient(135deg,#1e3a8a,#2563eb); padding:24px 36px 40px; text-align:center; }
-  .hero-icon { width:72px; height:72px; background:rgba(255,255,255,0.15); border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin-bottom:16px; }
-  .hero-title { font-size:24px; font-weight:800; color:#ffffff; margin-bottom:6px; }
-  .hero-sub { font-size:14px; color:rgba(255,255,255,0.8); }
-  .body { padding:36px; }
+  .header { background:linear-gradient(135deg,#1e3a8a,#2563eb); padding:28px 36px 32px; text-align:center; }
+  .header img { height:52px; width:auto; object-fit:contain; }
+  .header-tagline { font-size:11px; color:rgba(255,255,255,0.65); margin-top:10px; letter-spacing:.6px; text-transform:uppercase; }
+  .hero-title { font-size:22px; font-weight:800; color:#ffffff; margin-top:16px; }
+  .hero-sub { font-size:13px; color:rgba(255,255,255,0.8); margin-top:4px; }
+  .body { padding:32px 36px; }
   .greeting { font-size:17px; color:#1e293b; font-weight:700; margin-bottom:10px; }
   .intro { font-size:14px; color:#475569; line-height:1.7; margin-bottom:24px; }
-  .card-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:20px 24px; margin-bottom:24px; }
+  .card-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:20px 24px; margin-bottom:20px; }
   .card-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#94a3b8; margin-bottom:12px; }
   .detail-row { display:flex; padding:7px 0; border-bottom:1px solid #f1f5f9; font-size:13px; }
   .detail-row:last-child { border-bottom:none; }
-  .detail-label { color:#64748b; width:140px; flex-shrink:0; }
+  .detail-label { color:#64748b; width:150px; flex-shrink:0; }
   .detail-value { color:#1e293b; font-weight:600; }
-  .course-pill { display:inline-block; background:#dbeafe; color:#1e40af; border-radius:20px; padding:4px 12px; font-size:12px; font-weight:600; margin:3px 4px 3px 0; }
+  /* Course table */
+  .course-table { width:100%; border-collapse:collapse; margin-top:4px; }
+  .course-table th { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#94a3b8; padding:6px 0; border-bottom:1px solid #e2e8f0; text-align:left; }
+  .course-table th:last-child { text-align:right; }
+  .course-table td { font-size:13px; color:#1e293b; padding:8px 0; border-bottom:1px solid #f1f5f9; }
+  .course-table td:last-child { text-align:right; font-weight:700; color:#2563eb; }
+  .course-table tr:last-child td { border-bottom:none; }
   .highlight-box { background:linear-gradient(135deg,#eff6ff,#dbeafe); border:1px solid #bfdbfe; border-radius:10px; padding:16px 20px; margin-bottom:24px; }
   .highlight-box p { font-size:13px; color:#1e40af; line-height:1.6; margin:0; }
   .divider { border:none; border-top:1px solid #e2e8f0; margin:24px 0; }
-  .contact-row { display:flex; gap:24px; flex-wrap:wrap; margin-bottom:24px; }
+  .contact-row { display:flex; gap:20px; flex-wrap:wrap; margin-bottom:24px; }
   .contact-item { display:flex; align-items:center; gap:8px; font-size:13px; color:#475569; }
-  .contact-icon { width:30px; height:30px; border-radius:8px; background:#dbeafe; display:flex; align-items:center; justify-content:center; font-size:13px; color:#2563eb; flex-shrink:0; }
-  .closing { font-size:14px; color:#1e293b; line-height:1.7; font-style:italic; }
+  .contact-icon { width:28px; height:28px; border-radius:8px; background:#dbeafe; display:inline-flex; align-items:center; justify-content:center; font-size:12px; color:#2563eb; flex-shrink:0; }
+  .print-btn { display:inline-block; background:linear-gradient(135deg,#2563eb,#1d4ed8); color:#ffffff !important; text-decoration:none; font-size:14px; font-weight:700; padding:13px 28px; border-radius:10px; margin:8px 0 24px; letter-spacing:.3px; }
+  .print-note { font-size:12px; color:#94a3b8; margin-bottom:20px; }
   .footer { background:#1e293b; padding:20px 36px; text-align:center; }
   .footer p { font-size:11px; color:#94a3b8; line-height:1.6; margin:0; }
   .footer a { color:#60a5fa; text-decoration:none; }
@@ -42,21 +44,16 @@
 <body>
 <div class="wrapper">
 
-  <!-- Header -->
+  <!-- Header with logo -->
   <div class="header">
-    <div class="header-top">
-      <div>
-        <div class="header-brand">ORBIT <span>TRAINING</span></div>
-        <div class="header-tagline">Training Centre · Dubai, UAE</div>
-      </div>
-    </div>
-    <div class="hero">
-      <div class="hero-icon">
-        <svg width="34" height="34" fill="none" viewBox="0 0 24 24"><path d="M12 3l9 4.5-9 4.5-9-4.5L12 3z" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M3 7.5v5M21 7.5v5M12 12l9-4.5M12 12l-9-4.5" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/><path d="M7 14.5v3l5 2.5 5-2.5v-3" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>
-      </div>
-      <div class="hero-title">Welcome, {{ first_name }}!</div>
-      <div class="hero-sub">You are officially part of the Orbit Training Centre family.</div>
-    </div>
+    {% if logo_data_uri %}
+    <img src="{{ logo_data_uri }}" alt="Orbit Training Centre">
+    {% else %}
+    <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:2px;">ORBIT TRAINING</div>
+    {% endif %}
+    <div class="header-tagline">Training &amp; Professional Development · Dubai, UAE</div>
+    <div class="hero-title">Welcome, {{ first_name }}!</div>
+    <div class="hero-sub">You are officially part of the Orbit Training Centre family.</div>
   </div>
 
   <!-- Body -->
@@ -85,14 +82,30 @@
         <span class="detail-label">Registration Date</span>
         <span class="detail-value">{{ registration_date }}</span>
       </div>
-      <div class="detail-row">
-        <span class="detail-label">Course(s) Enrolled</span>
-        <span class="detail-value">
-          {% for course in courses %}
-          <span class="course-pill">{{ course }}</span>
-          {% endfor %}
-        </span>
-      </div>
+    </div>
+
+    <!-- Course & Fee Details -->
+    <div class="card-box">
+      <div class="card-title">Course Enrollment &amp; Fees</div>
+      {% if reg_courses %}
+      <table class="course-table">
+        <thead>
+          <tr><th>Course</th><th style="text-align:right;">Fee (AED)</th></tr>
+        </thead>
+        <tbody>
+        {% for rc in reg_courses %}
+        <tr>
+          <td>{{ rc.course.name }}</td>
+          <td>{{ rc.price|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      {% for course in courses %}
+      <div style="font-size:13px;color:#1e293b;padding:6px 0;border-bottom:1px solid #f1f5f9;">{{ course }}</div>
+      {% endfor %}
+      {% endif %}
     </div>
 
     <!-- Next Steps -->
@@ -101,6 +114,13 @@
         <strong>What's next?</strong> Our team will contact you shortly to confirm your course schedule, classroom details or online session link, and any required materials. Please keep your phone and email accessible.
       </p>
     </div>
+
+    <!-- Print Letter Button -->
+    {% if letter_url %}
+    <p style="font-size:13px;color:#334155;margin-bottom:10px;">You can download or print your official Welcome Letter as a PDF:</p>
+    <a href="{{ letter_url }}" class="print-btn">&#x1F4C4; Open &amp; Print Welcome Letter</a>
+    <p class="print-note">Opens in your browser — use <strong>File → Print → Save as PDF</strong> to save a copy.</p>
+    {% endif %}
 
     <hr class="divider">
 
@@ -121,7 +141,7 @@
       </div>
     </div>
 
-    <p class="closing">
+    <p style="font-size:14px;color:#1e293b;line-height:1.7;font-style:italic;">
       Welcome to Orbit Training Centre. We wish you a rewarding and successful learning experience!
     </p>
   </div>
