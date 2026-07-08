@@ -608,18 +608,7 @@
             <div style="font-size:11px;opacity:.6;margin-bottom:4px;">Class Type</div>
             <div id="ctDisplay" style="font-size:14px;font-weight:700;color:#93c5fd;">—</div>
         </div>
-        <!-- T&C checkbox -->
-        <div style="margin-top:18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px 14px;">
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:0;">
-            <input type="checkbox" id="tcCheckStudent" style="width:16px;height:16px;flex-shrink:0;margin-top:2px;accent-color:#2563eb;cursor:pointer;" required>
-            <span style="font-size:12px;color:rgba(255,255,255,.75);line-height:1.6;">
-              I have read and agree to the
-              <a href="#" data-bs-toggle="modal" data-bs-target="#tcModal" style="color:#93c5fd;font-weight:600;text-decoration:underline;" onclick="return false;">Terms &amp; Conditions</a>
-              of Orbit Training Centre.
-            </span>
-          </label>
-        </div>
-        <button type="submit" id="submitBtn" class="btn btn-primary w-100 mt-3" style="padding:14px;font-size:15px;font-weight:700;border-radius:12px;" disabled>
+        <button type="submit" id="submitBtn" class="btn btn-primary w-100 mt-3" style="padding:14px;font-size:15px;font-weight:700;border-radius:12px;margin-top:18px !important;">
             <i class="fas fa-check-circle me-2"></i>Submit &amp; Register
         </button>
     </div>
@@ -629,63 +618,6 @@
 </div><!-- /row -->
 </form>
 
-<!-- ── TERMS & CONDITIONS MODAL ── -->
-<div class="modal fade" id="tcModal" tabindex="-1">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header" style="background:#1e40af;">
-        <h5 class="modal-title text-white"><i class="fas fa-file-contract me-2"></i>Terms &amp; Conditions — Orbit Training Centre</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body" style="font-size:13px;line-height:1.9;color:#1e293b;">
-
-        <p style="color:#64748b;font-size:12px;margin-bottom:20px;">Please read the following terms carefully before enrolling at Orbit Training Centre.</p>
-
-        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">1. Enrollment &amp; Registration</h6>
-        <p>Enrollment is confirmed only upon receipt of the registration form and payment of the required fees. Orbit Training Centre reserves the right to accept or reject any registration at its sole discretion. Students are required to provide accurate personal information at the time of registration.</p>
-
-        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">2. Payment Terms</h6>
-        <p>All course fees must be paid in full prior to or on the first day of training, unless a term payment plan has been agreed in writing. Fees are quoted in UAE Dirhams (AED) and are subject to 5% VAT as per UAE Federal Tax Authority regulations. Orbit Training Centre reserves the right to revise fees with prior notice.</p>
-
-        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">3. Cancellation &amp; Refund Policy</h6>
-        <p>Cancellations made <strong>7 or more days</strong> before the course start date are eligible for a full refund or transfer to another course. Cancellations made <strong>within 7 days</strong> of the start date are non-refundable. No-shows on the day of training forfeit the full course fee. Transfers to another intake are subject to availability and must be requested in writing.</p>
-
-        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">4. Attendance &amp; Conduct</h6>
-        <p>A minimum attendance of 80% is required to receive a certificate of completion. Students are expected to conduct themselves professionally and respectfully toward trainers and fellow participants. Orbit Training Centre reserves the right to dismiss any student whose behaviour is deemed disruptive or inappropriate, without refund.</p>
-
-        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">5. Course Modifications</h6>
-        <p>Orbit Training Centre reserves the right to modify course content, schedule, trainer, or delivery mode (classroom/online) with reasonable prior notice. In the event of course cancellation by Orbit Training Centre, a full refund or transfer will be offered.</p>
-
-        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">6. Certification</h6>
-        <p>Certificates are issued only to students who meet the minimum attendance requirement and successfully complete any required assessments. Certificates remain the intellectual property of Orbit Training Centre and are issued solely for the benefit of the enrolled student.</p>
-
-        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">7. Confidentiality &amp; Data Privacy</h6>
-        <p>Personal information collected during registration is used solely for administrative and training purposes. Orbit Training Centre will not share your information with third parties without your consent, except where required by UAE law. By registering, you consent to receiving course-related communications from Orbit Training Centre.</p>
-
-        <h6 style="font-weight:700;color:#1e40af;margin-bottom:8px;">8. Liability</h6>
-        <p>Orbit Training Centre is not liable for any indirect, incidental, or consequential losses arising from training activities. Students are responsible for their own belongings on premises. The maximum liability of Orbit Training Centre shall not exceed the fees paid for the relevant course.</p>
-
-        <p style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;">
-          <strong>Orbit Training Centre</strong> — Max Orbit Education and Training Computer Software<br>
-          211, Pinnacle Sheikh Zayed Road, Al Barsha 1, Dubai, UAE<br>
-          Email: HR@orbittraining.ae &nbsp;|&nbsp; Website: orbittraining.ae
-        </p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal" onclick="document.getElementById('tcCheckStudent').checked=true;document.getElementById('submitBtn').disabled=false;">
-          <i class="fas fa-check me-1"></i>I Agree
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-document.getElementById('tcCheckStudent').addEventListener('change', function() {
-  document.getElementById('submitBtn').disabled = !this.checked;
-});
-</script>
 {% endblock %}
 
 {% block extra_js %}
