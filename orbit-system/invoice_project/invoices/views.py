@@ -3748,6 +3748,11 @@ def student_form_links(request):
         cfg_map = {}
     for lnk in links:
         lnk.link_config = cfg_map.get(lnk.pk)
+        # Strip hidden level metadata from display notes
+        if lnk.notes and '||LVL:' in lnk.notes:
+            lnk.display_notes = lnk.notes.split('||LVL:')[0].strip()
+        else:
+            lnk.display_notes = lnk.notes
     courses = list(Course.objects.all().order_by('name'))
     import json as _json
     course_price_data = {
@@ -3778,23 +3783,26 @@ def generate_student_form_link(request):
     import json as _json
 
     consultant_name = request.user.get_full_name() or request.user.username
+    level = request.POST.get('level', 'intermediate')
+    if level not in ('intermediate', 'professional', 'advanced'):
+        level = 'intermediate'
+    notes_raw = request.POST.get('notes', '').strip()
+    # Embed level in notes as a fallback for when migration 0061 hasn't been applied
+    notes_stored = f"{notes_raw}||LVL:{level}" if notes_raw else f"||LVL:{level}"
+
     link = StudentFormLink.objects.create(
         consultant=request.user,
         consultant_name_locked=consultant_name,
-        notes=request.POST.get('notes', ''),
+        notes=notes_stored,
     )
     course_ids = request.POST.getlist('courses')
     if course_ids:
         link.pre_selected_courses.set(Course.objects.filter(id__in=course_ids))
 
-    # Save level and per-course discounted prices
-    level = request.POST.get('level', 'intermediate')
-    if level not in ('intermediate', 'professional', 'advanced'):
-        level = 'intermediate'
+    # Save level and per-course discounted prices to StudentFormLinkConfig
     course_prices = {}
     for cid in course_ids:
-        price_key = f'price_{cid}'
-        price_val = request.POST.get(price_key, '').strip()
+        price_val = request.POST.get(f'price_{cid}', '').strip()
         try:
             p = float(price_val)
             if p > 0:
@@ -3808,7 +3816,7 @@ def generate_student_form_link(request):
             course_prices_json=_json.dumps(course_prices),
         )
     except Exception:
-        pass  # table may not exist if migration hasn't been applied yet
+        pass  # table may not exist until migration 0061 is applied
 
     full_url = request.build_absolute_uri(f'/portal/student/{link.token}/')
     return JsonResponse({'token': link.token, 'url': full_url})
@@ -3822,13 +3830,20 @@ def student_self_register(request, token):
         return render(request, 'portal/student_form_expired.html')
 
     # Load consultant config (level + per-course prices)
+    # Primary: StudentFormLinkConfig table (migration 0061)
+    # Fallback: level embedded in notes field as ||LVL:xxx
+    config_level = 'intermediate'
+    config_prices = {}
     try:
         cfg = link.config
         config_level = cfg.level
-        config_prices = cfg.get_course_prices()  # {course_id: price}
+        config_prices = cfg.get_course_prices()
     except Exception:
-        config_level = 'intermediate'
-        config_prices = {}
+        # Fallback: parse level from notes
+        if link.notes and '||LVL:' in link.notes:
+            lvl = link.notes.split('||LVL:')[-1].strip()
+            if lvl in ('intermediate', 'professional', 'advanced'):
+                config_level = lvl
 
     LEVEL_LABELS = {'intermediate': 'Intermediate', 'professional': 'Professional', 'advanced': 'Advanced'}
 
@@ -3922,13 +3937,11 @@ def student_self_register(request, token):
 
     # For success screen: show enrolled courses with prices
     success_courses = []
-    letter_url = ''
     if success and reg is not None:
         try:
             success_courses = list(reg.registration_courses.select_related('course').all())
         except Exception:
             pass
-        letter_url = request.build_absolute_uri(f'/portal/welcome-letter/{reg.pk}/')
 
     return render(request, 'portal/student_self_register.html', {
         'link': link,
@@ -3941,7 +3954,6 @@ def student_self_register(request, token):
         'crm_lead_id': crm_lead_id,
         'success_courses': success_courses,
         'success_reg': reg,
-        'letter_url': letter_url,
     })
 
 
@@ -4534,9 +4546,29 @@ def welcome_letter_printable(request, pk):
     return render(request, 'portal/welcome_letter_printable.html', ctx)
 
 
-def enrollment_letter_printable(request, pk):
-    """Public printable enrollment confirmation letter — no login required."""
+_ENRL_LETTER_SALT = 'orbit-enrl-letter-v1'
+_ENRL_LETTER_MAX_AGE = 10 * 24 * 3600  # 10 days in seconds
+
+
+def _make_enrollment_letter_url(request, pk):
+    """Return a signed, 10-day expiring URL for the printable enrollment letter."""
+    from django.core import signing
+    token = signing.dumps({'pk': pk}, salt=_ENRL_LETTER_SALT)
+    return request.build_absolute_uri(f'/portal/enrollment-letter/{token}/')
+
+
+def enrollment_letter_printable(request, token):
+    """Public printable enrollment letter — link expires after 10 days."""
+    from django.core import signing
     from django.db.models import Sum as _Sum
+    try:
+        data = signing.loads(token, salt=_ENRL_LETTER_SALT, max_age=_ENRL_LETTER_MAX_AGE)
+        pk = data['pk']
+    except signing.SignatureExpired:
+        return render(request, 'portal/letter_expired.html', {'reason': 'expired'})
+    except Exception:
+        return render(request, 'portal/letter_expired.html', {'reason': 'invalid'})
+
     registration = get_object_or_404(Registration, pk=pk)
     year = registration.date.strftime('%Y') if registration.date else timezone.now().strftime('%Y')
     num  = registration.registration_number.split('/')[-1] if registration.registration_number else '001'
@@ -4627,7 +4659,7 @@ def send_enrollment_letter(request, pk):
         'fee_paid':       f"{float(fee_paid):,.2f}",
         'payment_status': payment_status,
         'logo_data_uri':  _logo_data_uri(),
-        'print_url':      request.build_absolute_uri(f'/portal/enrollment-letter/{registration.pk}/'),
+        'print_url':      _make_enrollment_letter_url(request, registration.pk),
     }
     subject   = f"Enrollment Confirmation Letter — {registration.registration_number}"
     html_body = render_to_string('emails/enrollment_letter_email.html', ctx)

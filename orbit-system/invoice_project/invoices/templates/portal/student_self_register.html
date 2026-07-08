@@ -69,14 +69,8 @@ body { background:var(--bg); font-family:'Segoe UI',system-ui,sans-serif; min-he
     </div>
     {% endif %}
 
-    <p style="color:#334155;margin:0 0 16px;">Your consultant will contact you shortly to confirm your schedule.</p>
-
-    {% if letter_url %}
-    <a href="{{ letter_url }}" target="_blank"
-       style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;text-decoration:none;padding:11px 24px;border-radius:10px;font-weight:700;font-size:14px;">
-        <i class="fas fa-print"></i> Print Welcome Letter (PDF)
-    </a>
-    {% endif %}
+    <p style="color:#334155;margin:0 0 8px;">Your consultant will contact you shortly to confirm your schedule.</p>
+    <p style="font-size:13px;color:var(--muted);">A welcome email has been sent to your inbox.</p>
 </div>
 {% else %}
 
