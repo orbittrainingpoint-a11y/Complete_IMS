@@ -909,6 +909,25 @@ class StudentFormLink(models.Model):
         return True
 
 
+class StudentFormLinkConfig(models.Model):
+    """Consultant-set config for a student self-registration link: level + per-course prices."""
+    LEVEL_CHOICES = [
+        ('intermediate', 'Intermediate'),
+        ('professional', 'Professional'),
+        ('advanced', 'Advanced'),
+    ]
+    link = models.OneToOneField(StudentFormLink, on_delete=models.CASCADE, related_name='config')
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='intermediate')
+    course_prices_json = models.TextField(blank=True, default='{}')
+
+    def get_course_prices(self):
+        import json as _j
+        try:
+            return {int(k): float(v) for k, v in _j.loads(self.course_prices_json).items()}
+        except Exception:
+            return {}
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # INVOICE PAYMENT INSTALLMENTS
 # ═══════════════════════════════════════════════════════════════════════════

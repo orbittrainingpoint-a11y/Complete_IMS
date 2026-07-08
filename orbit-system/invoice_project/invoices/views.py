@@ -3747,7 +3747,7 @@ def student_form_links(request):
 @require_POST
 def generate_student_form_link(request):
     """Generate a new student self-registration link."""
-    from .models import StudentFormLink
+    from .models import StudentFormLink, StudentFormLinkConfig
     import datetime as _dt
     import json as _json
 
@@ -3760,34 +3760,74 @@ def generate_student_form_link(request):
     course_ids = request.POST.getlist('courses')
     if course_ids:
         link.pre_selected_courses.set(Course.objects.filter(id__in=course_ids))
+
+    # Save level and per-course discounted prices
+    level = request.POST.get('level', 'intermediate')
+    if level not in ('intermediate', 'professional', 'advanced'):
+        level = 'intermediate'
+    course_prices = {}
+    for cid in course_ids:
+        price_key = f'price_{cid}'
+        price_val = request.POST.get(price_key, '').strip()
+        try:
+            p = float(price_val)
+            if p > 0:
+                course_prices[cid] = p
+        except (ValueError, TypeError):
+            pass
+    StudentFormLinkConfig.objects.create(
+        link=link,
+        level=level,
+        course_prices_json=_json.dumps(course_prices),
+    )
+
     full_url = request.build_absolute_uri(f'/portal/student/{link.token}/')
     return JsonResponse({'token': link.token, 'url': full_url})
 
 
 def student_self_register(request, token):
-    """Public student registration form — no pricing shown."""
-    from .models import StudentFormLink
+    """Public student registration form."""
+    from .models import StudentFormLink, StudentFormLinkConfig
     link = get_object_or_404(StudentFormLink, token=token)
     if not link.is_valid():
         return render(request, 'portal/student_form_expired.html')
+
+    # Load consultant config (level + per-course prices)
+    try:
+        cfg = link.config
+        config_level = cfg.level
+        config_prices = cfg.get_course_prices()  # {course_id: price}
+    except Exception:
+        config_level = 'intermediate'
+        config_prices = {}
+
+    LEVEL_LABELS = {'intermediate': 'Intermediate', 'professional': 'Professional', 'advanced': 'Advanced'}
 
     # CRM lead ID embedded in the link by the consultant — never shown to the student
     crm_lead_id = request.GET.get('cli', '').strip()
     if not (crm_lead_id and crm_lead_id.isdigit()):
         crm_lead_id = ''
 
-    courses = link.pre_selected_courses.all() if link.pre_selected_courses.exists() else Course.objects.all().order_by('name')
+    pre_courses = list(link.pre_selected_courses.all())
+    courses = pre_courses if pre_courses else list(Course.objects.all().order_by('name'))
+    courses_locked = bool(pre_courses)
     error = None
     success = False
 
     if request.method == 'POST':
-        first_name = request.POST.get('first_name', '').strip()
-        last_name  = request.POST.get('last_name', '').strip()
-        phone_no   = request.POST.get('phone_no', '').strip()
-        email      = request.POST.get('email', '').strip()
+        first_name   = request.POST.get('first_name', '').strip()
+        last_name    = request.POST.get('last_name', '').strip()
+        phone_no     = request.POST.get('phone_no', '').strip()
+        email        = request.POST.get('email', '').strip()
+        emirates_id  = request.POST.get('emirates_id', '').strip()
+        uid_no       = request.POST.get('uid_no', '').strip()
+        passport_no  = request.POST.get('passport_no', '').strip()
         post_crm_lead_id = request.POST.get('crm_lead_id', '').strip()
+
         if not (first_name and last_name and phone_no):
             error = 'First name, last name and phone number are required.'
+        elif not (emirates_id or uid_no or passport_no):
+            error = 'Please provide at least one ID document: Emirates ID, UID No, or Passport No.'
         else:
             reg = Registration(
                 first_name=first_name,
@@ -3795,23 +3835,37 @@ def student_self_register(request, token):
                 phone_no=phone_no,
                 email=email,
                 nationality=request.POST.get('nationality', ''),
-                emirates_id_no=request.POST.get('emirates_id', ''),
+                emirates_id_no=emirates_id,
+                uid_no=uid_no,
+                passport_no=passport_no,
                 country=request.POST.get('country', 'UAE'),
                 consultant_name=link.consultant_name_locked,
                 class_type=request.POST.get('class_type', 'offline'),
                 registration_type='OT',
             )
+            # DOB if provided
+            dob = request.POST.get('date_of_birth', '').strip()
+            if dob:
+                try:
+                    from datetime import date as _date
+                    reg.date_of_birth = _date.fromisoformat(dob)
+                except Exception:
+                    pass
             try:
                 reg.save()
             except Exception as e:
                 error = f'Submission failed: {e}'
             else:
-                # Save courses
-                selected_course_ids = request.POST.getlist('course_ids')
+                # Save courses — use pre-selected if locked, else student selection
+                if courses_locked:
+                    selected_course_ids = [str(c.id) for c in pre_courses]
+                else:
+                    selected_course_ids = request.POST.getlist('course_ids')
                 for cid in selected_course_ids:
                     try:
-                        c = Course.objects.get(id=cid)
-                        RegistrationCourse.objects.create(registration=reg, course=c, discount=0, price=0)
+                        c = Course.objects.get(id=int(cid))
+                        price = config_prices.get(int(cid), c.get_rate('offline', config_level))
+                        RegistrationCourse.objects.create(registration=reg, course=c, discount=0, price=price)
                     except Exception:
                         pass
                 # Save CRM lead link (hidden from student, set by consultant via link URL)
@@ -3839,6 +3893,9 @@ def student_self_register(request, token):
     return render(request, 'portal/student_self_register.html', {
         'link': link,
         'courses': courses,
+        'courses_locked': courses_locked,
+        'config_level': config_level,
+        'level_label': LEVEL_LABELS.get(config_level, 'Intermediate'),
         'error': error,
         'success': success,
         'crm_lead_id': crm_lead_id,

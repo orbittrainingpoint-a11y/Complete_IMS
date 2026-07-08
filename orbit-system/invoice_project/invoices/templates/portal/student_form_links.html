@@ -11,14 +11,21 @@
 .link-meta { font-size:11px; color:var(--text-muted); margin-top:2px; }
 .active-dot { width:8px; height:8px; border-radius:50%; background:#10b981; display:inline-block; margin-right:4px; }
 .inactive-dot { width:8px; height:8px; border-radius:50%; background:#ef4444; display:inline-block; margin-right:4px; }
-.gen-bar { background:linear-gradient(135deg,#0f1b2d,#1a2d47); border-radius:14px; padding:18px 20px; margin-bottom:20px; }
+.gen-bar { background:linear-gradient(135deg,#0f1b2d,#1a2d47); border-radius:14px; padding:20px 22px; margin-bottom:20px; }
 .gen-bar .form-control,.gen-bar .form-select { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); color:#fff; border-radius:8px; font-size:13px; }
 .gen-bar .form-control::placeholder { color:rgba(255,255,255,.45); }
 .gen-bar .form-control:focus,.gen-bar .form-select:focus { background:rgba(255,255,255,.15); outline:none; box-shadow:none; }
-/* Select options always need dark text on white OS dropdown popup — never inherit white */
 .gen-bar .form-select option { color:#1e293b !important; background:#fff !important; }
-.result-box { margin-top:12px; background:rgba(255,255,255,.1); border-radius:8px; padding:10px 14px; display:none; }
+.gen-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:rgba(255,255,255,.6); display:block; margin-bottom:5px; }
+.result-box { margin-top:14px; background:rgba(255,255,255,.1); border-radius:8px; padding:10px 14px; display:none; }
 .result-url { font-size:12px; color:#93c5fd; font-family:monospace; word-break:break-all; }
+.price-input { background:rgba(255,255,255,.08) !important; border:1px solid rgba(255,255,255,.2) !important; color:#fff !important; border-radius:6px !important; font-size:12px !important; padding:6px 8px !important; width:110px; }
+.price-input::placeholder { color:rgba(255,255,255,.4) !important; }
+.course-row { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:8px 10px; margin-bottom:8px; }
+.level-badge-opt { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; }
+.level-badge-opt.intermediate { background:#dbeafe; color:#1d4ed8; }
+.level-badge-opt.professional { background:#d1fae5; color:#065f46; }
+.level-badge-opt.advanced { background:#ede9fe; color:#6d28d9; }
 </style>
 {% endblock %}
 
@@ -26,50 +33,51 @@
 <div class="page-header d-flex align-items-center justify-content-between mb-3">
     <div>
         <div class="page-title"><i class="fas fa-link me-2 text-primary"></i>Student Registration Links</div>
-        <div class="page-subtitle">Generate shareable links — no pricing shown to student</div>
+        <div class="page-subtitle">Generate shareable links — consultant pre-sets level &amp; prices, student fills personal info</div>
     </div>
     <a href="{% url 'student_dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Students</a>
 </div>
 
-<!-- Compact Generator Bar -->
+<!-- Generator Bar -->
 <div class="gen-bar">
-    <div class="row g-2 align-items-end">
+    <div class="row g-3 align-items-end mb-3">
+        <!-- Notes -->
         <div class="col-md-3">
-            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.6);display:block;margin-bottom:5px;">Note (optional)</label>
-            <input type="text" id="linkNotes" class="form-control" placeholder="e.g. ABC Company intake batch">
+            <label class="gen-label">Note (optional)</label>
+            <input type="text" id="linkNotes" class="form-control" placeholder="e.g. ABC Company intake">
         </div>
+        <!-- CRM Lead -->
         <div class="col-md-2">
-            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.6);display:block;margin-bottom:5px;">
-                CRM Lead # <span style="color:#10b981;font-size:9px;">(hidden from student)</span>
-            </label>
+            <label class="gen-label">CRM Lead # <span style="color:#10b981;font-size:9px;">(hidden)</span></label>
             <div class="input-group">
                 <span class="input-group-text" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2);color:rgba(255,255,255,.6);font-size:12px;">L-</span>
-                <input type="number" id="linkCrmLead" class="form-control" placeholder="Lead ID" min="1"
-                       style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff;">
+                <input type="number" id="linkCrmLead" class="form-control" placeholder="Lead ID" min="1" style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff;">
             </div>
         </div>
-        <div class="col-md-4">
-            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.6);display:block;margin-bottom:5px;">Pre-select courses (optional)</label>
-            <div id="courseRows">
-                <div class="course-row d-flex gap-2 mb-2">
-                    <select class="form-select course-dd" name="courses" style="flex:1;">
-                        <option value="">— Select a course —</option>
-                        {% for c in courses %}
-                        <option value="{{ c.id }}">{{ c.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <button type="button" class="btn btn-outline-danger btn-sm remove-course-row" style="display:none;" title="Remove"><i class="fas fa-times"></i></button>
-                </div>
-            </div>
-            <button type="button" id="addCourseRow" style="font-size:12px;color:rgba(255,255,255,.7);background:none;border:1px dashed rgba(255,255,255,.3);border-radius:7px;padding:4px 12px;cursor:pointer;margin-top:2px;" title="Add another course">
-                <i class="fas fa-plus me-1"></i>Add Course
-            </button>
-        </div>
+        <!-- Level -->
         <div class="col-md-2">
+            <label class="gen-label">Training Level</label>
+            <select id="linkLevel" class="form-select">
+                <option value="intermediate">Intermediate</option>
+                <option value="professional">Professional</option>
+                <option value="advanced">Advanced</option>
+            </select>
+        </div>
+        <!-- Generate Button -->
+        <div class="col-md-2 ms-auto">
             <button id="genBtn" class="btn btn-primary w-100" style="border-radius:8px;font-weight:700;">
-                <i class="fas fa-plus me-1"></i>Generate
+                <i class="fas fa-plus me-1"></i>Generate Link
             </button>
         </div>
+    </div>
+
+    <!-- Course rows -->
+    <div>
+        <label class="gen-label mb-2"><i class="fas fa-graduation-cap me-1"></i>Pre-select courses &amp; set discounted prices <span style="color:rgba(255,255,255,.4);font-weight:400;font-size:10px;">(optional — student won't see prices)</span></label>
+        <div id="courseRows"></div>
+        <button type="button" id="addCourseRow" style="font-size:12px;color:rgba(255,255,255,.7);background:none;border:1px dashed rgba(255,255,255,.3);border-radius:7px;padding:5px 14px;cursor:pointer;margin-top:4px;">
+            <i class="fas fa-plus me-1"></i>Add Course
+        </button>
     </div>
 
     <div class="result-box" id="resultBox">
@@ -101,6 +109,11 @@
                 {% if link.is_valid %}<span class="active-dot" title="Active"></span>{% else %}<span class="inactive-dot" title="Inactive"></span>{% endif %}
                 <span class="link-token">{{ link.token|slice:":24" }}…</span>
                 {% if link.notes %}<span style="font-size:12px;color:var(--text-muted);">— {{ link.notes }}</span>{% endif %}
+                {% if link.config %}
+                <span class="level-badge-opt {{ link.config.level }}">
+                    <i class="fas fa-layer-group"></i>{{ link.config.get_level_display }}
+                </span>
+                {% endif %}
             </div>
             <div class="link-meta mt-1">
                 <i class="fas fa-calendar me-1"></i>{{ link.created_at|date:"d M Y" }}
@@ -141,19 +154,111 @@
 
 {% block extra_js %}
 <script>
+const COURSES_DATA = [
+  {% for c in courses %}
+  { id: {{ c.id }}, nm: "{{ c.name|escapejs }}" },
+  {% endfor %}
+];
+
 let _url = '';
 
+/* Build a single course row element */
+function makeCourseRow(removable) {
+    const div = document.createElement('div');
+    div.className = 'course-row d-flex align-items-center gap-2';
+
+    // Course select
+    const sel = document.createElement('select');
+    sel.className = 'form-select course-dd';
+    sel.style.flex = '1';
+    const blank = document.createElement('option');
+    blank.value = ''; blank.textContent = '— Select course —';
+    sel.appendChild(blank);
+    COURSES_DATA.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.id; o.textContent = c.nm;
+        sel.appendChild(o);
+    });
+
+    // Price label + input (hidden until course selected)
+    const priceWrap = document.createElement('div');
+    priceWrap.className = 'd-flex align-items-center gap-1';
+    priceWrap.style.display = 'none !important';
+    priceWrap.innerHTML = '<span style="font-size:11px;color:rgba(255,255,255,.5);white-space:nowrap;">AED</span>';
+    const priceIn = document.createElement('input');
+    priceIn.type = 'number';
+    priceIn.min = '0';
+    priceIn.step = '0.01';
+    priceIn.placeholder = 'Price';
+    priceIn.className = 'price-input course-price';
+    priceWrap.appendChild(priceIn);
+    priceWrap.style.display = 'none';
+
+    sel.addEventListener('change', function() {
+        if (this.value) {
+            priceWrap.style.display = 'flex';
+            priceIn.dataset.courseId = this.value;
+        } else {
+            priceWrap.style.display = 'none';
+            priceIn.dataset.courseId = '';
+        }
+    });
+
+    // Remove button
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'btn btn-outline-danger btn-sm remove-course-row';
+    rm.innerHTML = '<i class="fas fa-times"></i>';
+    rm.style.display = removable ? '' : 'none';
+    rm.addEventListener('click', function() {
+        div.remove();
+        updateRemoveButtons();
+    });
+
+    div.appendChild(sel);
+    div.appendChild(priceWrap);
+    div.appendChild(rm);
+    return div;
+}
+
+const courseRowsEl = document.getElementById('courseRows');
+courseRowsEl.appendChild(makeCourseRow(false));
+
+function updateRemoveButtons() {
+    const rows = courseRowsEl.querySelectorAll('.course-row');
+    rows.forEach((r, i) => {
+        r.querySelector('.remove-course-row').style.display = rows.length > 1 ? '' : 'none';
+    });
+}
+
+document.getElementById('addCourseRow').addEventListener('click', function() {
+    courseRowsEl.appendChild(makeCourseRow(true));
+    updateRemoveButtons();
+});
+
+/* Generate link */
 document.getElementById('genBtn').addEventListener('click', function() {
     const btn = this;
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating…';
 
     const notes = document.getElementById('linkNotes').value;
-    const courses = [...document.querySelectorAll('#courseRows .course-dd')]
-        .map(s => s.value).filter(v => v !== '');
+    const level = document.getElementById('linkLevel').value;
     const fd = new FormData();
     fd.append('notes', notes);
-    courses.forEach(c => fd.append('courses', c));
+    fd.append('level', level);
+
+    // Collect course IDs and prices
+    document.querySelectorAll('#courseRows .course-dd').forEach(sel => {
+        const cid = sel.value;
+        if (!cid) return;
+        fd.append('courses', cid);
+        const row = sel.closest('.course-row');
+        const priceIn = row.querySelector('.course-price');
+        if (priceIn && priceIn.value) {
+            fd.append('price_' + cid, priceIn.value);
+        }
+    });
 
     fetch('{% url "generate_student_form_link" %}', {
         method: 'POST',
@@ -167,12 +272,12 @@ document.getElementById('genBtn').addEventListener('click', function() {
         document.getElementById('resultUrl').textContent = _url;
         document.getElementById('resultBox').style.display = 'block';
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-plus me-1"></i>Generate';
+        btn.innerHTML = '<i class="fas fa-plus me-1"></i>Generate Link';
         setTimeout(() => location.reload(), 5000);
     })
     .catch(() => {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-plus me-1"></i>Generate';
+        btn.innerHTML = '<i class="fas fa-plus me-1"></i>Generate Link';
         alert('Failed to generate link. Please try again.');
     });
 });
@@ -189,32 +294,6 @@ function waResult() {
     window.open('https://wa.me/?text=' + encodeURIComponent('Dear Student, please use this link to complete your registration: ' + _url), '_blank');
 }
 
-/* Course row add/remove */
-const courseRowsEl = document.getElementById('courseRows');
-const firstRowTemplate = courseRowsEl.querySelector('.course-row').cloneNode(true);
-
-document.getElementById('addCourseRow').addEventListener('click', function() {
-    const newRow = firstRowTemplate.cloneNode(true);
-    newRow.querySelector('.course-dd').value = '';
-    const removeBtn = newRow.querySelector('.remove-course-row');
-    removeBtn.style.display = '';
-    removeBtn.addEventListener('click', () => { newRow.remove(); updateRemoveButtons(); });
-    courseRowsEl.appendChild(newRow);
-    updateRemoveButtons();
-});
-
-function updateRemoveButtons() {
-    const rows = courseRowsEl.querySelectorAll('.course-row');
-    rows.forEach((r, i) => {
-        const btn = r.querySelector('.remove-course-row');
-        btn.style.display = rows.length > 1 ? '' : 'none';
-    });
-}
-
-courseRowsEl.querySelector('.remove-course-row').addEventListener('click', function() {
-    this.closest('.course-row').remove(); updateRemoveButtons();
-});
-
 function copyLink(url, btn) {
     navigator.clipboard.writeText(url).then(() => {
         const orig = btn.innerHTML;
@@ -224,7 +303,7 @@ function copyLink(url, btn) {
     });
 }
 
-/* Pre-fill CRM Lead ID from URL param ?cli= when arriving from CRM lead detail */
+/* Pre-fill CRM Lead ID from URL param ?cli= */
 (function() {
     const params = new URLSearchParams(window.location.search);
     const cli = params.get('cli');
@@ -232,14 +311,9 @@ function copyLink(url, btn) {
         const leadInput = document.getElementById('linkCrmLead');
         if (leadInput) {
             leadInput.value = cli;
-            // Highlight the field so consultant knows it was pre-filled
             leadInput.style.background = 'rgba(16,185,129,.25)';
             leadInput.style.borderColor = '#10b981';
-            setTimeout(() => {
-                leadInput.style.background = '';
-                leadInput.style.borderColor = '';
-            }, 3000);
-            // Show a banner
+            setTimeout(() => { leadInput.style.background = ''; leadInput.style.borderColor = ''; }, 3000);
             const bar = document.createElement('div');
             bar.style.cssText = 'position:fixed;top:70px;right:20px;z-index:9999;background:linear-gradient(135deg,#064e3b,#065f46);color:#d1fae5;padding:10px 16px;border-radius:10px;font-size:12px;box-shadow:0 4px 20px rgba(0,0,0,.3);max-width:300px;';
             bar.innerHTML = '<i class="fas fa-link me-2" style="color:#10b981;"></i><strong>CRM Lead L-' + cli + '</strong> pre-filled<br><span style="opacity:.8;font-size:11px;">Click Generate to create the link for this lead</span>';
