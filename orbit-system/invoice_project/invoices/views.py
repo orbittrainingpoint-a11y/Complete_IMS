@@ -3801,11 +3801,14 @@ def generate_student_form_link(request):
                 course_prices[cid] = p
         except (ValueError, TypeError):
             pass
-    StudentFormLinkConfig.objects.create(
-        link=link,
-        level=level,
-        course_prices_json=_json.dumps(course_prices),
-    )
+    try:
+        StudentFormLinkConfig.objects.create(
+            link=link,
+            level=level,
+            course_prices_json=_json.dumps(course_prices),
+        )
+    except Exception:
+        pass  # table may not exist if migration hasn't been applied yet
 
     full_url = request.build_absolute_uri(f'/portal/student/{link.token}/')
     return JsonResponse({'token': link.token, 'url': full_url})
