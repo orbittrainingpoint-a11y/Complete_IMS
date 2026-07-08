@@ -502,6 +502,17 @@ class QuotationItemOverride(models.Model):
     custom_price = models.DecimalField(max_digits=10, decimal_places=2)
 
 
+class QuotationLevel(models.Model):
+    """Pricing level (Intermediate / Professional / Advanced) stored per quotation."""
+    LEVEL_CHOICES = [
+        ('intermediate', 'Intermediate'),
+        ('professional', 'Professional'),
+        ('advanced', 'Advanced'),
+    ]
+    quotation = models.OneToOneField(Quotation, on_delete=models.CASCADE, related_name='level_info')
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='intermediate')
+
+
 class RegistrationCourse(models.Model):
     registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name='registration_courses')
     course = models.ForeignKey(Course, on_delete=models.CASCADE)

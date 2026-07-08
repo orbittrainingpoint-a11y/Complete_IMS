@@ -85,9 +85,9 @@
                     <div class="col-md-6">
                         <div class="floating-group active">
                             <select id="id_quot_level" name="quot_level" class="form-select">
-                                <option value="intermediate">Intermediate</option>
-                                <option value="professional">Professional</option>
-                                <option value="advanced">Advanced</option>
+                                <option value="intermediate"{% if current_level == 'intermediate' %} selected{% endif %}>Intermediate</option>
+                                <option value="professional"{% if current_level == 'professional' %} selected{% endif %}>Professional</option>
+                                <option value="advanced"{% if current_level == 'advanced' %} selected{% endif %}>Advanced</option>
                             </select>
                             <label for="id_quot_level">Level</label>
                         </div>

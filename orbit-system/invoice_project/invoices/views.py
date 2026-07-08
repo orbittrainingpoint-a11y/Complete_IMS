@@ -51,7 +51,7 @@ import datetime
 
 logger = logging.getLogger(__name__)
 
-from .models import UserProfile, SalesTarget, QuotationItemOverride
+from .models import UserProfile, SalesTarget, QuotationItemOverride, QuotationLevel
 from django.contrib.auth.models import User
 import calendar
 
@@ -856,6 +856,12 @@ def create_quotation(request):
 
             quotation.save()
 
+            # Save pricing level
+            _level = request.POST.get('quot_level', 'intermediate')
+            if _level not in ('intermediate', 'professional', 'advanced'):
+                _level = 'intermediate'
+            QuotationLevel.objects.create(quotation=quotation, level=_level)
+
             for i, form in enumerate(item_formset):
                 if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
                     item = form.save(commit=False)
@@ -891,6 +897,23 @@ def quotation_detail(request, pk):
     def _fmt(val):
         return f"{float(val):,.2f}"
 
+    # Resolve pricing level
+    try:
+        level = quotation.level_info.level
+    except Exception:
+        level = 'intermediate'
+
+    # Map venue to class_type for get_rate()
+    if venue == 'online':
+        class_type = 'online'
+    elif venue == 'Company Premises (External)':
+        class_type = 'private'
+    else:
+        class_type = 'offline'
+
+    LEVEL_LABELS = {'intermediate': 'Intermediate', 'professional': 'Professional', 'advanced': 'Advanced'}
+    level_display = LEVEL_LABELS.get(level, 'Intermediate')
+
     items_data = []
     subtotal = _Dec('0')
     pax_set = set()
@@ -903,12 +926,7 @@ def quotation_detail(request, pk):
         except Exception:
             pass
         if rate is None:
-            if venue == 'online':
-                rate = course.online_rate
-            elif venue == 'Company Premises (External)':
-                rate = course.private_rate
-            else:
-                rate = course.rate
+            rate = course.get_rate(class_type, level)
 
         line_total = rate * item.number_of_persons
         subtotal += line_total
@@ -949,6 +967,7 @@ def quotation_detail(request, pk):
         'participants_display': participants_display,
         'training_mode_display': training_mode_display,
         'venue_label': quotation.get_training_venue_display(),
+        'level_display': level_display,
     })
 
 
@@ -1044,6 +1063,14 @@ def edit_quotation(request, pk):
 
                     quotation.save()
 
+                    # Save/update pricing level
+                    _edit_level = request.POST.get('quot_level', 'intermediate')
+                    if _edit_level not in ('intermediate', 'professional', 'advanced'):
+                        _edit_level = 'intermediate'
+                    QuotationLevel.objects.update_or_create(
+                        quotation=quotation, defaults={'level': _edit_level}
+                    )
+
                     from django.db import connection
                     with connection.cursor() as cur:
                         # Delete overrides first — DB FK is RESTRICT so items can't be
@@ -1082,6 +1109,10 @@ def edit_quotation(request, pk):
     else:
         existing_items = list(quotation.items.select_related('course'))
         initial_custom = {}
+        try:
+            current_level = quotation.level_info.level
+        except Exception:
+            current_level = 'intermediate'
         for i, item in enumerate(existing_items):
             try:
                 initial_custom[i] = float(item.price_override.custom_price)
@@ -1102,6 +1133,7 @@ def edit_quotation(request, pk):
         'initial_custom': json.dumps({str(k): v for k, v in initial_custom.items()}),
         'initial_is_custom': has_custom,
         'quotation': quotation,
+        'current_level': locals().get('current_level', 'intermediate'),
     })
 
 
