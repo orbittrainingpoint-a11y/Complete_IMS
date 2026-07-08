@@ -1079,6 +1079,28 @@ function loadPayments(pk) {
         `Total Paid: <strong>AED ${d.total_recorded.toFixed(2)}</strong> &nbsp;|&nbsp; Balance: <strong style="color:${d.balance > 0 ? 'var(--danger)' : 'var(--success)'}">AED ${d.balance.toFixed(2)}</strong>`;
     });
 }
+const GW_CONFIG = {
+  tabby:  { rate: 0.0707, fee: 6,    label: 'Tabby',  min: 2500 },
+  tamara: { rate: 0.0702, fee: 0,    label: 'Tamara', min: 0    },
+};
+function gwCalc() {
+  const method = document.getElementById('pmMethod').value;
+  const bd = document.getElementById('gwBreakdown');
+  const cfg = GW_CONFIG[method];
+  if (!cfg) { bd.style.display = 'none'; return; }
+  bd.style.display = '';
+  const sales = parseFloat(document.getElementById('pmAmount').value) || 0;
+  const comm  = +(sales * cfg.rate).toFixed(2);
+  const vat   = +(comm * 0.05).toFixed(2);
+  const net   = +(sales - comm - vat - cfg.fee).toFixed(2);
+  const fmt   = n => 'AED ' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  document.getElementById('gwCommLine').innerHTML = `<b>Commission (${(cfg.rate*100).toFixed(2)}%):</b> <span style="color:#dc2626;">− ${fmt(comm)}</span>`;
+  document.getElementById('gwVatLine').innerHTML  = `<b>VAT on Commission (5%):</b> <span style="color:#dc2626;">− ${fmt(vat)}</span>`;
+  document.getElementById('gwFeeLine').innerHTML  = cfg.fee > 0 ? `<b>Payout Fee:</b> <span style="color:#dc2626;">− ${fmt(cfg.fee)}</span>` : '';
+  document.getElementById('gwNetLine').innerHTML  = `Net Deposit to Account: <span style="color:#1a3d8f;">${fmt(net)}</span>${cfg.min && sales < cfg.min ? ' <span style="color:#dc2626;font-size:11px;">⚠ Below AED '+cfg.min+' minimum</span>' : ''}`;
+}
+document.getElementById('pmAmount')?.addEventListener('input', gwCalc);
+
 function addPayment() {
   const amount = document.getElementById('pmAmount').value;
   const method = document.getElementById('pmMethod').value;
@@ -1145,14 +1167,25 @@ function addPayment() {
           </div>
           <div class="col-6">
             <label class="form-label" style="font-size:11px;">Method</label>
-            <select id="pmMethod" class="form-select form-select-sm">
+            <select id="pmMethod" class="form-select form-select-sm" onchange="gwCalc()">
               <option value="cash">Cash</option>
               <option value="card">Card</option>
               <option value="bank_transfer">Bank Transfer</option>
               <option value="cheque">Cheque</option>
               <option value="payment_link">Payment Link</option>
+              <option value="tabby">Tabby (BNPL)</option>
+              <option value="tamara">Tamara (BNPL)</option>
               <option value="other">Other</option>
             </select>
+          </div>
+          <!-- Gateway fee breakdown (Tabby / Tamara) -->
+          <div class="col-12" id="gwBreakdown" style="display:none;">
+            <div style="background:#f8faff;border:1px solid #c8d0e0;border-radius:6px;padding:8px 12px;font-size:12px;line-height:1.9;">
+              <div id="gwCommLine"></div>
+              <div id="gwVatLine"></div>
+              <div id="gwFeeLine"></div>
+              <div id="gwNetLine" style="font-weight:700;border-top:1px solid #c8d0e0;padding-top:4px;margin-top:2px;"></div>
+            </div>
           </div>
           <div class="col-6">
             <label class="form-label" style="font-size:11px;">Reference #</label>

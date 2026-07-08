@@ -860,7 +860,9 @@ class StudentFormLink(models.Model):
 class InvoicePayment(models.Model):
     PAYMENT_METHOD_CHOICES = [
         ('cash', 'Cash'), ('card', 'Card'), ('bank_transfer', 'Bank Transfer'),
-        ('cheque', 'Cheque'), ('payment_link', 'Payment Link'), ('other', 'Other'),
+        ('cheque', 'Cheque'), ('payment_link', 'Payment Link'),
+        ('tabby', 'Tabby (BNPL)'), ('tamara', 'Tamara (BNPL)'),
+        ('other', 'Other'),
     ]
     invoice = models.ForeignKey('Invoice', on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=10, decimal_places=2)

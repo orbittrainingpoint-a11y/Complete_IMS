@@ -4081,9 +4081,9 @@ def fee_reminder_dashboard(request):
 
     today = timezone.now().date()
 
-    # Invoices where amount_paid < total_amount (outstanding balance)
+    # Invoices where amount_paid < total_amount (outstanding balance), must have a due_date
     all_invoices = Invoice.objects.select_related('client', 'registration', 'user') \
-                        .filter(amount_paid__lt=F('total_amount')) \
+                        .filter(amount_paid__lt=F('total_amount'), due_date__isnull=False) \
                         .order_by('due_date')
 
     overdue   = [i for i in all_invoices if i.due_date < today]
@@ -4111,15 +4111,19 @@ def fee_reminder_dashboard(request):
             sent_by=request.user,
             note=note,
         )
-        # Also create in-app notification for the invoice owner
-        Notification.objects.create(
-            recipient=inv.user,
-            notif_type='overdue_invoice' if days > 0 else 'invoice_due',
-            title=f"Fee Reminder: {inv.invoice_number}",
-            message=f"Reminder sent for {'overdue ' if days>0 else 'upcoming '}{inv.invoice_number} "
-                    f"(AED {inv.total_amount - inv.amount_paid:,.2f} due {inv.due_date.strftime('%d %b %Y')})",
-            link=f'/invoice/{inv.pk}/',
-        )
+        # Also create in-app notification for the invoice owner (if they have a user)
+        if inv.user:
+            try:
+                Notification.objects.create(
+                    recipient=inv.user,
+                    notif_type='overdue_invoice' if days > 0 else 'invoice_due',
+                    title=f"Fee Reminder: {inv.invoice_number}",
+                    message=f"Reminder sent for {'overdue ' if days>0 else 'upcoming '}{inv.invoice_number} "
+                            f"(AED {inv.total_amount - inv.amount_paid:,.2f} due {inv.due_date.strftime('%d %b %Y')})",
+                    link=f'/invoice/{inv.pk}/',
+                )
+            except Exception:
+                pass
         messages.success(request, f"Reminder logged for invoice {inv.invoice_number}.")
         return redirect('fee_reminder_dashboard')
 
