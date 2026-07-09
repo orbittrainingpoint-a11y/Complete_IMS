@@ -459,6 +459,22 @@ def leads():
     consultants = User.query.filter_by(active=True, role='consultant').order_by(User.username).all() \
                   if (current_user.is_admin() or current_user.can_view_all_leads) else []
 
+    # Leads needing follow-up: created > 1h ago by this user, no follow-up set, no interactions
+    followup_reminder_leads = []
+    if not current_user.is_admin():
+        from datetime import timedelta
+        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        candidates = Lead.query.filter(
+            Lead.added_by == current_user.id,
+            Lead.created_at <= one_hour_ago,
+            Lead.next_followup_date == None,
+            Lead.status.notin_(['Converted', 'Lost']),
+        ).order_by(Lead.created_at.desc()).limit(20).all()
+        for _l in candidates:
+            has_interaction = LeadInteraction.query.filter_by(lead_id=_l.id).count() > 0
+            if not has_interaction:
+                followup_reminder_leads.append(_l)
+
     return render_template('leads.html',
                          leads=leads_pagination.items,
                          pagination=leads_pagination,
@@ -473,7 +489,8 @@ def leads():
                          meeting_form=meeting_form,
                          lead=None,
                          converted_students=converted_students,
-                         lead_temps=lead_temps)
+                         lead_temps=lead_temps,
+                         followup_reminder_leads=followup_reminder_leads)
 
 @main.route('/overdue-followups')
 @login_required
@@ -564,7 +581,7 @@ def edit_lead(id):
         return redirect(url_for('main.leads'))
     
     lead = Lead.query.get_or_404(id)
-    
+
     # ROLE-BASED ACCESS CONTROL
     if not (current_user.is_admin() or current_user.can_view_all_leads or lead.assigned_to == current_user.id):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -574,7 +591,18 @@ def edit_lead(id):
             }), 403
         flash('You can only edit leads assigned to you!', 'error')
         return redirect(url_for('main.leads'))
-    
+
+    # 24-hour edit lock: non-admins cannot edit leads older than 24 hours
+    if not current_user.is_admin():
+        from datetime import timedelta
+        lead_age = datetime.now() - lead.created_at
+        if lead_age.total_seconds() > 24 * 3600:
+            msg = 'This lead can no longer be edited — leads are locked after 24 hours. Contact an admin if you need changes.'
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'errors': [msg]}), 403
+            flash(msg, 'error')
+            return redirect(url_for('main.lead_detail', lead_id=lead.id))
+
     form = LeadForm(obj=lead)
     form.course_interest_id.choices = [(0, 'Select Course')] + [(c.id, c.name) for c in Course.query.filter_by(is_active=True).all()]
     
@@ -697,10 +725,24 @@ def add_lead():
         db.session.add(lead)
         db.session.commit()
 
+        # Log the initial comment as the first activity entry
+        if comments:
+            first_note = LeadInteraction(
+                lead_id=lead.id,
+                interaction_type='Note',
+                content=f"[Initial Comment] {comments}",
+                interaction_date=lead.created_at or datetime.now(),
+                created_by_id=current_user.id,
+                is_important=False,
+            )
+            db.session.add(first_note)
+            db.session.commit()
+
+        detail_url = url_for('main.lead_detail', lead_id=lead.id, new_lead='1', _external=False)
         if is_xhr:
-            return jsonify({'success': True, 'message': 'Lead added successfully!', 'lead_id': lead.id})
+            return jsonify({'success': True, 'message': 'Lead added successfully!', 'lead_id': lead.id, 'redirect_url': detail_url})
         flash('Lead added successfully!', 'success')
-        return redirect(url_for('main.lead_detail', lead_id=lead.id))
+        return redirect(detail_url)
 
     except Exception as e:
         db.session.rollback()

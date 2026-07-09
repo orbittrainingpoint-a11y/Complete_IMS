@@ -891,4 +891,165 @@ document.addEventListener('DOMContentLoaded', () => {
 .wa-tmpl-btn.active { background:#25d366; color:#fff; border-color:#25d366 !important; }
 </style>
 
+{# ── Mandatory New-Lead Setup Modal ──────────────────────────────────── #}
+{% if request.args.get('new_lead') == '1' and not lead.next_followup_date %}
+<div class="modal fade" id="newLeadSetupModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:1.25rem 1.5rem;">
+        <div>
+          <h5 class="modal-title text-white mb-0">
+            <i class="fas fa-tasks me-2"></i>Complete Your Lead Setup
+          </h5>
+          <small class="text-white opacity-75">
+            Lead <strong>{{ lead.name }}</strong> added! Now log your first activity and schedule a follow-up.
+          </small>
+        </div>
+      </div>
+      <form id="newLeadSetupForm">
+        <div class="modal-body p-4">
+          <div class="alert alert-warning" style="border-radius:10px;font-size:13px;border:none;background:#fef3c7;color:#92400e;">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Required:</strong> You must log an activity and set a follow-up date before continuing.
+            This helps ensure no lead is missed.
+          </div>
+
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-600" style="font-size:13px;">Activity / Note <span class="text-danger">*</span></label>
+              <div class="d-flex gap-2 mb-2">
+                {% for atype in ['Call','WhatsApp','Email','Meeting','Note'] %}
+                <button type="button" class="btn btn-sm setup-type-btn"
+                        data-type="{{ atype }}"
+                        style="border-radius:20px;border:1.5px solid #e2e8f0;font-size:12px;color:#374151;background:#f8fafc;">
+                  {{ atype }}
+                </button>
+                {% endfor %}
+              </div>
+              <input type="hidden" id="setupActivityType" value="Note">
+              <textarea id="setupActivityNote" class="form-control" rows="3" required
+                        placeholder="What happened? What did the lead say? Any observations…"
+                        style="border-radius:8px;resize:vertical;font-size:13px;"></textarea>
+              <div id="setupNoteErr" style="display:none;color:#ef4444;font-size:12px;margin-top:4px;"></div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-600" style="font-size:13px;">Next Follow-up Date <span class="text-danger">*</span></label>
+              <input type="date" id="setupFollowupDate" class="form-control" required
+                     min="{{ lead.created_at.strftime('%Y-%m-%d') }}"
+                     style="border-radius:8px;font-size:13px;">
+              <div id="setupDateErr" style="display:none;color:#ef4444;font-size:12px;margin-top:4px;"></div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label fw-600" style="font-size:13px;">Follow-up Type <span class="text-danger">*</span></label>
+              <select id="setupFollowupType" class="form-select" required style="border-radius:8px;font-size:13px;">
+                <option value="">Select type…</option>
+                <option value="Call">Call</option>
+                <option value="WhatsApp">WhatsApp</option>
+                <option value="Email">Email</option>
+                <option value="Meeting">Meeting</option>
+              </select>
+              <div id="setupTypeErr" style="display:none;color:#ef4444;font-size:12px;margin-top:4px;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;">
+          <span id="setupSpinner" style="display:none;color:#64748b;font-size:13px;">
+            <i class="fas fa-spinner fa-spin me-1"></i>Saving…
+          </span>
+          <button type="submit" class="btn btn-primary px-4" id="setupSubmitBtn"
+                  style="border-radius:8px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border:0;font-weight:700;">
+            <i class="fas fa-check me-1"></i>Save &amp; Continue
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+(function() {
+  const modal = new bootstrap.Modal(document.getElementById('newLeadSetupModal'));
+  modal.show();
+
+  // Activity type selector
+  document.querySelectorAll('.setup-type-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.setup-type-btn').forEach(b => {
+        b.style.background = '#f8fafc'; b.style.color = '#374151'; b.style.borderColor = '#e2e8f0';
+      });
+      this.style.background = '#2563eb'; this.style.color = '#fff'; this.style.borderColor = '#2563eb';
+      document.getElementById('setupActivityType').value = this.dataset.type;
+    });
+  });
+
+  document.getElementById('newLeadSetupForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const note  = document.getElementById('setupActivityNote').value.trim();
+    const date  = document.getElementById('setupFollowupDate').value;
+    const ftype = document.getElementById('setupFollowupType').value;
+    const atype = document.getElementById('setupActivityType').value;
+
+    // Validate
+    let ok = true;
+    document.getElementById('setupNoteErr').style.display = 'none';
+    document.getElementById('setupDateErr').style.display = 'none';
+    document.getElementById('setupTypeErr').style.display = 'none';
+
+    if (!note) {
+      document.getElementById('setupNoteErr').textContent = 'Please describe the activity.';
+      document.getElementById('setupNoteErr').style.display = 'block';
+      ok = false;
+    }
+    if (!date) {
+      document.getElementById('setupDateErr').textContent = 'Follow-up date is required.';
+      document.getElementById('setupDateErr').style.display = 'block';
+      ok = false;
+    }
+    if (!ftype) {
+      document.getElementById('setupTypeErr').textContent = 'Please select follow-up type.';
+      document.getElementById('setupTypeErr').style.display = 'block';
+      ok = false;
+    }
+    if (!ok) return;
+
+    document.getElementById('setupSubmitBtn').disabled = true;
+    document.getElementById('setupSpinner').style.display = '';
+
+    try {
+      // Save activity + follow-up in one call via quick-followup endpoint
+      const resp = await fetch('{{ url_for("main.lead_quick_followup", id=lead.id) }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({
+          note: `[${atype}] ${note}`,
+          followup_date: date,
+          followup_type: ftype,
+          followup_priority: 'Medium',
+        })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        modal.hide();
+        // Remove new_lead param from URL without reload
+        const url = new URL(window.location.href);
+        url.searchParams.delete('new_lead');
+        history.replaceState(null, '', url.toString());
+        // Reload page to reflect updated follow-up date
+        window.location.reload();
+      } else {
+        alert(data.error || 'Could not save. Please try again.');
+        document.getElementById('setupSubmitBtn').disabled = false;
+        document.getElementById('setupSpinner').style.display = 'none';
+      }
+    } catch(err) {
+      alert('Network error — please try again.');
+      document.getElementById('setupSubmitBtn').disabled = false;
+      document.getElementById('setupSpinner').style.display = 'none';
+    }
+  });
+})();
+</script>
+{% endif %}
+
 {% endblock %}

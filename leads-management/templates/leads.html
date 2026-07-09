@@ -418,9 +418,12 @@
                             <div id="addSourceErr" class="field-err" style="display:none;margin-top:4px;font-size:12px;color:#ef4444;"></div>
                         </div>
                         <div class="col-12">
-                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">Comments</label>
+                            <label class="form-label fw-500" style="font-size:13px;color:#374151;">
+                                Initial Comment
+                                <span style="font-weight:400;color:#64748b;font-size:12px;"> — logged to activity history</span>
+                            </label>
                             <textarea name="comments" class="form-control" rows="3"
-                                      placeholder="Any notes about this lead…" style="border-radius:8px;resize:vertical;"></textarea>
+                                      placeholder="First impression, how you got this lead, what they're looking for…" style="border-radius:8px;resize:vertical;"></textarea>
                         </div>
                     </div>
                 </div>
@@ -546,12 +549,10 @@
                         </div>
                     </div>
 
-                    <!-- Notes -->
-                    <div class="mb-2">
-                        <label class="form-label fw-500" style="font-size:13px;color:#374151;">
-                            <i class="fas fa-sticky-note me-1 text-secondary"></i>Notes / Comments
-                        </label>
-                        {{ lead_form.comments(class="form-control", rows=3, id="edit_comments", style="border-radius:8px;resize:vertical;") }}
+                    <!-- Comments removed: initial comment is captured once at lead creation and logged to activity -->
+                    <div class="mb-2 p-3 rounded-3" style="background:#f0f9ff;border:1px solid #bae6fd;font-size:12px;color:#0369a1;">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Use the <strong>Activity Log</strong> on the lead detail page to record notes, calls and follow-ups.
                     </div>
                 </div>
                 <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;">
@@ -708,7 +709,6 @@ function editLead(leadId) {
         document.getElementById('edit_course_interest_id').value = lead.course_interest_id || '';
         document.getElementById('edit_status').value = lead.status || '';
         document.getElementById('edit_lead_source').value = lead.lead_source || '';
-        document.getElementById('edit_comments').value = lead.comments || '';
         document.getElementById('edit_quoted_amount').value = lead.quoted_amount || '';
         document.getElementById('edit_next_followup_date').value = lead.next_followup_date || '';
         if (document.getElementById('edit_followup_type') && lead.followup_type)
@@ -967,7 +967,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const bsModal = bootstrap.Modal.getInstance(document.getElementById('addLeadModal'));
                 if (bsModal) bsModal.hide();
                 addForm.reset();
-                setTimeout(() => window.location.reload(), 400);
+                // Redirect to lead detail with new_lead flag to trigger mandatory follow-up setup
+                setTimeout(() => {
+                    window.location.href = data.redirect_url || `/leads/${data.lead_id}?new_lead=1`;
+                }, 300);
             } else {
                 const msgs = Array.isArray(data.errors) ? data.errors
                            : data.message ? [data.message] : ['An error occurred. Please try again.'];
@@ -1034,4 +1037,58 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
+{# ── Follow-up Reminder Popup ─────────────────────────────────────────── #}
+{% if followup_reminder_leads %}
+<div class="modal fade" id="followupReminderModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#b45309,#d97706);padding:1.25rem 1.5rem;">
+        <div>
+          <h5 class="modal-title text-white mb-0">
+            <i class="fas fa-bell me-2"></i>Follow-up Required!
+          </h5>
+          <small class="text-white opacity-80">The following leads are waiting for your first activity update</small>
+        </div>
+      </div>
+      <div class="modal-body p-4">
+        <p style="font-size:13px;color:#475569;margin-bottom:16px;">
+          These leads were added more than 1 hour ago but have <strong>no activity logged</strong> and <strong>no follow-up date set</strong>.
+          Click a lead to open it and update the activity log and schedule a follow-up.
+        </p>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          {% for rl in followup_reminder_leads %}
+          <a href="{{ url_for('main.lead_detail', lead_id=rl.id) }}" class="reminder-lead-item"
+             style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;background:#fef3c7;border:1px solid #fcd34d;text-decoration:none;color:inherit;">
+            <div style="width:36px;height:36px;border-radius:50%;background:#f59e0b;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="fas fa-user" style="color:#fff;font-size:14px;"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:13px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ rl.name }}</div>
+              <div style="font-size:11px;color:#92400e;">
+                Added {{ rl.created_at.strftime('%d %b %Y %H:%M') }} · {{ rl.phone }}
+              </div>
+            </div>
+            <i class="fas fa-arrow-right" style="color:#d97706;font-size:12px;"></i>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer" style="background:#fefce8;border-top:1px solid #fde68a;">
+        <small style="color:#92400e;font-size:11px;flex:1;"><i class="fas fa-info-circle me-1"></i>This reminder will disappear once you log an activity and schedule a follow-up for each lead.</small>
+        <button type="button" class="btn btn-sm" data-bs-dismiss="modal"
+                style="background:#d97706;color:#fff;border:0;border-radius:8px;font-weight:600;">
+          <i class="fas fa-times me-1"></i>Dismiss
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    new bootstrap.Modal(document.getElementById('followupReminderModal')).show();
+});
+</script>
+{% endif %}
+
 {% endblock %}
