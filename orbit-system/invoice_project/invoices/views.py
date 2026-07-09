@@ -4493,24 +4493,55 @@ def fee_reminder_dashboard(request):
     })
 
 
-def _logo_data_uri():
-    """Return Orbit logo as base64 data URI for use in emails."""
-    import base64, os
+def _find_logo_path():
+    """Return the filesystem path of Orbit-Logo-1.png, or None."""
+    import os
     from django.conf import settings as _s
-    paths = [
+    for p in [
         os.path.join(_s.BASE_DIR, 'invoices', 'static', 'Orbit-Logo-1.png'),
-        os.path.join(_s.BASE_DIR, 'invoice_project', 'static', 'Orbit-Logo-1.png'),
+        os.path.join(_s.BASE_DIR, 'staticfiles', 'Orbit-Logo-1.png'),
         os.path.join(_s.BASE_DIR, 'static', 'images', 'Orbit-Logo-1.png'),
-    ]
-    for p in paths:
+        os.path.join(_s.BASE_DIR, 'invoice_project', 'static', 'Orbit-Logo-1.png'),
+    ]:
         if os.path.exists(p):
-            try:
-                with open(p, 'rb') as f:
-                    data = base64.b64encode(f.read()).decode()
-                return f"data:image/png;base64,{data}"
-            except Exception:
-                pass
+            return p
+    return None
+
+
+def _logo_data_uri():
+    """Return Orbit logo as base64 data URI (kept for any legacy callers)."""
+    import base64
+    p = _find_logo_path()
+    if p:
+        try:
+            with open(p, 'rb') as f:
+                data = base64.b64encode(f.read()).decode()
+            return f"data:image/png;base64,{data}"
+        except Exception:
+            pass
     return ''
+
+
+def _attach_logo_inline(msg):
+    """Attach the Orbit logo as a CID inline image on an EmailMultiAlternatives msg.
+
+    Using CID attachments instead of data: URIs because Outlook and some
+    corporate mail clients strip data: URIs from <img> src attributes.
+    """
+    from email.mime.image import MIMEImage
+    path = _find_logo_path()
+    if not path:
+        return False
+    try:
+        with open(path, 'rb') as f:
+            img = MIMEImage(f.read())
+        img.add_header('Content-ID', '<orbit_logo>')
+        img.add_header('Content-Disposition', 'inline', filename='logo.png')
+        msg.attach(img)
+        msg.mixed_subtype = 'related'
+        return True
+    except Exception:
+        return False
 
 
 def _send_welcome_email(registration, request=None):
@@ -4521,13 +4552,12 @@ def _send_welcome_email(registration, request=None):
     if not registration.email:
         return
     courses = list(registration.courses.values_list('name', flat=True))
-    # Course details with prices for the email
     reg_courses = list(registration.registration_courses.select_related('course').all())
-    # Printable letter URL
     if request:
         letter_url = request.build_absolute_uri(f'/portal/welcome-letter/{registration.pk}/')
     else:
         letter_url = ''
+    has_logo = _find_logo_path() is not None
     ctx = {
         'first_name':          registration.first_name,
         'last_name':           registration.last_name,
@@ -4536,7 +4566,7 @@ def _send_welcome_email(registration, request=None):
         'registration_date':   registration.date.strftime('%d %B %Y') if registration.date else '',
         'courses':             courses,
         'reg_courses':         reg_courses,
-        'logo_data_uri':       _logo_data_uri(),
+        'logo_src':            'cid:orbit_logo' if has_logo else '',
         'letter_url':          letter_url,
     }
     subject   = f"Welcome to Orbit Training Centre, {registration.first_name}!"
@@ -4552,6 +4582,7 @@ def _send_welcome_email(registration, request=None):
     try:
         msg = EmailMultiAlternatives(subject, text_body, _s.DEFAULT_FROM_EMAIL, [registration.email])
         msg.attach_alternative(html_body, 'text/html')
+        _attach_logo_inline(msg)
         msg.send(fail_silently=True)
     except Exception:
         pass
@@ -4578,10 +4609,18 @@ _ENRL_LETTER_SALT = 'orbit-enrl-letter-v1'
 _ENRL_LETTER_MAX_AGE = 10 * 24 * 3600  # 10 days in seconds
 
 
-def _make_enrollment_letter_url(request, pk):
-    """Return a signed, 10-day expiring URL for the printable enrollment letter."""
+def _make_enrollment_letter_url(request, pk, schedule_data=None):
+    """Return a signed, 10-day expiring URL for the printable enrollment letter.
+
+    schedule_data dict (all optional): d=duration, tr=trainer, sc=schedule,
+    st=start_date (ISO), en=end_date (ISO), mo=mode_of_training.
+    Embedded in the token so the printable page shows the same detail as the email.
+    """
     from django.core import signing
-    token = signing.dumps({'pk': pk}, salt=_ENRL_LETTER_SALT)
+    payload = {'pk': pk}
+    if schedule_data:
+        payload['s'] = schedule_data
+    token = signing.dumps(payload, salt=_ENRL_LETTER_SALT)
     return request.build_absolute_uri(f'/portal/enrollment-letter/{token}/')
 
 
@@ -4589,6 +4628,7 @@ def enrollment_letter_printable(request, token):
     """Public printable enrollment letter — link expires after 10 days."""
     from django.core import signing
     from django.db.models import Sum as _Sum
+    import datetime as _dt
     try:
         data = signing.loads(token, salt=_ENRL_LETTER_SALT, max_age=_ENRL_LETTER_MAX_AGE)
         pk = data['pk']
@@ -4606,18 +4646,29 @@ def enrollment_letter_printable(request, token):
     total_due    = (invoices_qs.aggregate(t=_Sum('total_amount'))['t'] or 0) - fee_paid
     payment_status = "Full Payment" if total_due <= 0 else f"Installment — Balance Due: AED {total_due:,.2f}"
     course_names = ', '.join(registration.courses.values_list('name', flat=True))
+
+    # Unpack schedule details packed into the token when the email was sent
+    s = data.get('s', {})
+    def _fmt(ds):
+        if not ds:
+            return ''
+        try:
+            return _dt.date.fromisoformat(ds).strftime('%d %B %Y')
+        except Exception:
+            return ds
+
     ctx = {
         'letter_date':      timezone.now().strftime('%d %B %Y'),
         'ref_number':       ref_number,
         'student_name':     f"{registration.first_name} {registration.last_name}",
         'student_id':       registration.registration_number,
         'course_names':     course_names,
-        'mode_of_training': registration.class_type.capitalize(),
-        'duration':         '',
-        'start_date':       '',
-        'end_date':         '',
-        'schedule':         '',
-        'trainer':          '',
+        'mode_of_training': s.get('mo', '') or registration.class_type.capitalize(),
+        'duration':         s.get('d', ''),
+        'start_date':       _fmt(s.get('st', '')),
+        'end_date':         _fmt(s.get('en', '')),
+        'schedule':         s.get('sc', ''),
+        'trainer':          s.get('tr', ''),
         'fee_paid':         f"{float(fee_paid):,.2f}",
         'payment_status':   payment_status,
     }
@@ -4672,6 +4723,16 @@ def send_enrollment_letter(request, pk):
         except ValueError:
             return ds
 
+    # Pack schedule details into the signed token so the printable page shows them
+    schedule_data = {
+        'd':  duration,
+        'tr': trainer,
+        'sc': schedule,
+        'st': raw_start,
+        'en': raw_end,
+        'mo': mode,
+    }
+    has_logo = _find_logo_path() is not None
     ctx = {
         'letter_date':    timezone.now().strftime('%d/%m/%Y'),
         'ref_number':     ref_number,
@@ -4686,8 +4747,8 @@ def send_enrollment_letter(request, pk):
         'trainer':        trainer,
         'fee_paid':       f"{float(fee_paid):,.2f}",
         'payment_status': payment_status,
-        'logo_data_uri':  _logo_data_uri(),
-        'print_url':      _make_enrollment_letter_url(request, registration.pk),
+        'logo_src':       'cid:orbit_logo' if has_logo else '',
+        'print_url':      _make_enrollment_letter_url(request, registration.pk, schedule_data=schedule_data),
     }
     subject   = f"Enrollment Confirmation Letter — {registration.registration_number}"
     html_body = render_to_string('emails/enrollment_letter_email.html', ctx)
@@ -4704,6 +4765,7 @@ def send_enrollment_letter(request, pk):
     try:
         msg = EmailMultiAlternatives(subject, text_body, _s.DEFAULT_FROM_EMAIL, [registration.email])
         msg.attach_alternative(html_body, 'text/html')
+        _attach_logo_inline(msg)
         msg.send(fail_silently=False)
         sent = True
     except Exception as e:
