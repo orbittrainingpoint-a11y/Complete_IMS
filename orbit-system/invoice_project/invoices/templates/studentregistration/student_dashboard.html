@@ -139,6 +139,10 @@
                   <i class="fas fa-share-alt"></i>
               </button>
               {% if user.profile.role == 'admin' or user.is_superuser %}
+              <button class="btn btn-sm btn-outline-warning" title="Reassign Consultant"
+                  onclick="openReassign({{ item.registration.id }}, '{{ item.registration.consultant_name|escapejs }}', this)">
+                  <i class="fas fa-user-tag"></i>
+              </button>
               <a href="{% url 'delete_registration' item.registration.id %}" class="btn btn-sm btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></a>
               {% endif %}
             </div>
@@ -173,6 +177,36 @@
     </ul></nav>
   </div>
   {% endif %}
+</div>
+
+<!-- Reassign Consultant Modal -->
+<div class="modal fade" id="reassignModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+    <div class="modal-content" style="border-radius:16px;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#92400e,#b45309);color:#fff;border-radius:16px 16px 0 0;border:none;">
+        <h5 class="modal-title" style="font-weight:700;font-size:15px;"><i class="fas fa-user-tag me-2"></i>Reassign Consultant</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <input type="hidden" id="reassignRegPk">
+        <div id="reassignErr" class="alert alert-danger d-none rounded-3" style="font-size:13px;"></div>
+        <label class="form-label fw-600" style="font-size:13px;">New Consultant Name</label>
+        <input list="consultantDatalist" id="reassignName" class="form-control mb-1" placeholder="Type or select a name…" style="border-radius:8px;">
+        <datalist id="consultantDatalist">
+          {% for c in consultant_choices %}<option value="{{ c }}">{% endfor %}
+        </datalist>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">
+          <i class="fas fa-info-circle me-1"></i>Current: <span id="reassignCurrent" style="font-weight:600;color:#374151;"></span>
+        </div>
+      </div>
+      <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;border-radius:0 0 16px 16px;">
+        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+        <button type="button" class="btn btn-warning px-4" id="reassignSaveBtn" onclick="submitReassign()" style="border-radius:8px;font-weight:700;">
+          <i class="fas fa-save me-1"></i>Save
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Share Reg Link Modal -->
@@ -216,6 +250,43 @@ document.addEventListener('DOMContentLoaded', () => {
         sel.style.background = STATUS_COLORS[sel.value] || '';
     });
 });
+
+let _reassignRow = null;
+function openReassign(pk, currentName, btn) {
+    _reassignRow = btn.closest('tr');
+    document.getElementById('reassignRegPk').value = pk;
+    document.getElementById('reassignName').value = currentName;
+    document.getElementById('reassignCurrent').textContent = currentName || '—';
+    document.getElementById('reassignErr').classList.add('d-none');
+    new bootstrap.Modal(document.getElementById('reassignModal')).show();
+}
+function submitReassign() {
+    const pk = document.getElementById('reassignRegPk').value;
+    const name = (document.getElementById('reassignName').value || '').trim();
+    const errDiv = document.getElementById('reassignErr');
+    if (!name) { errDiv.textContent = 'Consultant name is required.'; errDiv.classList.remove('d-none'); return; }
+    const btn = document.getElementById('reassignSaveBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving…';
+    fetch(`/registration/${pk}/reassign-consultant/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `consultant_name=${encodeURIComponent(name)}`
+    }).then(r => r.json()).then(d => {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-save me-1"></i>Save';
+        if (d.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('reassignModal')).hide();
+            if (_reassignRow) {
+                const cell = _reassignRow.querySelector('td:nth-child(2)');
+                if (cell) cell.textContent = d.consultant_name;
+            }
+        } else {
+            errDiv.textContent = d.error || 'Save failed.'; errDiv.classList.remove('d-none');
+        }
+    }).catch(() => {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-save me-1"></i>Save';
+        errDiv.textContent = 'Network error — please try again.'; errDiv.classList.remove('d-none');
+    });
+}
 
 function shareRegLink(regNum, studentName) {
     const modal = new bootstrap.Modal(document.getElementById('shareModal'));

@@ -1287,6 +1287,13 @@ def student_dashboard(request):
         ]
         registration_data.append({'registration': registration, 'courses': courses_with_status})
 
+    from django.contrib.auth.models import User as _User
+    consultant_choices = sorted(set(
+        list(Registration.objects.exclude(consultant_name='').exclude(consultant_name__isnull=True)
+             .values_list('consultant_name', flat=True).distinct())
+        + [u.get_full_name() or u.username for u in _User.objects.filter(is_active=True)]
+    ))
+
     context = {
         'registration_data': registration_data,
         'page_obj': page_obj,
@@ -1295,6 +1302,7 @@ def student_dashboard(request):
         'name': name,
         'consultant': consultant,
         'class_type': class_type,
+        'consultant_choices': consultant_choices,
     }
     return render(request, 'studentregistration/student_dashboard.html', context)
 
@@ -1349,6 +1357,23 @@ def edit_registration(request, pk):
         'registration': registration,
         'courses': courses,
     })
+
+@login_required
+@require_POST
+def reassign_consultant(request, pk):
+    is_admin = request.user.is_superuser or (
+        hasattr(request.user, 'profile') and request.user.profile.role == 'admin'
+    )
+    if not is_admin:
+        return JsonResponse({'ok': False, 'error': 'Admin only.'}, status=403)
+    reg = get_object_or_404(Registration, pk=pk)
+    new_name = (request.POST.get('consultant_name') or '').strip()
+    if not new_name:
+        return JsonResponse({'ok': False, 'error': 'Consultant name is required.'}, status=400)
+    reg.consultant_name = new_name
+    reg.save(update_fields=['consultant_name'])
+    return JsonResponse({'ok': True, 'consultant_name': reg.consultant_name})
+
 
 @user_passes_test(is_admin_user)
 def delete_registration(request, pk):

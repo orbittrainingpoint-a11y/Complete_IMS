@@ -32,6 +32,7 @@ urlpatterns = [
     path('student-dashboard/', views.student_dashboard, name='student_dashboard'),
     path('edit-registration/<int:pk>/', views.edit_registration, name='edit_registration'),
     path('delete-registration/<int:pk>/', views.delete_registration, name='delete_registration'),
+    path('registration/<int:pk>/reassign-consultant/', views.reassign_consultant, name='reassign_consultant'),
     path('print-registration/<int:pk>/', views.print_registration, name='print_registration'),
     path('registration/<int:registration_id>/', views.registration_invoice_detail, name='registration_invoice_detail'),
     path('get_registration_details/', views.get_registration_details, name='get_registration_details'),
