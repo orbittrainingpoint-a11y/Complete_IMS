@@ -1288,10 +1288,11 @@ def student_dashboard(request):
         registration_data.append({'registration': registration, 'courses': courses_with_status})
 
     from django.contrib.auth.models import User as _User
+    active_users = list(_User.objects.filter(is_active=True).select_related('profile').order_by('first_name', 'username'))
     consultant_choices = sorted(set(
         list(Registration.objects.exclude(consultant_name='').exclude(consultant_name__isnull=True)
              .values_list('consultant_name', flat=True).distinct())
-        + [u.get_full_name() or u.username for u in _User.objects.filter(is_active=True)]
+        + [u.get_full_name() or u.username for u in active_users]
     ))
 
     context = {
@@ -1303,6 +1304,7 @@ def student_dashboard(request):
         'consultant': consultant,
         'class_type': class_type,
         'consultant_choices': consultant_choices,
+        'active_users': active_users,
     }
     return render(request, 'studentregistration/student_dashboard.html', context)
 
@@ -1367,11 +1369,51 @@ def reassign_consultant(request, pk):
     if not is_admin:
         return JsonResponse({'ok': False, 'error': 'Admin only.'}, status=403)
     reg = get_object_or_404(Registration, pk=pk)
-    new_name = (request.POST.get('consultant_name') or '').strip()
-    if not new_name:
-        return JsonResponse({'ok': False, 'error': 'Consultant name is required.'}, status=400)
+
+    # --- resolve target user or institute mode ---
+    user_id_raw = request.POST.get('user_id', '').strip()
+    institute_mode = request.POST.get('institute_mode') == '1'
+    remove_crm = request.POST.get('remove_crm') == '1'
+
+    if institute_mode:
+        new_name = (request.POST.get('consultant_name') or 'Orbit Training').strip()
+        # Move invoices to admin user so exec dashboards don't count them
+        admin_user = User.objects.filter(
+            is_active=True
+        ).filter(
+            profile__role='admin'
+        ).first() or User.objects.filter(is_superuser=True).first()
+        target_user = admin_user
+    elif user_id_raw:
+        try:
+            target_user = User.objects.get(pk=int(user_id_raw), is_active=True)
+        except (User.DoesNotExist, ValueError):
+            return JsonResponse({'ok': False, 'error': 'User not found.'}, status=400)
+        new_name = target_user.get_full_name() or target_user.username
+    else:
+        return JsonResponse({'ok': False, 'error': 'No target selected.'}, status=400)
+
+    # 1. Update consultant_name on the registration
     reg.consultant_name = new_name
     reg.save(update_fields=['consultant_name'])
+
+    # 2. Move all invoices for this registration to the target user
+    if target_user:
+        Invoice.objects.filter(registration=reg).update(user=target_user)
+
+    # 3. Optionally remove the CRM link (moves revenue to Institute Direct Sales)
+    if remove_crm:
+        try:
+            import pymysql as _pm
+            _cn = _pm.connect(host='localhost', user='root', password='',
+                              database='orbit_invoice', charset='utf8mb4')
+            with _cn.cursor() as _cu:
+                _cu.execute("DELETE FROM invoices_registrationcrmlink WHERE registration_id=%s", (reg.pk,))
+            _cn.commit()
+            _cn.close()
+        except Exception as _e:
+            logger.warning(f"CRM link removal failed for reg {reg.pk}: {_e}")
+
     return JsonResponse({'ok': True, 'consultant_name': reg.consultant_name})
 
 
