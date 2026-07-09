@@ -1794,8 +1794,6 @@ def edit_corporate_registration(request, pk):
 #  CORPORATE COMPANY (new company-first flow)
 @login_required
 def corporate_tax_invoice_search(request):
-    """Search corporate registrations by company name, OC reg number, or purchase invoice number,
-    then create a tax invoice for the selected registration."""
     query = request.GET.get('q', '').strip()
     results = []
 
@@ -1805,49 +1803,44 @@ def corporate_tax_invoice_search(request):
         base_qs = (
             Registration.objects
             .filter(registration_type='OC')
+            .select_related('corporate_details')
             .prefetch_related(
                 _Pf('registration_courses', queryset=RegistrationCourse.objects.select_related('course')),
                 _Pf('invoice_set', queryset=Invoice.objects.order_by('date')),
             )
         )
 
+        # Purchase invoice number → client name → CorporateRegistration company name
         pks_from_purchase = set()
-        pi_match = InvoicePurchase.objects.filter(invoice_number__icontains=query).select_related('client')
-        for pi in pi_match:
-            cname = pi.client.name if pi.client_id else ''
-            if cname:
-                pks_from_purchase.update(
-                    CorporateRegistration.objects.filter(
-                        company_name__iexact=cname
-                    ).values_list('registration_id', flat=True)
-                )
-
-        pks_from_company = set(
-            CorporateCandidateLink.objects.filter(
-                company__company_name__icontains=query
-            ).values_list('registration_id', flat=True)
-        )
+        try:
+            pi_match = InvoicePurchase.objects.filter(invoice_number__icontains=query).select_related('client')
+            for pi in pi_match:
+                cname = pi.client.name if pi.client_id else ''
+                if cname:
+                    pks_from_purchase.update(
+                        CorporateRegistration.objects.filter(
+                            company_name__icontains=cname
+                        ).values_list('registration_id', flat=True)
+                    )
+                    # Also try matching client name directly against registration first/last name
+                    # to catch individual purchase invoices mapped to OC registrations
+        except Exception:
+            pass
 
         found = base_qs.filter(
             _Q(registration_number__icontains=query) |
             _Q(corporate_details__company_name__icontains=query) |
             _Q(first_name__icontains=query) |
             _Q(last_name__icontains=query) |
-            _Q(pk__in=pks_from_purchase) |
-            _Q(pk__in=pks_from_company)
+            _Q(pk__in=pks_from_purchase)
         ).distinct().order_by('-registration_number')[:40]
 
         for reg in found:
             company_name = ''
             try:
                 company_name = reg.corporate_details.company_name
-            except CorporateRegistration.DoesNotExist:
+            except (CorporateRegistration.DoesNotExist, AttributeError):
                 pass
-            if not company_name:
-                try:
-                    company_name = reg.corp_company_link.company.company_name
-                except Exception:
-                    pass
 
             reg_courses = list(reg.registration_courses.all())
             invoices = list(reg.invoice_set.all())
