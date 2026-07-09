@@ -453,21 +453,29 @@ def create_invoice(request):
                     invoice.registration = registration
                     invoice.class_type = registration.class_type  # Set the class_type from registration
                     if registration.registration_type == 'OC':
-                        # For corporate registrations, use the company name
                         corporate_details = CorporateRegistration.objects.get(registration=registration)
-                        company_name = corporate_details.company_name
                         invoice.client, _ = Client.objects.get_or_create(
-                            name=company_name,
-                            email=registration.email,
-                            phone=registration.phone_no,
-                            user=request.user
+                            name=corporate_details.company_name,
+                            user=request.user,
+                            defaults={
+                                'email': corporate_details.company_email or registration.email,
+                                'phone': corporate_details.company_phone or registration.phone_no,
+                                'address': corporate_details.company_address or '',
+                                'emirates': corporate_details.company_location or '',
+                                'country': registration.country or '',
+                            }
                         )
                     else:
                         invoice.client, _ = Client.objects.get_or_create(
                             name=f"{registration.first_name} {registration.last_name}",
-                            email=registration.email,
-                            phone=registration.phone_no,
-                            user=request.user
+                            user=request.user,
+                            defaults={
+                                'email': registration.email or '',
+                                'phone': registration.phone_no or '',
+                                'address': '',
+                                'emirates': registration.country or '',
+                                'country': registration.country or '',
+                            }
                         )
                 except Registration.DoesNotExist:
                     form.add_error('registration_number', 'Invalid registration number')
@@ -1543,6 +1551,7 @@ def get_registration_details(request):
 
         data = {
             'client_name': f"{registration.first_name} {registration.last_name}",
+            'candidate_name': f"{registration.first_name} {registration.last_name}",
             'client_emirates': registration.country,
             'client_country': registration.country,
             'courses': courses,
@@ -1554,8 +1563,17 @@ def get_registration_details(request):
         }
 
         if registration.registration_type == 'OC':
-            corporate_registration = CorporateRegistration.objects.get(registration=registration)
-            data['company_name'] = corporate_registration.company_name
+            try:
+                corp = CorporateRegistration.objects.get(registration=registration)
+                data['company_name'] = corp.company_name
+                data['client_name'] = corp.company_name  # Invoice billed to company, not candidate
+                data['client_emirates'] = corp.company_location or registration.country
+                data['client_country'] = registration.country
+                data['company_email'] = corp.company_email
+                data['company_phone'] = corp.company_phone
+                data['company_address'] = corp.company_address
+            except CorporateRegistration.DoesNotExist:
+                pass
 
         return JsonResponse(data)
     except Registration.DoesNotExist:
