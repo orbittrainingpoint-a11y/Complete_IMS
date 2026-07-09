@@ -1,0 +1,152 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+{% block title %}Corporate Tax Invoice{% endblock %}
+{% block breadcrumb_label %}
+  <a href="{% url 'corporate_company_list' %}">Corporate</a> /
+  <span class="current">Create Tax Invoice</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.search-hero { background:linear-gradient(135deg,#1e3a8a,#1d4ed8); border-radius:16px; padding:32px 36px; margin-bottom:28px; color:#fff; }
+.search-hero h2 { font-size:22px; font-weight:800; margin-bottom:4px; }
+.search-hero p  { font-size:13px; opacity:.8; margin:0 0 20px; }
+.search-box { display:flex; gap:10px; }
+.search-box input { flex:1; border:none; border-radius:10px; padding:13px 18px; font-size:14px; }
+.search-box input:focus { outline:none; box-shadow:0 0 0 3px rgba(255,255,255,.3); }
+.search-box button { background:#fff; color:#1d4ed8; border:none; border-radius:10px; padding:12px 24px; font-weight:700; font-size:14px; cursor:pointer; white-space:nowrap; }
+.search-box button:hover { background:#dbeafe; }
+.hint-chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+.hint-chip { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); border-radius:20px; padding:4px 12px; font-size:11px; color:rgba(255,255,255,.9); }
+
+.result-card { background:#fff; border:1.5px solid var(--border); border-radius:14px; padding:20px 24px; margin-bottom:14px; transition:box-shadow .18s; }
+.result-card:hover { box-shadow:0 4px 18px rgba(37,99,235,.10); }
+.reg-num { font-size:12px; font-weight:700; color:#2563eb; }
+.company-name { font-size:16px; font-weight:700; color:#1a1a2e; }
+.candidate-name { font-size:13px; color:#475569; }
+.course-chip { display:inline-block; background:#ede9fe; color:#6d28d9; font-size:11px; padding:2px 9px; border-radius:12px; font-weight:500; margin:1px; }
+.money-col { text-align:right; }
+.money-col .amount { font-size:15px; font-weight:700; color:#1a1a2e; }
+.money-col .label { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:#94a3b8; }
+.outstanding-pos { color:#16a34a; }
+.outstanding-neg { color:#dc2626; }
+.inv-badge { display:inline-flex; align-items:center; gap:4px; background:#f1f5f9; border-radius:8px; padding:3px 10px; font-size:12px; color:#64748b; font-weight:600; }
+.empty-state { text-align:center; padding:60px 20px; color:#94a3b8; }
+.empty-state i { font-size:40px; margin-bottom:16px; display:block; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Search Hero -->
+<div class="search-hero">
+  <h2><i class="fas fa-file-invoice-dollar me-2"></i>Corporate Tax Invoice</h2>
+  <p>Search by company name, OC registration number, or purchase invoice number to create a tax invoice.</p>
+  <form method="get" action="{% url 'corporate_tax_invoice_search' %}">
+    <div class="search-box">
+      <input type="text" name="q" value="{{ query }}" placeholder="e.g. Al Futtaim Group · OC/26/012 · 26/07/001" autofocus>
+      <button type="submit"><i class="fas fa-search me-1"></i>Search</button>
+    </div>
+    <div class="hint-chips">
+      <span class="hint-chip"><i class="fas fa-building me-1"></i>Company name</span>
+      <span class="hint-chip"><i class="fas fa-hashtag me-1"></i>OC registration number</span>
+      <span class="hint-chip"><i class="fas fa-receipt me-1"></i>Purchase invoice number</span>
+      <span class="hint-chip"><i class="fas fa-user me-1"></i>Candidate name</span>
+    </div>
+  </form>
+</div>
+
+<!-- Results -->
+{% if query %}
+  {% if results %}
+  <div style="font-size:13px;color:#64748b;margin-bottom:14px;">
+    Found <strong>{{ results|length }}</strong> matching registration{{ results|length|pluralize }} for "<strong>{{ query }}</strong>"
+    {% if results|length == 40 %} — showing first 40{% endif %}
+  </div>
+
+  {% for r in results %}
+  <div class="result-card">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+
+      <!-- Left: registration info -->
+      <div style="flex:1;min-width:200px;">
+        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+          <span class="reg-num">{{ r.registration.registration_number }}</span>
+          <span class="inv-badge"><i class="fas fa-receipt" style="font-size:10px;"></i>{{ r.invoice_count }} invoice{{ r.invoice_count|pluralize }}</span>
+          <span style="font-size:11px;background:rgba(16,185,129,.1);color:#065f46;border-radius:12px;padding:2px 9px;font-weight:600;">{{ r.registration.class_type|capfirst }}</span>
+        </div>
+        <div class="company-name">{{ r.company_name }}</div>
+        <div class="candidate-name">{{ r.registration.first_name }} {{ r.registration.last_name }}
+          {% if r.registration.email %}<span style="color:#94a3b8;"> · {{ r.registration.email }}</span>{% endif %}
+        </div>
+        <div style="margin-top:8px;">
+          {% for rc in r.courses %}
+          <span class="course-chip">{{ rc.course.name }}</span>
+          {% empty %}
+          <span style="font-size:12px;color:#94a3b8;">No courses</span>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Middle: financials -->
+      <div class="d-flex gap-4 flex-wrap align-items-start">
+        <div class="money-col">
+          <div class="label">Invoiced</div>
+          <div class="amount">AED {{ r.total_invoiced|floatformat:0 }}</div>
+        </div>
+        <div class="money-col">
+          <div class="label">Paid</div>
+          <div class="amount">AED {{ r.total_paid|floatformat:0 }}</div>
+        </div>
+        <div class="money-col">
+          <div class="label">Outstanding</div>
+          <div class="amount {% if r.outstanding > 0 %}outstanding-neg{% else %}outstanding-pos{% endif %}">
+            AED {{ r.outstanding|floatformat:0 }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: actions -->
+      <div class="d-flex flex-column gap-2" style="min-width:160px;">
+        <a href="{% url 'create_invoice' %}?reg={{ r.registration.registration_number }}"
+           class="btn btn-success btn-sm"
+           style="border-radius:8px;font-weight:700;">
+          <i class="fas fa-plus me-1"></i>Create Tax Invoice
+        </a>
+        <a href="{% url 'corporate_invoice_detail' r.registration.id %}"
+           class="btn btn-outline-primary btn-sm"
+           style="border-radius:8px;">
+          <i class="fas fa-eye me-1"></i>View Details
+        </a>
+        <a href="{% url 'print_corporate_registration' r.registration.pk %}"
+           class="btn btn-outline-secondary btn-sm"
+           style="border-radius:8px;" target="_blank">
+          <i class="fas fa-print me-1"></i>Print Registration
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div class="empty-state">
+    <i class="fas fa-search"></i>
+    <div style="font-size:16px;font-weight:700;color:#374151;margin-bottom:6px;">No results found</div>
+    <div style="font-size:13px;">No corporate registrations matched "<strong>{{ query }}</strong>".<br>
+    Try a company name, OC registration number (e.g. OC/26/012), or purchase invoice number.</div>
+  </div>
+  {% endif %}
+
+{% else %}
+<div class="empty-state">
+  <i class="fas fa-building" style="color:#bfdbfe;"></i>
+  <div style="font-size:15px;font-weight:700;color:#374151;margin-bottom:6px;">Search to get started</div>
+  <div style="font-size:13px;">Enter a company name, OC registration number, or purchase invoice number above.</div>
+  <div style="margin-top:20px;">
+    <a href="{% url 'corporate_company_list' %}" class="btn btn-outline-primary btn-sm me-2"><i class="fas fa-list me-1"></i>Browse All Companies</a>
+    <a href="{% url 'corporate_registration' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-plus me-1"></i>New Corporate Reg</a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

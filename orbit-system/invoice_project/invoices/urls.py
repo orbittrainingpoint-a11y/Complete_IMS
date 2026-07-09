@@ -39,6 +39,7 @@ urlpatterns = [
     path('get_invoice_details/', views.get_invoice_details, name='get_invoice_details'),
     path('corporate-registration/', views.corporate_registration, name='corporate_registration'),
     path('corporate_dashboard/', views.corporate_dashboard, name='corporate_dashboard'),
+    path('corporate-tax-invoice/', views.corporate_tax_invoice_search, name='corporate_tax_invoice_search'),
     path('corporate-invoice-detail/<int:registration_id>/', views.corporate_invoice_detail, name='corporate_invoice_detail'),
     path('corporate-registration/<int:pk>/print/', views.print_corporate_registration, name='print_corporate_registration'),
     path('edit-corporate-registration/<int:pk>/', views.edit_corporate_registration, name='edit_corporate_registration'),

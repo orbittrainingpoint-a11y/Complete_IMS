@@ -1792,6 +1792,83 @@ def edit_corporate_registration(request, pk):
 
 # ─────────────────────────────────────────────────────────────
 #  CORPORATE COMPANY (new company-first flow)
+@login_required
+def corporate_tax_invoice_search(request):
+    """Search corporate registrations by company name, OC reg number, or purchase invoice number,
+    then create a tax invoice for the selected registration."""
+    query = request.GET.get('q', '').strip()
+    results = []
+
+    if query:
+        from django.db.models import Prefetch as _Pf, Q as _Q
+
+        base_qs = (
+            Registration.objects
+            .filter(registration_type='OC')
+            .prefetch_related(
+                _Pf('registration_courses', queryset=RegistrationCourse.objects.select_related('course')),
+                _Pf('invoice_set', queryset=Invoice.objects.order_by('date')),
+            )
+        )
+
+        pks_from_purchase = set()
+        pi_match = InvoicePurchase.objects.filter(invoice_number__icontains=query).select_related('client')
+        for pi in pi_match:
+            cname = pi.client.name if pi.client_id else ''
+            if cname:
+                pks_from_purchase.update(
+                    CorporateRegistration.objects.filter(
+                        company_name__iexact=cname
+                    ).values_list('registration_id', flat=True)
+                )
+
+        pks_from_company = set(
+            CorporateCandidateLink.objects.filter(
+                company__company_name__icontains=query
+            ).values_list('registration_id', flat=True)
+        )
+
+        found = base_qs.filter(
+            _Q(registration_number__icontains=query) |
+            _Q(corporate_details__company_name__icontains=query) |
+            _Q(first_name__icontains=query) |
+            _Q(last_name__icontains=query) |
+            _Q(pk__in=pks_from_purchase) |
+            _Q(pk__in=pks_from_company)
+        ).distinct().order_by('-registration_number')[:40]
+
+        for reg in found:
+            company_name = ''
+            try:
+                company_name = reg.corporate_details.company_name
+            except CorporateRegistration.DoesNotExist:
+                pass
+            if not company_name:
+                try:
+                    company_name = reg.corp_company_link.company.company_name
+                except Exception:
+                    pass
+
+            reg_courses = list(reg.registration_courses.all())
+            invoices = list(reg.invoice_set.all())
+            total_invoiced = sum(inv.total_amount for inv in invoices)
+            total_paid = sum(inv.amount_paid for inv in invoices)
+            results.append({
+                'registration': reg,
+                'company_name': company_name or '—',
+                'courses': reg_courses,
+                'invoice_count': len(invoices),
+                'total_invoiced': total_invoiced,
+                'total_paid': total_paid,
+                'outstanding': total_invoiced - total_paid,
+            })
+
+    return render(request, 'studentregistration/corporate_tax_invoice_search.html', {
+        'query': query,
+        'results': results,
+    })
+
+
 # ─────────────────────────────────────────────────────────────
 
 @login_required

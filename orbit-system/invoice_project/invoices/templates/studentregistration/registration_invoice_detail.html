@@ -73,7 +73,7 @@
   {% if not certificate_uploaded %}
   <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#certificateUploadModal"><i class="fas fa-upload me-1"></i>Upload Certificate</button>
   {% endif %}
-  <a href="{% url 'create_invoice' %}" class="btn btn-outline-success btn-sm"><i class="fas fa-file-invoice me-1"></i>Create Tax Invoice</a>
+  <a href="{% url 'create_invoice' %}?reg={{ registration.registration_number }}" class="btn btn-outline-success btn-sm"><i class="fas fa-file-invoice me-1"></i>Create Tax Invoice</a>
   <button type="button" class="btn btn-sm" style="background:#1e40af;color:#fff;" data-bs-toggle="modal" data-bs-target="#enrollmentLetterModal"><i class="fas fa-envelope me-1"></i>Send Enrollment Letter</button>
 </div>
 
@@ -152,7 +152,7 @@
   <h5><i class="fas fa-receipt me-2"></i>Invoices</h5>
   <div class="text-center py-4 text-muted">
     <i class="fas fa-file-invoice fa-2x mb-3 d-block opacity-30"></i>
-    No invoices yet. <a href="{% url 'create_invoice' %}">Create the first invoice.</a>
+    No invoices yet. <a href="{% url 'create_invoice' %}?reg={{ registration.registration_number }}">Create the first invoice.</a>
   </div>
 </div>
 {% endif %}
