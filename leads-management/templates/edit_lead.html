@@ -103,13 +103,10 @@
                             </div>
                         </div> -->
 
-                        <!-- Comments -->
-                        <h6 class="text-primary mb-3">
-                            <i class="fas fa-comment-alt me-2"></i>Comments
-                        </h6>
-                        <div class="form-floating mb-4">
-                            {{ lead_form.comments(class="form-control", style="height: 100px", placeholder="Additional notes about this lead...") }}
-                            <label for="comments">Comments</label>
+                        <!-- Notes: initial comment is captured once at creation and logged to activity -->
+                        <div class="mb-4 p-3 rounded-3" style="background:#f0f9ff;border:1px solid #bae6fd;font-size:13px;color:#0369a1;">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Use the <strong>Activity Log</strong> on the lead detail page to record notes, calls, and follow-ups.
                         </div>
                     </div>
 
