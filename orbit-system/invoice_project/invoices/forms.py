@@ -146,11 +146,11 @@ class PurchaseInvoiceForm(forms.ModelForm):
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
     client_emirates = forms.CharField(
-        max_length=100, required=True, label='Client Emirates',
+        max_length=100, required=False, label='Client Emirates',
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
     client_country = forms.CharField(
-        max_length=100, required=True, label='Client Country',
+        max_length=100, required=False, label='Client Country',
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
     client_trn = forms.CharField(

@@ -543,23 +543,22 @@ def create_purchase_invoice(request):
             invoice.status = 'Full Payment'
 
             registration_number = form.cleaned_data.get('registration_number')
+            client_name = form.cleaned_data.get('client_name', '').strip()
+            client_emirates = form.cleaned_data.get('client_emirates', '')
+            client_country = form.cleaned_data.get('client_country', '')
+            client_trn = form.cleaned_data.get('client_trn', '')
+
             if registration_number:
                 try:
                     registration = Registration.objects.get(registration_number=registration_number)
                     invoice.registration = registration
-                    
-                    # Get client details
-                    client_name = form.cleaned_data.get('client_name')
-                    client_emirates = form.cleaned_data.get('client_emirates')
-                    client_country = form.cleaned_data.get('client_country')
-                    
+
                     if registration.registration_type == 'OC':
                         corporate_details = CorporateRegistration.objects.get(registration=registration)
                         client_name = corporate_details.company_name
                     else:
                         client_name = f"{registration.first_name} {registration.last_name}"
-                    
-                    client_trn = form.cleaned_data.get('client_trn', '')
+
                     invoice.client, created = Client.objects.get_or_create(
                         name=client_name,
                         email=registration.email,
@@ -577,6 +576,20 @@ def create_purchase_invoice(request):
                 except Registration.DoesNotExist:
                     form.add_error('registration_number', 'Invalid registration number')
                     return render(request, 'invoices/create_purchase_invoice.html', {'form': form})
+            else:
+                # Corporate mode or manual entry — create/get client from form fields
+                invoice.client, created = Client.objects.get_or_create(
+                    name=client_name,
+                    user=request.user,
+                    defaults={
+                        'emirates': client_emirates,
+                        'country': client_country,
+                        'trn_number': client_trn,
+                    }
+                )
+                if not created and client_trn:
+                    invoice.client.trn_number = client_trn
+                    invoice.client.save()
 
             invoice.save()
             
