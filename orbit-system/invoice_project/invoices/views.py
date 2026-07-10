@@ -2313,6 +2313,68 @@ def corporate_company_generate_portal(request, pk):
 
 
 @login_required
+@require_POST
+def corporate_company_get_dashboard_url(request, pk):
+    """Generate (or retrieve) a permanent dashboard token for a CorporateCompany."""
+    import uuid as _uuid
+    company = get_object_or_404(CorporateCompany, pk=pk)
+    if not company.dashboard_token:
+        company.dashboard_token = _uuid.uuid4()
+        company.save(update_fields=['dashboard_token'])
+    url = request.build_absolute_uri(f'/company-dashboard/{company.dashboard_token}/')
+    return JsonResponse({'url': url})
+
+
+def company_dashboard_portal(request, token):
+    """Public token-based dashboard for a corporate company."""
+    company = get_object_or_404(CorporateCompany, dashboard_token=token)
+
+    # Candidates via new company-first flow
+    candidate_links = company.candidates.select_related('registration').prefetch_related(
+        'registration__registration_courses__course',
+        'registration__certificate_upload',
+    ).order_by('registration__first_name')
+
+    # Purchase Invoices — match by client name
+    purchase_invoices = InvoicePurchase.objects.filter(
+        client__name__iexact=company.company_name
+    ).order_by('-date')
+
+    # Quotations — match by client_name
+    quotations = Quotation.objects.filter(
+        client_name__iexact=company.company_name
+    ).prefetch_related('items__course').order_by('-created_at')
+
+    # Certificates — from candidate registrations
+    cert_registrations = []
+    for link in candidate_links:
+        reg = link.registration
+        cert = None
+        try:
+            cert = reg.certificate_upload
+        except Exception:
+            pass
+        gen_cert = Certificate.objects.filter(
+            register_number=reg.registration_number
+        ).first()
+        if cert or gen_cert:
+            cert_registrations.append({
+                'name': f"{reg.first_name} {reg.last_name}",
+                'reg_number': reg.registration_number,
+                'upload': cert,
+                'generated': gen_cert,
+            })
+
+    return render(request, 'studentregistration/company_dashboard_portal.html', {
+        'company': company,
+        'candidate_links': candidate_links,
+        'purchase_invoices': purchase_invoices,
+        'quotations': quotations,
+        'cert_registrations': cert_registrations,
+    })
+
+
+@login_required
 def course_list(request):
     from django.db.models import Count as CourseCount, Q
     q = request.GET.get('q', '').strip()

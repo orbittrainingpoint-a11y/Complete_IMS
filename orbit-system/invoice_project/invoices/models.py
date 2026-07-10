@@ -224,6 +224,7 @@ class CorporateCompany(models.Model):
     )
     # Meta
     notes               = models.TextField(blank=True)
+    dashboard_token     = models.UUIDField(null=True, blank=True, unique=True)
     created_at          = models.DateTimeField(auto_now_add=True)
     created_by          = models.ForeignKey(
         'auth.User', null=True, blank=True,

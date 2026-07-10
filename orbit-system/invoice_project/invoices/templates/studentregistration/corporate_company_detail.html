@@ -223,6 +223,51 @@
   </button>
 </div>
 
+<!-- COMPANY DASHBOARD LINK -->
+<div class="detail-section">
+  <h5><i class="fas fa-th-large me-2"></i>Company Dashboard Portal</h5>
+  <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+    Share this permanent link with the company so they can view their candidates, invoices, quotations, and certificates at any time.
+  </p>
+  {% if company.dashboard_token %}
+  <div id="dashLinkBox" style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#15803d;margin-bottom:8px;"><i class="fas fa-check-circle me-1"></i>Dashboard Link Active</div>
+    <div class="d-flex align-items-center gap-2">
+      <input type="text" id="dashLinkInput" class="form-control form-control-sm" readonly
+             value="{{ request.scheme }}://{{ request.get_host }}/company-dashboard/{{ company.dashboard_token }}/"
+             style="font-size:12px;font-family:monospace;background:#fff;color:#0f172a;">
+      <button type="button" class="btn btn-sm btn-outline-success flex-shrink-0" onclick="copyDashLink()" style="white-space:nowrap;">
+        <i class="fas fa-copy me-1" id="dashCopyIcon"></i><span id="dashCopyLabel">Copy</span>
+      </button>
+    </div>
+    <div class="d-flex gap-2 flex-wrap mt-2">
+      <a href="/company-dashboard/{{ company.dashboard_token }}/" target="_blank" class="btn btn-sm btn-outline-primary">
+        <i class="fas fa-external-link-alt me-1"></i>Preview
+      </a>
+      <a id="dashEmailBtn"
+         href="mailto:{{ company.contact_email|default:company.company_email }}?subject=Your%20Company%20Portal%20-%20{{ company.company_name|urlencode }}&body=Dear%20{{ company.contact_name|default:'Sir/Madam'|urlencode }}%2C%0A%0APlease%20use%20the%20link%20below%20to%20access%20your%20company%20dashboard%3A%0A%0A{{ request.scheme }}%3A%2F%2F{{ request.get_host }}%2Fcompany-dashboard%2F{{ company.dashboard_token }}%2F%0A%0AYou%20can%20view%20your%20candidates%2C%20invoices%2C%20quotations%2C%20and%20certificates%20there.%0A%0ABest%20regards%2C%0AOrbit%20Training%20Point"
+         class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-envelope me-1"></i>Email Link
+      </a>
+    </div>
+  </div>
+  {% else %}
+  <div id="dashLinkBox" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#15803d;margin-bottom:8px;"><i class="fas fa-check-circle me-1"></i>Dashboard Link Generated</div>
+    <div class="d-flex align-items-center gap-2">
+      <input type="text" id="dashLinkInput" class="form-control form-control-sm" readonly
+             style="font-size:12px;font-family:monospace;background:#fff;color:#0f172a;">
+      <button type="button" class="btn btn-sm btn-outline-success flex-shrink-0" onclick="copyDashLink()" style="white-space:nowrap;">
+        <i class="fas fa-copy me-1" id="dashCopyIcon"></i><span id="dashCopyLabel">Copy</span>
+      </button>
+    </div>
+  </div>
+  <button type="button" id="generateDashBtn" class="btn btn-success btn-sm" onclick="generateDashboard()">
+    <i class="fas fa-th-large me-1"></i>Generate Dashboard Link
+  </button>
+  {% endif %}
+</div>
+
 <!-- META INFO -->
 <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
   Registered {{ company.created_at|date:"d M Y" }}
@@ -289,6 +334,40 @@ function copyPortalLink() {
     setTimeout(() => {
       document.getElementById('copyIcon').className = 'fas fa-copy me-1';
       document.getElementById('copyLabel').textContent = 'Copy';
+    }, 2500);
+  });
+}
+
+// ── Dashboard portal ──
+function generateDashboard() {
+  const btn = document.getElementById('generateDashBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating…'; }
+  fetch("{% url 'corporate_company_get_dashboard_url' company.pk %}", {
+    method: 'POST',
+    headers: {'X-CSRFToken': CSRF_TOKEN},
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.url) {
+      document.getElementById('dashLinkInput').value = data.url;
+      document.getElementById('dashLinkBox').style.display = 'block';
+      if (btn) btn.style.display = 'none';
+    }
+  })
+  .catch(() => {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-th-large me-1"></i>Generate Dashboard Link'; }
+    alert('Failed to generate link. Please try again.');
+  });
+}
+
+function copyDashLink() {
+  const val = document.getElementById('dashLinkInput').value;
+  navigator.clipboard.writeText(val).then(() => {
+    document.getElementById('dashCopyIcon').className = 'fas fa-check me-1';
+    document.getElementById('dashCopyLabel').textContent = 'Copied!';
+    setTimeout(() => {
+      document.getElementById('dashCopyIcon').className = 'fas fa-copy me-1';
+      document.getElementById('dashCopyLabel').textContent = 'Copy';
     }, 2500);
   });
 }

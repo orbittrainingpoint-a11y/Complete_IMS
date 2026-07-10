@@ -152,5 +152,7 @@ urlpatterns = [
     path('corporate-companies/<int:pk>/delete/', views.corporate_company_delete, name='corporate_company_delete'),
     path('corporate-companies/<int:pk>/add-candidate/', views.corporate_add_candidate, name='corporate_add_candidate'),
     path('corporate-companies/<int:pk>/generate-portal/', views.corporate_company_generate_portal, name='corporate_company_generate_portal'),
+    path('corporate-companies/<int:pk>/dashboard-url/', views.corporate_company_get_dashboard_url, name='corporate_company_get_dashboard_url'),
+    path('company-dashboard/<str:token>/', views.company_dashboard_portal, name='company_dashboard_portal'),
     path('corporate-companies/legacy/', views.corporate_legacy_registrations, name='corporate_legacy_registrations'),
 ]
