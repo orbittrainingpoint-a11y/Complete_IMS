@@ -151,7 +151,10 @@
           <strong style="color:#1a1a2e;">{{ lc.candidate_count }}</strong> candidate{{ lc.candidate_count|pluralize }}
           &nbsp;·&nbsp;{{ lc.last_date|date:"d M Y" }}
         </div>
-        <a href="{% url 'corporate_legacy_registrations' %}?company={{ lc.company_name|urlencode }}" class="btn btn-outline-secondary btn-sm">View</a>
+        <div class="d-flex gap-1">
+          <a href="{% url 'corporate_legacy_registrations' %}?company={{ lc.company_name|urlencode }}" class="btn btn-outline-secondary btn-sm" title="Edit registrations"><i class="fas fa-pen"></i></a>
+          <a href="{% url 'corporate_legacy_registrations' %}?company={{ lc.company_name|urlencode }}" class="btn btn-primary btn-sm">View</a>
+        </div>
       </div>
     </div>
   </div>
