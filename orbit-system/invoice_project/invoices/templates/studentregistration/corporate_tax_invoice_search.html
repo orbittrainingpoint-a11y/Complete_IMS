@@ -1,136 +1,157 @@
 {% extends 'base_generic.html' %}
 {% load static %}
 {% block title %}Corporate Tax Invoice{% endblock %}
-{% block breadcrumb_label %}
-  <a href="{% url 'corporate_company_list' %}">Corporate</a> /
-  <span class="current">Create Tax Invoice</span>
-{% endblock %}
+{% block breadcrumb_label %}<span class="current">Create Tax Invoice</span>{% endblock %}
 
 {% block extra_css %}
 <style>
-.search-hero { background:linear-gradient(135deg,#1e3a8a,#1d4ed8); border-radius:16px; padding:32px 36px; margin-bottom:28px; color:#fff; }
-.search-hero h2 { font-size:22px; font-weight:800; margin-bottom:4px; }
-.search-hero p  { font-size:13px; opacity:.8; margin:0 0 20px; }
-.search-box { display:flex; gap:10px; }
-.search-box input { flex:1; border:none; border-radius:10px; padding:13px 18px; font-size:14px; }
-.search-box input:focus { outline:none; box-shadow:0 0 0 3px rgba(255,255,255,.3); }
-.search-box button { background:#fff; color:#1d4ed8; border:none; border-radius:10px; padding:12px 24px; font-weight:700; font-size:14px; cursor:pointer; white-space:nowrap; }
-.search-box button:hover { background:#dbeafe; }
-.hint-chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
-.hint-chip { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); border-radius:20px; padding:4px 12px; font-size:11px; color:rgba(255,255,255,.9); }
+.search-hero{background:linear-gradient(135deg,#1e3a8a,#1d4ed8);border-radius:16px;padding:28px 32px;margin-bottom:24px;color:#fff}
+.search-hero h2{font-size:20px;font-weight:800;margin-bottom:4px}
+.search-hero p{font-size:13px;opacity:.8;margin:0 0 18px}
+.search-box{display:flex;gap:10px}
+.search-box input{flex:1;border:none;border-radius:10px;padding:12px 16px;font-size:14px}
+.search-box input:focus{outline:none;box-shadow:0 0 0 3px rgba(255,255,255,.3)}
+.search-box button{background:#fff;color:#1d4ed8;border:none;border-radius:10px;padding:11px 22px;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap}
+.search-box button:hover{background:#dbeafe}
+.hint-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.hint-chip{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.22);border-radius:20px;padding:3px 11px;font-size:11px;color:rgba(255,255,255,.9)}
 
-.result-card { background:#fff; border:1.5px solid var(--border); border-radius:14px; padding:20px 24px; margin-bottom:14px; transition:box-shadow .18s; }
-.result-card:hover { box-shadow:0 4px 18px rgba(37,99,235,.10); }
-.reg-num { font-size:12px; font-weight:700; color:#2563eb; }
-.company-name { font-size:16px; font-weight:700; color:#1a1a2e; }
-.candidate-name { font-size:13px; color:#475569; }
-.course-chip { display:inline-block; background:#ede9fe; color:#6d28d9; font-size:11px; padding:2px 9px; border-radius:12px; font-weight:500; margin:1px; }
-.money-col { text-align:right; }
-.money-col .amount { font-size:15px; font-weight:700; color:#1a1a2e; }
-.money-col .label { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:#94a3b8; }
-.outstanding-pos { color:#16a34a; }
-.outstanding-neg { color:#dc2626; }
-.inv-badge { display:inline-flex; align-items:center; gap:4px; background:#f1f5f9; border-radius:8px; padding:3px 10px; font-size:12px; color:#64748b; font-weight:600; }
-.empty-state { text-align:center; padding:60px 20px; color:#94a3b8; }
-.empty-state i { font-size:40px; margin-bottom:16px; display:block; }
+.pi-card{background:#fff;border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px;transition:box-shadow .18s}
+.pi-card:hover{box-shadow:0 4px 20px rgba(37,99,235,.10)}
+.pi-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);background:#f8faff}
+.pi-num{font-size:17px;font-weight:800;color:#1d4ed8;letter-spacing:.3px}
+.pi-company{font-size:14px;font-weight:700;color:#1a1a2e}
+.pi-date{font-size:12px;color:#64748b}
+.pi-body{padding:16px 20px}
+.items-table{width:100%;font-size:13px;border-collapse:collapse}
+.items-table th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;padding:4px 8px 8px;text-align:left}
+.items-table th.r,.items-table td.r{text-align:right}
+.items-table td{padding:7px 8px;border-top:1px solid #f1f5f9;color:#374151}
+.items-table tr:first-child td{border-top:none}
+.total-row td{font-weight:700;color:#1a1a2e;border-top:2px solid #e2e8f0 !important;padding-top:10px}
+.vat-row td{color:#64748b;font-size:12px}
+.grand-total td{font-size:15px;font-weight:800;color:#1d4ed8;border-top:2px solid #bfdbfe !important;padding-top:10px}
+.pi-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:14px 20px;background:#f8faff;border-top:1px solid var(--border)}
+.money-chip{display:flex;flex-direction:column;align-items:flex-end}
+.money-chip .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600}
+.money-chip .val{font-size:14px;font-weight:700;color:#1a1a2e}
+.outstanding-pos{color:#16a34a}
+.outstanding-neg{color:#dc2626}
+.empty-state{text-align:center;padding:60px 20px;color:#94a3b8}
+.empty-state i{font-size:40px;margin-bottom:16px;display:block}
 </style>
 {% endblock %}
 
 {% block content %}
 
-<!-- Search Hero -->
 <div class="search-hero">
-  <h2><i class="fas fa-file-invoice-dollar me-2"></i>Corporate Tax Invoice</h2>
-  <p>Search by company name, OC registration number, or purchase invoice number to create a tax invoice.</p>
+  <h2><i class="fas fa-file-invoice-dollar me-2"></i>Create Tax Invoice</h2>
+  <p>Search your Purchase Invoice (Proforma) by PI number or company name, then generate the Tax Invoice against it.</p>
   <form method="get" action="{% url 'corporate_tax_invoice_search' %}">
     <div class="search-box">
-      <input type="text" name="q" value="{{ query }}" placeholder="e.g. Al Futtaim Group · OC/26/012 · 26/07/001" autofocus>
+      <input type="text" name="q" value="{{ query }}" placeholder="e.g. 26/06/003  or  Alu Metal LLC" autofocus>
       <button type="submit"><i class="fas fa-search me-1"></i>Search</button>
     </div>
     <div class="hint-chips">
+      <span class="hint-chip"><i class="fas fa-receipt me-1"></i>Purchase Invoice number (26/06/003)</span>
       <span class="hint-chip"><i class="fas fa-building me-1"></i>Company name</span>
-      <span class="hint-chip"><i class="fas fa-hashtag me-1"></i>OC registration number</span>
-      <span class="hint-chip"><i class="fas fa-receipt me-1"></i>Purchase invoice number</span>
-      <span class="hint-chip"><i class="fas fa-user me-1"></i>Candidate name</span>
     </div>
   </form>
 </div>
 
-<!-- Results -->
 {% if query %}
   {% if results %}
   <div style="font-size:13px;color:#64748b;margin-bottom:14px;">
-    Found <strong>{{ results|length }}</strong> matching registration{{ results|length|pluralize }} for "<strong>{{ query }}</strong>"
+    Found <strong>{{ results|length }}</strong> purchase invoice{{ results|length|pluralize }} matching "<strong>{{ query }}</strong>"
     {% if results|length == 40 %} — showing first 40{% endif %}
   </div>
 
   {% for r in results %}
-  <div class="result-card">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+  <div class="pi-card">
+    <!-- Header -->
+    <div class="pi-header">
+      <div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="pi-num"><i class="fas fa-receipt me-1" style="font-size:13px;"></i>{{ r.pi.invoice_number }}</span>
+          <span style="font-size:11px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:2px 9px;color:#1d4ed8;font-weight:600;">Proforma / Purchase Invoice</span>
+        </div>
+        <div class="pi-company mt-1">{{ r.pi.client.name }}</div>
+        <div class="pi-date">Date: {{ r.pi.date }}{% if r.pi.po_number %} &nbsp;·&nbsp; PO: {{ r.pi.po_number }}{% endif %}</div>
+      </div>
+      <a href="{% url 'create_tax_invoice_from_pi' r.pi.id %}"
+         class="btn btn-success"
+         style="border-radius:10px;font-weight:700;font-size:13px;padding:10px 20px;">
+        <i class="fas fa-file-invoice-dollar me-1"></i>Create Tax Invoice
+      </a>
+    </div>
 
-      <!-- Left: registration info -->
-      <div style="flex:1;min-width:220px;">
-        <!-- Company name as main heading -->
-        <div class="company-name mb-1">{{ r.company_name }}</div>
-        <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-          <!-- OC Registration number — prominently labeled -->
-          <span style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:3px 10px;">
-            <span style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;">Reg No</span>
-            <span style="font-size:13px;font-weight:800;color:#1d4ed8;letter-spacing:.3px;">{{ r.registration.registration_number }}</span>
-          </span>
-          <span class="inv-badge"><i class="fas fa-receipt" style="font-size:10px;"></i>{{ r.invoice_count }} invoice{{ r.invoice_count|pluralize }}</span>
-          <span style="font-size:11px;background:rgba(16,185,129,.1);color:#065f46;border-radius:12px;padding:2px 9px;font-weight:600;">{{ r.registration.class_type|capfirst }}</span>
-        </div>
-        <div class="candidate-name" style="margin-bottom:6px;">
-          <i class="fas fa-user me-1" style="font-size:10px;color:#94a3b8;"></i>
-          {{ r.registration.first_name }} {{ r.registration.last_name }}
-          {% if r.registration.email %}<span style="color:#94a3b8;"> · {{ r.registration.email }}</span>{% endif %}
-        </div>
-        <div>
-          {% for rc in r.courses %}
-          <span class="course-chip">{{ rc.course.name }}</span>
+    <!-- Items table -->
+    <div class="pi-body">
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Course / Description</th>
+            <th class="r">Qty</th>
+            <th class="r">Persons</th>
+            <th class="r">Unit Price</th>
+            <th class="r">Discount</th>
+            <th class="r">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in r.items %}
+          <tr>
+            <td>{{ item.course.name|default:item.description|default:"—" }}</td>
+            <td class="r">{{ item.quantity }}</td>
+            <td class="r">{{ r.pi.number_of_person }}</td>
+            <td class="r">AED {{ item.unit_price|floatformat:2 }}</td>
+            <td class="r">{{ r.pi.discount|floatformat:0 }}%</td>
+            <td class="r" style="font-weight:600;">
+              AED {{ item.unit_price|floatformat:0 }}
+            </td>
+          </tr>
           {% empty %}
-          <span style="font-size:12px;color:#94a3b8;">No courses linked</span>
+          <tr><td colspan="6" style="color:#94a3b8;font-size:12px;">No items on this invoice</td></tr>
           {% endfor %}
-        </div>
-      </div>
+          <tr class="vat-row">
+            <td colspan="5" class="r">Subtotal</td>
+            <td class="r">AED {{ r.subtotal|floatformat:2 }}</td>
+          </tr>
+          <tr class="vat-row">
+            <td colspan="5" class="r">VAT 5%</td>
+            <td class="r">AED {{ r.vat|floatformat:2 }}</td>
+          </tr>
+          <tr class="grand-total">
+            <td colspan="5" class="r">Total (incl. VAT)</td>
+            <td class="r">AED {{ r.total|floatformat:2 }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-      <!-- Middle: financials -->
-      <div class="d-flex gap-4 flex-wrap align-items-start">
-        <div class="money-col">
-          <div class="label">Invoiced</div>
-          <div class="amount">AED {{ r.total_invoiced|floatformat:0 }}</div>
+    <!-- Footer: financials summary -->
+    <div class="pi-footer">
+      <div class="d-flex gap-4 flex-wrap">
+        <div class="money-chip">
+          <span class="lbl">Total</span>
+          <span class="val">AED {{ r.total|floatformat:2 }}</span>
         </div>
-        <div class="money-col">
-          <div class="label">Paid</div>
-          <div class="amount">AED {{ r.total_paid|floatformat:0 }}</div>
+        <div class="money-chip">
+          <span class="lbl">Advance Paid</span>
+          <span class="val">AED {{ r.pi.advance_amount|floatformat:2 }}</span>
         </div>
-        <div class="money-col">
-          <div class="label">Outstanding</div>
-          <div class="amount {% if r.outstanding > 0 %}outstanding-neg{% else %}outstanding-pos{% endif %}">
-            AED {{ r.outstanding|floatformat:0 }}
-          </div>
+        <div class="money-chip">
+          <span class="lbl">Outstanding</span>
+          <span class="val {% if r.outstanding > 0 %}outstanding-neg{% else %}outstanding-pos{% endif %}">
+            AED {{ r.outstanding|floatformat:2 }}
+          </span>
         </div>
       </div>
-
-      <!-- Right: actions -->
-      <div class="d-flex flex-column gap-2" style="min-width:170px;">
-        <a href="{% url 'create_invoice' %}?reg={{ r.registration.registration_number }}"
-           class="btn btn-success btn-sm"
-           style="border-radius:8px;font-weight:700;font-size:13px;padding:8px 14px;">
-          <i class="fas fa-file-invoice-dollar me-1"></i>Create Tax Invoice
-        </a>
-        <a href="{% url 'corporate_invoice_detail' r.registration.id %}"
-           class="btn btn-outline-primary btn-sm"
-           style="border-radius:8px;">
-          <i class="fas fa-eye me-1"></i>View Details
-        </a>
-        <a href="{% url 'print_corporate_registration' r.registration.pk %}"
-           class="btn btn-outline-secondary btn-sm"
-           style="border-radius:8px;" target="_blank">
-          <i class="fas fa-print me-1"></i>Print Registration
-        </a>
-      </div>
+      <a href="{% url 'create_tax_invoice_from_pi' r.pi.id %}"
+         class="btn btn-success btn-sm"
+         style="border-radius:8px;font-weight:700;">
+        <i class="fas fa-file-invoice-dollar me-1"></i>Create Tax Invoice
+      </a>
     </div>
   </div>
   {% endfor %}
@@ -138,20 +159,18 @@
   {% else %}
   <div class="empty-state">
     <i class="fas fa-search"></i>
-    <div style="font-size:16px;font-weight:700;color:#374151;margin-bottom:6px;">No results found</div>
-    <div style="font-size:13px;">No corporate registrations matched "<strong>{{ query }}</strong>".<br>
-    Try a company name, OC registration number (e.g. OC/26/012), or purchase invoice number.</div>
+    <div style="font-size:16px;font-weight:700;color:#374151;margin-bottom:6px;">No purchase invoices found</div>
+    <div style="font-size:13px;">No PI matched "<strong>{{ query }}</strong>".<br>Try the PI number (e.g. 26/06/003) or the company name.</div>
   </div>
   {% endif %}
 
 {% else %}
 <div class="empty-state">
-  <i class="fas fa-building" style="color:#bfdbfe;"></i>
-  <div style="font-size:15px;font-weight:700;color:#374151;margin-bottom:6px;">Search to get started</div>
-  <div style="font-size:13px;">Enter a company name, OC registration number, or purchase invoice number above.</div>
+  <i class="fas fa-file-invoice-dollar" style="color:#bfdbfe;"></i>
+  <div style="font-size:15px;font-weight:700;color:#374151;margin-bottom:6px;">Search a Purchase Invoice</div>
+  <div style="font-size:13px;">Enter a PI number or company name above to find the proforma and generate a Tax Invoice.</div>
   <div style="margin-top:20px;">
-    <a href="{% url 'corporate_company_list' %}" class="btn btn-outline-primary btn-sm me-2"><i class="fas fa-list me-1"></i>Browse All Companies</a>
-    <a href="{% url 'corporate_registration' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-plus me-1"></i>New Corporate Reg</a>
+    <a href="{% url 'dashboard' %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-list me-1"></i>All Invoices</a>
   </div>
 </div>
 {% endif %}

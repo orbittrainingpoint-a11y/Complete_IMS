@@ -1812,71 +1812,108 @@ def edit_corporate_registration(request, pk):
 #  CORPORATE COMPANY (new company-first flow)
 @login_required
 def corporate_tax_invoice_search(request):
+    """Search Purchase Invoices (Proforma) by PI number or company name,
+    then create a Tax Invoice from the selected PI."""
     query = request.GET.get('q', '').strip()
     results = []
 
     if query:
-        from django.db.models import Prefetch as _Pf, Q as _Q
-
-        base_qs = (
-            Registration.objects
-            .filter(registration_type='OC')
-            .select_related('corporate_details')
-            .prefetch_related(
-                _Pf('registration_courses', queryset=RegistrationCourse.objects.select_related('course')),
-                _Pf('invoice_set', queryset=Invoice.objects.order_by('date')),
-            )
+        pis = (
+            InvoicePurchase.objects
+            .filter(Q(invoice_number__icontains=query) | Q(client__name__icontains=query))
+            .select_related('client')
+            .prefetch_related('purchaseitems__course')
+            .order_by('-id')[:40]
         )
-
-        # Purchase invoice number → client name → CorporateRegistration company name
-        pks_from_purchase = set()
-        try:
-            pi_match = InvoicePurchase.objects.filter(invoice_number__icontains=query).select_related('client')
-            for pi in pi_match:
-                cname = pi.client.name if pi.client_id else ''
-                if cname:
-                    pks_from_purchase.update(
-                        CorporateRegistration.objects.filter(
-                            company_name__icontains=cname
-                        ).values_list('registration_id', flat=True)
-                    )
-                    # Also try matching client name directly against registration first/last name
-                    # to catch individual purchase invoices mapped to OC registrations
-        except Exception:
-            pass
-
-        found = base_qs.filter(
-            _Q(registration_number__icontains=query) |
-            _Q(corporate_details__company_name__icontains=query) |
-            _Q(first_name__icontains=query) |
-            _Q(last_name__icontains=query) |
-            _Q(pk__in=pks_from_purchase)
-        ).distinct().order_by('-registration_number')[:40]
-
-        for reg in found:
-            company_name = ''
-            try:
-                company_name = reg.corporate_details.company_name
-            except (CorporateRegistration.DoesNotExist, AttributeError):
-                pass
-
-            reg_courses = list(reg.registration_courses.all())
-            invoices = list(reg.invoice_set.all())
-            total_invoiced = sum(inv.total_amount for inv in invoices)
-            total_paid = sum(inv.amount_paid for inv in invoices)
+        for pi in pis:
+            items = list(pi.purchaseitems.all())
+            # Recalculate correct total from items (stored total_amount may be 0)
+            subtotal = Decimal('0')
+            for item in items:
+                subtotal += item.unit_price * max(item.quantity, 1) * pi.number_of_person * (1 - Decimal(pi.discount) / 100)
+            vat = subtotal * Decimal('0.05')
+            total = (subtotal + vat).quantize(Decimal('0.01'))
             results.append({
-                'registration': reg,
-                'company_name': company_name or '—',
-                'courses': reg_courses,
-                'invoice_count': len(invoices),
-                'total_invoiced': total_invoiced,
-                'total_paid': total_paid,
-                'outstanding': total_invoiced - total_paid,
+                'pi': pi,
+                'items': items,
+                'subtotal': subtotal,
+                'vat': vat,
+                'total': total,
+                'outstanding': total - pi.advance_amount,
             })
 
     return render(request, 'studentregistration/corporate_tax_invoice_search.html', {
         'query': query,
         'results': results,
+    })
+
+
+@login_required
+def create_tax_invoice_from_pi(request, pi_id):
+    """Create a Tax Invoice based on an existing Purchase/Proforma Invoice."""
+    pi = get_object_or_404(InvoicePurchase, pk=pi_id)
+    items = list(pi.purchaseitems.select_related('course').all())
+
+    # Calculate correct totals from items
+    subtotal = Decimal('0')
+    for item in items:
+        subtotal += item.unit_price * max(item.quantity, 1) * pi.number_of_person * (1 - Decimal(pi.discount) / 100)
+    vat = subtotal * Decimal('0.05')
+    total = (subtotal + vat).quantize(Decimal('0.01'))
+
+    if request.method == 'POST':
+        try:
+            inv_date = request.POST.get('date') or datetime.date.today()
+            due_date = request.POST.get('due_date')
+            amount_paid = Decimal(request.POST.get('amount_paid') or '0')
+            payment = request.POST.get('payment', 'Account Transfer')
+            status = request.POST.get('status', 'Full Payment')
+            po_number = request.POST.get('po_number', pi.po_number or '')
+
+            invoice = Invoice(
+                client=pi.client,
+                user=request.user,
+                registration=None,
+                class_type='',
+                date=inv_date,
+                due_date=due_date,
+                amount_paid=amount_paid,
+                discount=pi.discount,
+                number_of_person=pi.number_of_person,
+                level='intermediate',
+                status=status,
+                payment=payment,
+                po_number=po_number,
+                total_amount=Decimal('0'),
+            )
+            invoice.save()
+
+            for item in items:
+                InvoiceItem.objects.create(
+                    invoice=invoice,
+                    course=item.course,
+                    description=item.description or (item.course.name if item.course else ''),
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    vat_rate=item.vat_rate,
+                )
+
+            # Bypass Invoice.save() recalculation (which uses course rates, not PI prices)
+            Invoice.objects.filter(pk=invoice.pk).update(total_amount=total)
+
+            messages.success(request, f"Tax Invoice {invoice.invoice_number} created successfully.")
+            return redirect('dashboard')
+        except Exception as e:
+            messages.error(request, f"Error creating invoice: {e}")
+
+    return render(request, 'studentregistration/create_tax_invoice_from_pi.html', {
+        'pi': pi,
+        'items': items,
+        'subtotal': subtotal,
+        'vat': vat,
+        'total': total,
+        'outstanding': total - pi.advance_amount,
+        'today': datetime.date.today(),
     })
 
 
