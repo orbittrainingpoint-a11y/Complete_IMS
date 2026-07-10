@@ -159,6 +159,23 @@
         </div>
       </div>
 
+      <div class="sec-head mt-3">Address</div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-map-marker-alt"></i>
+            <div class="form-floating">{{ reg_form.emirates }}<label>Emirate</label></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="ff has-icon">
+            <i class="ff-icon fas fa-flag"></i>
+            <div class="form-floating">{{ reg_form.country }}<label>Country <span class="req">*</span></label></div>
+            {% if reg_form.country.errors %}<div style="font-size:12px;color:#ef4444;margin-top:3px;font-weight:600;"><i class="fas fa-exclamation-circle me-1"></i>{{ reg_form.country.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+
       <div class="sec-head mt-3">Registration Settings</div>
       <div class="row g-3">
         <div class="col-md-6">
