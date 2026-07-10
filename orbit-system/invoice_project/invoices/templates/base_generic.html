@@ -627,11 +627,6 @@
             </a>
         </div>
         <div class="nav-item">
-            <a href="{% url 'corporate_tax_invoice_search' %}" class="nav-link {% if request.resolver_match.url_name == 'corporate_tax_invoice_search' or request.resolver_match.url_name == 'create_tax_invoice_from_pi' %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-file-invoice-dollar"></i></span> Corporate Tax Invoice
-            </a>
-        </div>
-        <div class="nav-item">
             <a href="{% url 'quotation_dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'quotation_dashboard' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-file-alt"></i></span> Quotations
             </a>
