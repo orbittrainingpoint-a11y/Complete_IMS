@@ -584,15 +584,18 @@ def create_purchase_invoice(request):
             for key, value in request.POST.items():
                 if key.startswith('course_'):
                     course_id = value
-                    quantity_key = f"quantity_{course_id}"
-                    quantity = int(request.POST.get(quantity_key, 1))
-                    
+                    quantity = int(request.POST.get(f'quantity_{course_id}', 1))
                     course = Course.objects.get(id=course_id)
+                    custom_price = request.POST.get(f'unit_price_{course_id}')
+                    unit_price = Decimal(custom_price) if custom_price else (course.rate or Decimal('0'))
+                    description = request.POST.get(f'description_{course_id}', '')
                     InvoicePurchaseItem.objects.create(
                         invoice=invoice,
                         course=course,
                         quantity=quantity,
-                        unit_price=course.rate
+                        unit_price=unit_price,
+                        description=description,
+                        vat_rate=Decimal('0.05'),
                     )
             
             # Recalculate total amount after adding items and save again
@@ -1998,6 +2001,110 @@ def create_tax_invoice_from_pi(request, pi_id):
 
 
 # ─────────────────────────────────────────────────────────────
+
+@login_required
+def api_search_corporate_companies(request):
+    """AJAX: search CorporateCompany + legacy CorporateRegistration by name."""
+    q = request.GET.get('q', '').strip()
+    if len(q) < 2:
+        return JsonResponse({'results': []})
+    results = []
+    seen_names = set()
+    for company in CorporateCompany.objects.filter(company_name__icontains=q).order_by('company_name')[:10]:
+        results.append({
+            'type': 'company', 'id': company.pk,
+            'name': company.company_name, 'location': company.company_location,
+            'candidate_count': company.candidate_count(),
+        })
+        seen_names.add(company.company_name.lower())
+    legacy_names = (
+        CorporateRegistration.objects.filter(company_name__icontains=q)
+        .values_list('company_name', flat=True).distinct()[:10]
+    )
+    for name in legacy_names:
+        if name.lower() not in seen_names:
+            count = CorporateRegistration.objects.filter(company_name=name).count()
+            results.append({
+                'type': 'legacy', 'id': None,
+                'name': name, 'location': '',
+                'candidate_count': count,
+            })
+            seen_names.add(name.lower())
+    return JsonResponse({'results': results[:15]})
+
+
+@login_required
+def api_corporate_pi_data(request):
+    """AJAX: return grouped courses + totals for a corporate company to populate a PI."""
+    company_id   = request.GET.get('company_id')
+    company_name = request.GET.get('company_name', '').strip()
+    registrations = []
+    company_info  = {}
+
+    if company_id:
+        company = get_object_or_404(CorporateCompany, pk=company_id)
+        company_info = {
+            'name': company.company_name, 'email': company.company_email,
+            'phone': company.company_phone, 'location': company.company_location,
+        }
+        registrations = [
+            link.registration for link in
+            company.candidates.select_related('registration').prefetch_related(
+                'registration__registration_courses__course'
+            )
+        ]
+    elif company_name:
+        corp_regs = CorporateRegistration.objects.filter(
+            company_name=company_name
+        ).select_related('registration').prefetch_related(
+            'registration__registration_courses__course'
+        )
+        if corp_regs.exists():
+            first = corp_regs.first()
+            company_info = {
+                'name': first.company_name, 'email': first.company_email,
+                'phone': first.company_phone, 'location': first.company_location,
+            }
+            registrations = [cr.registration for cr in corp_regs]
+
+    if not company_info:
+        return JsonResponse({'error': 'Company not found'}, status=404)
+
+    # Group by (course_id, unit_price) so different-priced courses become separate lines
+    course_map = {}
+    for reg in registrations:
+        candidate_name = f"{reg.first_name} {reg.last_name}"
+        for rc in reg.registration_courses.select_related('course').all():
+            if not rc.course:
+                continue
+            price = float(rc.price or 0)
+            key = (rc.course.id, price)
+            if key not in course_map:
+                course_map[key] = {
+                    'course_id': rc.course.id,
+                    'course_name': rc.course.name,
+                    'unit_price': price,
+                    'candidates': [],
+                }
+            course_map[key]['candidates'].append(candidate_name)
+
+    courses = [
+        {
+            'course_id': d['course_id'],
+            'course_name': d['course_name'],
+            'unit_price': d['unit_price'],
+            'candidate_count': len(d['candidates']),
+            'candidates': d['candidates'],
+        }
+        for d in course_map.values()
+    ]
+
+    return JsonResponse({
+        'company': company_info,
+        'total_candidates': len(registrations),
+        'courses': courses,
+    })
+
 
 @login_required
 def corporate_company_list(request):

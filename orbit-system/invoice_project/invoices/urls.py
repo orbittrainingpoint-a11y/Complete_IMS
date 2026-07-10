@@ -141,6 +141,9 @@ urlpatterns = [
     path('finance/gateway-payouts/', views.gateway_payout_list, name='gateway_payout_list'),
     # Student emails
     path('registration/<int:pk>/send-enrollment-letter/', views.send_enrollment_letter, name='send_enrollment_letter'),
+    # Corporate Company PI data APIs
+    path('api/search-corporate-companies/', views.api_search_corporate_companies, name='api_search_corporate_companies'),
+    path('api/corporate-pi-data/', views.api_corporate_pi_data, name='api_corporate_pi_data'),
     # Corporate Company (company-first flow)
     path('corporate-companies/', views.corporate_company_list, name='corporate_company_list'),
     path('corporate-companies/create/', views.corporate_company_create, name='corporate_company_create'),
