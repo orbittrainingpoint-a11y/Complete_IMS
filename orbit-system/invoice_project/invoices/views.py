@@ -1334,14 +1334,16 @@ def student_dashboard(request):
 def edit_registration(request, pk):
     registration = get_object_or_404(Registration, pk=pk)
 
-    # Sales executives cannot edit registrations more than 1 hour after creation
     try:
         role = request.user.profile.role
     except Exception:
         role = 'sales_executive'
-    if role == 'sales_executive' and registration.created_at:
-        age = timezone.now() - registration.created_at
-        if age.total_seconds() > 3600:
+    if role == 'sales_executive':
+        if registration.created_at is None:
+            locked = True
+        else:
+            locked = (timezone.now() - registration.created_at).total_seconds() > 3600
+        if locked:
             messages.error(request, "Registrations can only be edited within 1 hour of creation. Please contact your manager.")
             return redirect('student_dashboard')
 
@@ -1844,6 +1846,19 @@ def print_corporate_registration(request, pk):
 @login_required
 def edit_corporate_registration(request, pk):
     registration = get_object_or_404(Registration, pk=pk, registration_type='OC')
+
+    try:
+        role = request.user.profile.role
+    except Exception:
+        role = 'sales_executive'
+    if role == 'sales_executive':
+        if registration.created_at is None:
+            locked = True
+        else:
+            locked = (timezone.now() - registration.created_at).total_seconds() > 3600
+        if locked:
+            messages.error(request, "Registrations can only be edited within 1 hour of creation. Please contact your manager.")
+            return redirect('student_dashboard')
 
     try:
         corporate_details = registration.corporate_details
