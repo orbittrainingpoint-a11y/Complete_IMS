@@ -8,23 +8,38 @@
 
 {% block extra_css %}
 <style>
-.section-card{background:#fff;border:1.5px solid var(--border);border-radius:14px;margin-bottom:20px;overflow:hidden}
-.section-head{padding:14px 20px;border-bottom:1px solid var(--border);background:#f8faff;display:flex;align-items:center;gap:10px}
-.section-head h3{font-size:14px;font-weight:700;color:#1a1a2e;margin:0}
-.section-body{padding:20px}
-.ref-row{display:flex;flex-wrap:wrap;gap:24px;margin-bottom:16px}
-.ref-item{display:flex;flex-direction:column;gap:2px}
-.ref-item .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600}
-.ref-item .val{font-size:14px;font-weight:700;color:#1a1a2e}
-.pi-num-badge{display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 12px;font-size:15px;font-weight:800;color:#1d4ed8}
-.items-table{width:100%;font-size:13px;border-collapse:collapse}
-.items-table th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;padding:6px 8px 10px;text-align:left;border-bottom:2px solid #e2e8f0}
-.items-table th.r,.items-table td.r{text-align:right}
-.items-table td{padding:9px 8px;border-bottom:1px solid #f1f5f9;color:#374151}
-.subtotal-row td,.vat-row td{color:#64748b;font-size:12px;border-bottom:none}
-.grand-row td{font-size:15px;font-weight:800;color:#1d4ed8;border-top:2px solid #bfdbfe;border-bottom:none;padding-top:12px}
-.form-label-sm{font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;display:block}
-.form-control-sm{font-size:13px}
+.field-row { margin-bottom:16px; }
+.field-row label { display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:6px; }
+.field-row .form-control, .field-row .form-select, .field-row select, .field-row input {
+    border-radius:10px; border:1.5px solid var(--border); font-size:14px; padding:10px 14px;
+}
+.field-row .form-control:focus, .field-row select:focus, .field-row input:focus {
+    border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.1); outline:none;
+}
+
+/* PI reference card */
+.pi-ref-badge { display:inline-flex; align-items:center; gap:8px; background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:10px; padding:8px 16px; }
+.pi-ref-badge .pi-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#6b7280; }
+.pi-ref-badge .pi-val   { font-size:18px; font-weight:800; color:#1d4ed8; letter-spacing:.3px; }
+
+.pi-meta-row { display:flex; flex-wrap:wrap; gap:24px; padding:14px 0; border-bottom:1px solid var(--border); }
+.pi-meta-item .lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); }
+.pi-meta-item .val { font-size:14px; font-weight:700; color:var(--text); margin-top:2px; }
+
+/* Items table */
+.items-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.items-tbl th { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); font-weight:700; padding:8px 10px; border-bottom:2px solid var(--border); text-align:left; }
+.items-tbl th.r, .items-tbl td.r { text-align:right; }
+.items-tbl td { padding:10px 10px; border-bottom:1px solid var(--border); color:var(--text); font-size:13px; }
+.items-tbl tr:last-child td { border-bottom:none; }
+.items-tbl .sub-row td, .items-tbl .vat-row td { color:var(--text-muted); font-size:12px; border-bottom:none; padding:4px 10px; }
+.items-tbl .grand-row td { font-size:14px; font-weight:800; color:var(--primary); border-top:2px solid var(--border); padding-top:12px; border-bottom:none; }
+
+/* Summary panel */
+.inv-summary { background:linear-gradient(135deg,#0f1b2d,#1a2d47); border-radius:16px; padding:22px; color:#fff; }
+.is-row { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(255,255,255,.09); font-size:14px; }
+.is-row:last-child { border-bottom:none; }
+.is-row.grand { font-size:20px; font-weight:800; border-top:1px solid rgba(255,255,255,.2); padding-top:12px; margin-top:4px; }
 </style>
 {% endblock %}
 
@@ -36,163 +51,306 @@
 {% endfor %}
 {% endif %}
 
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <div class="page-title"><i class="fas fa-file-invoice-dollar me-2 text-success"></i>Create Tax Invoice</div>
+    <div class="page-subtitle">Against Purchase Invoice / Proforma — {{ pi.invoice_number }}</div>
+  </div>
+  <a href="{% url 'corporate_tax_invoice_search' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="fas fa-arrow-left me-1"></i>Back
+  </a>
+</div>
+
 <form method="post" action="{% url 'create_tax_invoice_from_pi' pi.id %}">
 {% csrf_token %}
+<div class="row g-4">
 
-<!-- PI Reference (read-only) -->
-<div class="section-card">
-  <div class="section-head">
-    <i class="fas fa-receipt" style="color:#6366f1;"></i>
-    <h3>Purchase Invoice Reference</h3>
-    <span style="font-size:11px;color:#94a3b8;margin-left:auto;">Details carried over automatically</span>
-  </div>
-  <div class="section-body">
-    <div class="ref-row">
-      <div class="ref-item">
-        <span class="lbl">PI / Proforma Number</span>
-        <span class="pi-num-badge"><i class="fas fa-receipt" style="font-size:12px;"></i>{{ pi.invoice_number }}</span>
+  <!-- ── LEFT: PI details + form fields ── -->
+  <div class="col-xl-8">
+
+    <!-- PI Reference -->
+    <div class="form-section">
+      <div class="form-section-header">
+        <div class="form-section-icon"><i class="fas fa-receipt"></i></div>
+        <div>
+          <div class="form-section-title">Purchase Invoice Reference</div>
+          <div style="font-size:12px;opacity:.7;">Courses and amounts pulled directly from this PI</div>
+        </div>
       </div>
-      <div class="ref-item">
-        <span class="lbl">Company</span>
-        <span class="val">{{ pi.client.name }}</span>
+      <div class="form-section-body">
+
+        <!-- PI number + company -->
+        <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+          <div class="pi-ref-badge">
+            <div>
+              <div class="pi-label">PI / Proforma No.</div>
+              <div class="pi-val">{{ pi.invoice_number }}</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">Company</div>
+            <div style="font-size:17px;font-weight:800;color:var(--text);">{{ pi.client.name }}</div>
+          </div>
+        </div>
+
+        <!-- Meta row -->
+        <div class="pi-meta-row">
+          <div class="pi-meta-item">
+            <div class="lbl">PI Date</div>
+            <div class="val">{{ pi.date }}</div>
+          </div>
+          <div class="pi-meta-item">
+            <div class="lbl">Persons</div>
+            <div class="val">{{ pi.number_of_person }}</div>
+          </div>
+          <div class="pi-meta-item">
+            <div class="lbl">Discount</div>
+            <div class="val">{{ pi.discount|floatformat:0 }}%</div>
+          </div>
+          {% if pi.po_number %}
+          <div class="pi-meta-item">
+            <div class="lbl">Client PO</div>
+            <div class="val">{{ pi.po_number }}</div>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Items table -->
+        <div style="margin-top:16px;overflow-x:auto;">
+          <table class="items-tbl">
+            <thead>
+              <tr>
+                <th>Course / Description</th>
+                <th class="r">Qty</th>
+                <th class="r">Persons</th>
+                <th class="r">Unit Price</th>
+                <th class="r">Disc.</th>
+                <th class="r">Line Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in items %}
+              {% with line=item.unit_price %}
+              <tr>
+                <td style="font-weight:600;">{{ item.course.name|default:item.description|default:"—" }}</td>
+                <td class="r">{{ item.quantity }}</td>
+                <td class="r">{{ pi.number_of_person }}</td>
+                <td class="r">AED {{ item.unit_price|floatformat:2 }}</td>
+                <td class="r">{{ pi.discount|floatformat:0 }}%</td>
+                <td class="r" style="font-weight:700;color:var(--primary);">AED {{ item.unit_price|floatformat:2 }}</td>
+              </tr>
+              {% endwith %}
+              {% empty %}
+              <tr><td colspan="6" style="color:var(--text-muted);font-size:12px;padding:16px 10px;">No items on this PI</td></tr>
+              {% endfor %}
+              <tr class="sub-row">
+                <td colspan="5" class="r" style="padding-top:14px;">Subtotal (ex-VAT)</td>
+                <td class="r" style="padding-top:14px;">AED {{ subtotal|floatformat:2 }}</td>
+              </tr>
+              <tr class="vat-row">
+                <td colspan="5" class="r">VAT 5%</td>
+                <td class="r">AED {{ vat|floatformat:2 }}</td>
+              </tr>
+              <tr class="grand-row">
+                <td colspan="5" class="r">Total (incl. VAT)</td>
+                <td class="r">AED {{ total|floatformat:2 }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
       </div>
-      <div class="ref-item">
-        <span class="lbl">PI Date</span>
-        <span class="val">{{ pi.date }}</span>
+    </div>
+
+    <!-- Invoice Details -->
+    <div class="form-section">
+      <div class="form-section-header">
+        <div class="form-section-icon"><i class="fas fa-file-invoice"></i></div>
+        <div>
+          <div class="form-section-title">Tax Invoice Details</div>
+          <div style="font-size:12px;opacity:.7;">Set the invoice date, payment, and amount received</div>
+        </div>
       </div>
-      <div class="ref-item">
-        <span class="lbl">Persons</span>
-        <span class="val">{{ pi.number_of_person }}</span>
+      <div class="form-section-body">
+        <div class="row g-3">
+
+          <div class="col-md-6">
+            <div class="field-row">
+              <label>Invoice Date <span style="color:#ef4444;">*</span></label>
+              <input type="date" name="date" class="form-control" value="{{ today }}" required>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="field-row">
+              <label>Due Date <span style="color:#ef4444;">*</span></label>
+              <input type="date" name="due_date" class="form-control" value="{{ today }}" required>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="field-row">
+              <label>Payment Status <span style="color:#ef4444;">*</span></label>
+              <select name="status" class="form-control" required>
+                <option value="Full Payment">Full Payment</option>
+                <option value="Term Payment">Term Payment</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="field-row">
+              <label>Payment Method <span style="color:#ef4444;">*</span></label>
+              <select name="payment" class="form-control" required>
+                <option value="Account Transfer">Account Transfer</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Card">Card</option>
+                <option value="Cash">Cash</option>
+                <option value="Payment Link">Payment Link</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="field-row">
+              <label>Amount Paid (AED) <span style="color:#ef4444;">*</span></label>
+              <input type="number" name="amount_paid" class="form-control" id="id_amount_paid"
+                     value="{{ pi.advance_amount|floatformat:2 }}" step="0.01" min="0" required
+                     oninput="updateSummary()">
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Pre-filled from advance on this PI</div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="field-row">
+              <label>PO Number (Optional)</label>
+              <input type="text" name="po_number" class="form-control"
+                     value="{{ pi.po_number }}" placeholder="Client PO reference">
+            </div>
+          </div>
+
+        </div>
       </div>
-      {% if pi.po_number %}
-      <div class="ref-item">
-        <span class="lbl">PO Number</span>
-        <span class="val">{{ pi.po_number }}</span>
+    </div>
+
+    <!-- Client Info (read-only) -->
+    <div class="form-section">
+      <div class="form-section-header">
+        <div class="form-section-icon"><i class="fas fa-building"></i></div>
+        <div>
+          <div class="form-section-title">Client Information</div>
+          <div style="font-size:12px;opacity:.7;">Auto-populated from the Purchase Invoice</div>
+        </div>
+      </div>
+      <div class="form-section-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="field-row">
+              <label>Company / Client Name</label>
+              <input type="text" class="form-control" value="{{ pi.client.name }}" readonly
+                     style="background:var(--bg);color:var(--text-muted);cursor:not-allowed;">
+            </div>
+          </div>
+          {% if pi.client.trn_number %}
+          <div class="col-md-6">
+            <div class="field-row">
+              <label>TRN Number</label>
+              <input type="text" class="form-control" value="{{ pi.client.trn_number }}" readonly
+                     style="background:var(--bg);color:var(--text-muted);cursor:not-allowed;">
+            </div>
+          </div>
+          {% endif %}
+          {% if pi.client.email %}
+          <div class="col-md-6">
+            <div class="field-row">
+              <label>Email</label>
+              <input type="text" class="form-control" value="{{ pi.client.email }}" readonly
+                     style="background:var(--bg);color:var(--text-muted);cursor:not-allowed;">
+            </div>
+          </div>
+          {% endif %}
+          {% if pi.client.phone %}
+          <div class="col-md-6">
+            <div class="field-row">
+              <label>Phone</label>
+              <input type="text" class="form-control" value="{{ pi.client.phone }}" readonly
+                     style="background:var(--bg);color:var(--text-muted);cursor:not-allowed;">
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /col-xl-8 -->
+
+  <!-- ── RIGHT: Summary panel ── -->
+  <div class="col-xl-4" style="position:sticky;top:80px;align-self:flex-start;">
+
+    <div class="inv-summary">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:16px;">
+        Tax Invoice Summary
+      </div>
+
+      <!-- PI reference chip -->
+      <div style="background:rgba(255,255,255,.07);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;opacity:.7;">Against PI</span>
+        <span style="font-weight:800;color:#93c5fd;font-size:14px;">{{ pi.invoice_number }}</span>
+      </div>
+
+      <div class="is-row">
+        <span style="color:rgba(255,255,255,.7);">Subtotal (ex-VAT)</span>
+        <span>AED {{ subtotal|floatformat:2 }}</span>
+      </div>
+      {% if pi.discount > 0 %}
+      <div class="is-row">
+        <span style="color:rgba(255,255,255,.7);">Discount</span>
+        <span style="color:#fca5a5;">{{ pi.discount|floatformat:0 }}%</span>
       </div>
       {% endif %}
+      <div style="border-top:1px solid rgba(255,255,255,.15);margin:6px 0;"></div>
+      <div class="is-row">
+        <span style="color:#93c5fd;">+ VAT (5%)</span>
+        <span style="color:#93c5fd;">AED {{ vat|floatformat:2 }}</span>
+      </div>
+      <div class="is-row grand">
+        <span>Grand Total</span>
+        <span>AED {{ total|floatformat:2 }}</span>
+      </div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.15);">
+        <div style="font-size:11px;opacity:.6;margin-bottom:6px;">Amount Paid</div>
+        <div id="summaryPaid" style="font-size:20px;font-weight:800;color:#6ee7b7;">
+          AED {{ pi.advance_amount|floatformat:2 }}
+        </div>
+        <div style="font-size:11px;opacity:.6;margin-top:14px;margin-bottom:6px;">Balance Due</div>
+        <div id="summaryDue" style="font-size:22px;font-weight:800;color:#fca5a5;">
+          AED {{ outstanding|floatformat:2 }}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-success w-100 mt-4"
+              style="padding:14px;font-size:15px;font-weight:700;border-radius:12px;">
+        <i class="fas fa-file-invoice-dollar me-2"></i>Generate Tax Invoice
+      </button>
     </div>
 
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th>Course / Description</th>
-          <th class="r">Qty</th>
-          <th class="r">Persons</th>
-          <th class="r">Unit Price</th>
-          <th class="r">Discount</th>
-          <th class="r">Line Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in items %}
-        <tr>
-          <td>{{ item.course.name|default:item.description|default:"—" }}</td>
-          <td class="r">{{ item.quantity }}</td>
-          <td class="r">{{ pi.number_of_person }}</td>
-          <td class="r">AED {{ item.unit_price|floatformat:2 }}</td>
-          <td class="r">{{ pi.discount|floatformat:0 }}%</td>
-          <td class="r" style="font-weight:600;">AED {{ item.unit_price|floatformat:2 }}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="6" style="color:#94a3b8;font-size:12px;">No items</td></tr>
-        {% endfor %}
-        <tr class="subtotal-row">
-          <td colspan="5" class="r" style="padding-top:14px;">Subtotal</td>
-          <td class="r" style="padding-top:14px;">AED {{ subtotal|floatformat:2 }}</td>
-        </tr>
-        <tr class="vat-row">
-          <td colspan="5" class="r">VAT 5%</td>
-          <td class="r">AED {{ vat|floatformat:2 }}</td>
-        </tr>
-        <tr class="grand-row">
-          <td colspan="5" class="r">Total (incl. VAT)</td>
-          <td class="r">AED {{ total|floatformat:2 }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  </div><!-- /col-xl-4 -->
+
 </div>
-
-<!-- Tax Invoice Fields -->
-<div class="section-card">
-  <div class="section-head">
-    <i class="fas fa-file-invoice-dollar" style="color:#16a34a;"></i>
-    <h3>Tax Invoice Details</h3>
-  </div>
-  <div class="section-body">
-    <div class="row g-3">
-      <div class="col-md-4">
-        <label class="form-label-sm">Invoice Date <span style="color:#dc2626;">*</span></label>
-        <input type="date" name="date" class="form-control form-control-sm" value="{{ today }}" required>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label-sm">Due Date <span style="color:#dc2626;">*</span></label>
-        <input type="date" name="due_date" class="form-control form-control-sm" value="{{ today }}" required>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label-sm">Amount Paid (AED)</label>
-        <input type="number" name="amount_paid" class="form-control form-control-sm"
-               value="{{ pi.advance_amount|floatformat:2 }}" step="0.01" min="0">
-        <div style="font-size:11px;color:#94a3b8;margin-top:3px;">Pre-filled from advance on PI</div>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label-sm">Payment Method <span style="color:#dc2626;">*</span></label>
-        <select name="payment" class="form-control form-control-sm" required>
-          <option value="Account Transfer">Account Transfer</option>
-          <option value="Cheque">Cheque</option>
-          <option value="Card">Card</option>
-          <option value="Cash">Cash</option>
-          <option value="Payment Link">Payment Link</option>
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label-sm">Payment Status <span style="color:#dc2626;">*</span></label>
-        <select name="status" class="form-control form-control-sm" required>
-          <option value="Full Payment">Full Payment</option>
-          <option value="Term Payment">Term Payment</option>
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label-sm">PO Number (optional)</label>
-        <input type="text" name="po_number" class="form-control form-control-sm"
-               value="{{ pi.po_number }}" placeholder="Client PO reference">
-      </div>
-    </div>
-
-    <!-- Summary box -->
-    <div style="margin-top:20px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:16px 20px;">
-      <div style="font-size:12px;color:#166534;font-weight:600;margin-bottom:10px;">Tax Invoice Summary</div>
-      <div class="d-flex flex-wrap gap-4">
-        <div>
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#4b5563;font-weight:600;">Company</div>
-          <div style="font-size:14px;font-weight:700;color:#1a1a2e;">{{ pi.client.name }}</div>
-        </div>
-        <div>
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#4b5563;font-weight:600;">Against PI</div>
-          <div style="font-size:14px;font-weight:700;color:#1d4ed8;">{{ pi.invoice_number }}</div>
-        </div>
-        <div>
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#4b5563;font-weight:600;">Tax Invoice Total</div>
-          <div style="font-size:16px;font-weight:800;color:#16a34a;">AED {{ total|floatformat:2 }}</div>
-        </div>
-        <div>
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#4b5563;font-weight:600;">Outstanding</div>
-          <div style="font-size:14px;font-weight:700;color:{% if outstanding > 0 %}#dc2626{% else %}#16a34a{% endif %};">AED {{ outstanding|floatformat:2 }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Actions -->
-<div class="d-flex justify-content-between align-items-center">
-  <a href="{% url 'corporate_tax_invoice_search' %}" class="btn btn-outline-secondary">
-    <i class="fas fa-arrow-left me-1"></i>Back to Search
-  </a>
-  <button type="submit" class="btn btn-success" style="font-weight:700;padding:12px 28px;border-radius:10px;font-size:14px;">
-    <i class="fas fa-file-invoice-dollar me-2"></i>Generate Tax Invoice
-  </button>
-</div>
-
 </form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const _grandTotal = {{ total|floatformat:2 }};
+
+function updateSummary() {
+    const paid = parseFloat(document.getElementById('id_amount_paid').value || 0);
+    const due  = _grandTotal - paid;
+    document.getElementById('summaryPaid').textContent = 'AED ' + paid.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    document.getElementById('summaryDue').textContent  = 'AED ' + Math.max(due, 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    document.getElementById('summaryDue').style.color  = due > 0 ? '#fca5a5' : '#6ee7b7';
+}
+</script>
 {% endblock %}
