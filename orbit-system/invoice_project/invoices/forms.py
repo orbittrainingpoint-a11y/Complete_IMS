@@ -607,6 +607,7 @@ class CorporateCompanyForm(forms.ModelForm):
             'company_name', 'company_email', 'company_phone',
             'company_location', 'company_address',
             'contact_name', 'contact_email', 'contact_phone', 'contact_designation',
+            'consultant',
             'tax_certificate', 'trade_license', 'notes',
         ]
         widgets = {
@@ -619,7 +620,17 @@ class CorporateCompanyForm(forms.ModelForm):
             'contact_email':       forms.EmailInput(attrs={'class': 'form-control', 'placeholder': _p}),
             'contact_phone':       forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
             'contact_designation': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _p}),
+            'consultant':          forms.Select(attrs={'class': 'form-select'}),
             'notes':               forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': _p}),
             'tax_certificate':     forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png,.webp'}),
             'trade_license':       forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        self.fields['consultant'].queryset = User.objects.filter(is_active=True).order_by('username')
+        self.fields['consultant'].required = False
+        self.fields['consultant'].empty_label = '— Select Consultant —'
+        if user and not self.instance.pk:
+            self.fields['consultant'].initial = user

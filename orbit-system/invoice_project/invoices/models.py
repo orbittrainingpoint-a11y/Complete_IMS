@@ -216,6 +216,12 @@ class CorporateCompany(models.Model):
     # Documents
     tax_certificate     = models.FileField(upload_to='corporate_docs/tax/', blank=True, null=True)
     trade_license       = models.FileField(upload_to='corporate_docs/trade/', blank=True, null=True)
+    # Assignment
+    consultant          = models.ForeignKey(
+        'auth.User', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='consultant_corporate_companies',
+        verbose_name='Consultant',
+    )
     # Meta
     notes               = models.TextField(blank=True)
     created_at          = models.DateTimeField(auto_now_add=True)

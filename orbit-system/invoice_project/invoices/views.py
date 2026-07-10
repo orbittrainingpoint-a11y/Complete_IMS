@@ -1962,7 +1962,7 @@ def corporate_legacy_registrations(request):
 @login_required
 def corporate_company_create(request):
     if request.method == 'POST':
-        form = CorporateCompanyForm(request.POST, request.FILES)
+        form = CorporateCompanyForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             company = form.save(commit=False)
             company.created_by = request.user
@@ -1970,7 +1970,7 @@ def corporate_company_create(request):
             messages.success(request, f"Company '{company.company_name}' registered successfully.")
             return redirect('corporate_company_detail', pk=company.pk)
     else:
-        form = CorporateCompanyForm()
+        form = CorporateCompanyForm(user=request.user)
     return render(request, 'studentregistration/corporate_company_form.html', {'form': form, 'action': 'create'})
 
 
@@ -1990,13 +1990,13 @@ def corporate_company_detail(request, pk):
 def corporate_company_edit(request, pk):
     company = get_object_or_404(CorporateCompany, pk=pk)
     if request.method == 'POST':
-        form = CorporateCompanyForm(request.POST, request.FILES, instance=company)
+        form = CorporateCompanyForm(request.POST, request.FILES, instance=company, user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, "Company profile updated.")
             return redirect('corporate_company_detail', pk=company.pk)
     else:
-        form = CorporateCompanyForm(instance=company)
+        form = CorporateCompanyForm(instance=company, user=request.user)
     return render(request, 'studentregistration/corporate_company_form.html', {'form': form, 'company': company, 'action': 'edit'})
 
 

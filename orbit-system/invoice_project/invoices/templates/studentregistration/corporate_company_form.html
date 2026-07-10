@@ -150,6 +150,11 @@
             <div class="form-floating">{{ form.contact_phone }}<label>Contact Phone</label></div>
           </div>
         </div>
+        <div class="col-md-6">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);display:block;margin-bottom:6px;"><i class="fas fa-user-tie me-1"></i>Consultant (Sales)</label>
+          {{ form.consultant }}
+          {% if form.consultant.errors %}<div style="font-size:12px;color:#ef4444;margin-top:3px;font-weight:600;"><i class="fas fa-exclamation-circle me-1"></i>{{ form.consultant.errors.0 }}</div>{% endif %}
+        </div>
       </div>
     </div>
   </div>

@@ -66,6 +66,7 @@
     <div class="info-item"><label>Designation</label><div class="val">{{ company.contact_designation|default:"—" }}</div></div>
     <div class="info-item"><label>Email</label><div class="val" style="word-break:break-all;">{{ company.contact_email|default:"—" }}</div></div>
     <div class="info-item"><label>Phone</label><div class="val">{{ company.contact_phone|default:"—" }}</div></div>
+    {% if company.consultant %}<div class="info-item"><label>Consultant</label><div class="val">{{ company.consultant.get_full_name|default:company.consultant.username }}</div></div>{% endif %}
   </div>
   {% else %}
   <div style="font-size:13px;color:var(--text-muted);">No contact person on file. <a href="{% url 'corporate_company_edit' company.pk %}">Add one.</a></div>
