@@ -1661,8 +1661,88 @@ def get_invoice_details(request):
 
 @login_required
 def corporate_registration(request):
-    # Redirect to the new company-first flow
-    return redirect('corporate_company_create')
+    RegistrationCourseFormSet = formset_factory(RegistrationCourseForm, extra=1)
+    courses = Course.objects.all()
+    company_name = request.GET.get('company_name', '').strip()
+
+    if request.method == 'POST':
+        registration_form = CorporateRegistrationForm(request.POST, user=request.user)
+        corporate_form    = CorporateDetailsForm(request.POST)
+        formset           = RegistrationCourseFormSet(request.POST, prefix='form')
+
+        if registration_form.is_valid() and corporate_form.is_valid() and formset.is_valid():
+            try:
+                with transaction.atomic():
+                    reg = registration_form.save(commit=False)
+                    reg.registration_type = 'OC'
+                    reg.save()
+
+                    corp = corporate_form.save(commit=False)
+                    corp.registration = reg
+                    corp.save()
+
+                    valid_forms = [
+                        f for f in formset
+                        if f.cleaned_data and not f.cleaned_data.get('DELETE', False) and f.cleaned_data.get('course')
+                    ]
+                    base_cap = Decimal('30') if len(valid_forms) >= 2 else Decimal('20')
+                    for cf in valid_forms:
+                        course   = cf.cleaned_data['course']
+                        discount = min(cf.cleaned_data.get('discount') or Decimal('0'), base_cap)
+                        price    = cf.cleaned_data.get('price', Decimal('0')) or Decimal('0')
+                        RegistrationCourse.objects.create(
+                            registration=reg, course=course, discount=discount, price=price,
+                        )
+
+                    try:
+                        admin_users = User.objects.filter(
+                            profile__role__in=['admin', 'accounts', 'sales_manager']
+                        ).exclude(id=request.user.id)
+                        student_name = f"{reg.first_name} {reg.last_name}"
+                        for admin in admin_users:
+                            Notification.objects.create(
+                                recipient=admin,
+                                notif_type='registration_new',
+                                title=f"New Candidate: {corp.company_name}",
+                                message=f"{student_name} ({reg.registration_number}) registered under {corp.company_name}.",
+                                link=f"/corporate-registration/{reg.pk}/"
+                            )
+                    except Exception:
+                        pass
+
+                    _send_welcome_email(reg, request)
+
+                messages.success(request, f"Registration {reg.registration_number} created successfully.")
+                return redirect('corporate_company_list')
+            except Exception as e:
+                messages.error(request, f"An error occurred: {str(e)}")
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        initial_corporate = {}
+        if company_name:
+            existing = CorporateRegistration.objects.filter(company_name=company_name).first()
+            if existing:
+                initial_corporate = {
+                    'company_name':    existing.company_name,
+                    'company_email':   existing.company_email,
+                    'company_phone':   existing.company_phone,
+                    'company_location': existing.company_location,
+                    'company_address': existing.company_address,
+                }
+            else:
+                initial_corporate = {'company_name': company_name}
+        registration_form = CorporateRegistrationForm(user=request.user)
+        corporate_form    = CorporateDetailsForm(initial=initial_corporate)
+        formset           = RegistrationCourseFormSet(prefix='form')
+
+    return render(request, 'studentregistration/corporate_registration.html', {
+        'registration_form': registration_form,
+        'corporate_form':    corporate_form,
+        'formset':           formset,
+        'courses':           courses,
+        'company_name':      company_name,
+    })
 
 @login_required
 def corporate_dashboard(request):

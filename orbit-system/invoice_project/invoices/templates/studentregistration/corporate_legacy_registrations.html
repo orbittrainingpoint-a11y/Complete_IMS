@@ -44,8 +44,11 @@
   <div class="d-flex justify-content-between align-items-center mb-3" style="padding-bottom:10px;border-bottom:1px solid var(--border);">
     <h5 style="margin:0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);">
       <i class="fas fa-users me-2"></i>Candidates / Trainees
+      <span style="font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted);margin-left:8px;">{{ registrations.count }} record{{ registrations.count|pluralize }}</span>
     </h5>
-    <span style="font-size:13px;color:var(--text-muted);">{{ registrations.count }} record{{ registrations.count|pluralize }}</span>
+    <a href="{% url 'corporate_registration' %}?company_name={{ company_name|urlencode }}" class="btn btn-primary btn-sm">
+      <i class="fas fa-user-plus me-1"></i>Add Candidate
+    </a>
   </div>
 
   {% if registrations %}
