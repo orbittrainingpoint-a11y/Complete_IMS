@@ -149,6 +149,7 @@ urlpatterns = [
     path('corporate-companies/create/', views.corporate_company_create, name='corporate_company_create'),
     path('corporate-companies/<int:pk>/', views.corporate_company_detail, name='corporate_company_detail'),
     path('corporate-companies/<int:pk>/edit/', views.corporate_company_edit, name='corporate_company_edit'),
+    path('corporate-companies/<int:pk>/delete/', views.corporate_company_delete, name='corporate_company_delete'),
     path('corporate-companies/<int:pk>/add-candidate/', views.corporate_add_candidate, name='corporate_add_candidate'),
     path('corporate-companies/<int:pk>/generate-portal/', views.corporate_company_generate_portal, name='corporate_company_generate_portal'),
     path('corporate-companies/legacy/', views.corporate_legacy_registrations, name='corporate_legacy_registrations'),

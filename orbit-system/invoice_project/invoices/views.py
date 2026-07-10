@@ -2201,6 +2201,17 @@ def corporate_company_edit(request, pk):
 
 
 @login_required
+def corporate_company_delete(request, pk):
+    company = get_object_or_404(CorporateCompany, pk=pk)
+    if request.method == 'POST':
+        name = company.company_name
+        company.delete()
+        messages.success(request, f'Company "{name}" has been deleted.')
+        return redirect('corporate_company_list')
+    return render(request, 'studentregistration/corporate_company_confirm_delete.html', {'company': company})
+
+
+@login_required
 def corporate_add_candidate(request, pk):
     company = get_object_or_404(CorporateCompany, pk=pk)
     RegistrationCourseFormSet = formset_factory(RegistrationCourseForm, extra=1)
