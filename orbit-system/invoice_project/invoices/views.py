@@ -2512,10 +2512,11 @@ def _month_label(date):
     return date.strftime('%B %Y')
 
 def _revenue_for_user(user, first, last):
-    """Individual invoices tied to a CRM-linked registration + corporate purchase invoices."""
-    pi_revenue = InvoicePurchase.objects.filter(
-        user=user, date__gte=first, date__lte=last
-    ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
+    """CRM-linked individual invoices + corporate tax invoices (registration=None) for the user."""
+    # Corporate tax invoices have registration=None (created via create_tax_invoice_from_pi)
+    corp_inv_revenue = Invoice.objects.filter(
+        user=user, date__gte=first, date__lte=last, registration__isnull=True
+    ).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
     try:
         import pymysql as _pm
         _cn = _pm.connect(host='localhost', user='root', password='', database='orbit_invoice', charset='utf8mb4')
@@ -2529,12 +2530,12 @@ def _revenue_for_user(user, first, last):
             )
             _row = _cu.fetchone()
         _cn.close()
-        inv_revenue = Decimal(str(_row[0] or 0)) if _row else Decimal('0')
+        crm_revenue = Decimal(str(_row[0] or 0)) if _row else Decimal('0')
     except Exception:
-        inv_revenue = Invoice.objects.filter(
-            user=user, date__gte=first, date__lte=last
+        crm_revenue = Invoice.objects.filter(
+            user=user, date__gte=first, date__lte=last, registration__isnull=False
         ).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
-    return inv_revenue + Decimal(str(pi_revenue))
+    return crm_revenue + Decimal(str(corp_inv_revenue))
 
 def _last_6_months():
     today = timezone.now().date()
@@ -2791,14 +2792,10 @@ def _sales_manager_dashboard(request):
 
     executives = User.objects.filter(profile__role='sales_executive', is_active=True)
 
-    team_revenue  = (Invoice.objects.filter(user__in=executives, date__gte=first, date__lte=last)
-                      .aggregate(t=Sum('amount_paid'))['t'] or 0) + \
-                    (InvoicePurchase.objects.filter(user__in=executives, date__gte=first, date__lte=last)
-                      .aggregate(t=Sum('total_amount'))['t'] or 0)
-    prev_team_rev = (Invoice.objects.filter(user__in=executives, date__gte=prev_first, date__lte=prev_last)
-                      .aggregate(t=Sum('amount_paid'))['t'] or 0) + \
-                    (InvoicePurchase.objects.filter(user__in=executives, date__gte=prev_first, date__lte=prev_last)
-                      .aggregate(t=Sum('total_amount'))['t'] or 0)
+    team_revenue  = Invoice.objects.filter(user__in=executives, date__gte=first, date__lte=last)\
+                      .aggregate(t=Sum('amount_paid'))['t'] or 0
+    prev_team_rev = Invoice.objects.filter(user__in=executives, date__gte=prev_first, date__lte=prev_last)\
+                      .aggregate(t=Sum('amount_paid'))['t'] or 0
     rev_pct, rev_dir = _pct_change(team_revenue, prev_team_rev)
 
     team_regs     = Registration.objects.filter(date__gte=first, date__lte=last).count()
