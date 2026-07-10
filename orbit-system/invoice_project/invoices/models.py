@@ -159,6 +159,8 @@ class Registration(models.Model):
         ('dropped', 'Dropped Out'), ('suspended', 'Suspended'), ('pending', 'Pending'),
     ]
     student_status = models.CharField(max_length=20, choices=STUDENT_STATUS_CHOICES, default='active')
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    welcome_email_sent = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if not self.registration_number:

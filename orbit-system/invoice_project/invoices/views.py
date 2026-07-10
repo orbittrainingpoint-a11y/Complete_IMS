@@ -1223,9 +1223,7 @@ def registration_form(request):
             except Exception:
                 pass
 
-            # Send welcome email to student
-            _send_welcome_email(registration, request)
-
+            # Welcome email sent by cron 1 hour after registration
             return redirect('student_dashboard')
         else:
             print("Form errors:", form.errors)
@@ -1335,6 +1333,18 @@ def student_dashboard(request):
 @login_required
 def edit_registration(request, pk):
     registration = get_object_or_404(Registration, pk=pk)
+
+    # Sales executives cannot edit registrations more than 1 hour after creation
+    try:
+        role = request.user.profile.role
+    except Exception:
+        role = 'sales_executive'
+    if role == 'sales_executive' and registration.created_at:
+        age = timezone.now() - registration.created_at
+        if age.total_seconds() > 3600:
+            messages.error(request, "Registrations can only be edited within 1 hour of creation. Please contact your manager.")
+            return redirect('student_dashboard')
+
     RegistrationCourseFormSet = formset_factory(RegistrationCourseForm, extra=0)
 
     if request.method == 'POST':
@@ -1726,7 +1736,7 @@ def corporate_registration(request):
                     except Exception:
                         pass
 
-                    _send_welcome_email(reg, request)
+                    # Welcome email sent by cron 1 hour after registration
 
                 messages.success(request, f"Registration {reg.registration_number} created successfully.")
                 return redirect('corporate_company_list')
@@ -2272,7 +2282,7 @@ def corporate_add_candidate(request, pk):
                     except Exception:
                         pass
 
-                    _send_welcome_email(reg, request)
+                    # Welcome email sent by cron 1 hour after registration
 
                 messages.success(request, f"Candidate {reg.first_name} {reg.last_name} added successfully.")
                 return redirect('corporate_company_detail', pk=company.pk)
@@ -2502,8 +2512,10 @@ def _month_label(date):
     return date.strftime('%B %Y')
 
 def _revenue_for_user(user, first, last):
-    """Only invoices tied to a CRM-linked registration count as the exec's personal sale.
-    Invoices without a CRM lead link (direct/institute sales) are excluded here."""
+    """Individual invoices tied to a CRM-linked registration + corporate purchase invoices."""
+    pi_revenue = InvoicePurchase.objects.filter(
+        user=user, date__gte=first, date__lte=last
+    ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
     try:
         import pymysql as _pm
         _cn = _pm.connect(host='localhost', user='root', password='', database='orbit_invoice', charset='utf8mb4')
@@ -2517,11 +2529,12 @@ def _revenue_for_user(user, first, last):
             )
             _row = _cu.fetchone()
         _cn.close()
-        return Decimal(str(_row[0] or 0)) if _row else Decimal('0')
+        inv_revenue = Decimal(str(_row[0] or 0)) if _row else Decimal('0')
     except Exception:
-        return Invoice.objects.filter(
+        inv_revenue = Invoice.objects.filter(
             user=user, date__gte=first, date__lte=last
-        ).aggregate(t=Sum('amount_paid'))['t'] or 0
+        ).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
+    return inv_revenue + Decimal(str(pi_revenue))
 
 def _last_6_months():
     today = timezone.now().date()
@@ -2778,10 +2791,14 @@ def _sales_manager_dashboard(request):
 
     executives = User.objects.filter(profile__role='sales_executive', is_active=True)
 
-    team_revenue  = Invoice.objects.filter(user__in=executives, date__gte=first, date__lte=last)\
-                      .aggregate(t=Sum('amount_paid'))['t'] or 0
-    prev_team_rev = Invoice.objects.filter(user__in=executives, date__gte=prev_first, date__lte=prev_last)\
-                      .aggregate(t=Sum('amount_paid'))['t'] or 0
+    team_revenue  = (Invoice.objects.filter(user__in=executives, date__gte=first, date__lte=last)
+                      .aggregate(t=Sum('amount_paid'))['t'] or 0) + \
+                    (InvoicePurchase.objects.filter(user__in=executives, date__gte=first, date__lte=last)
+                      .aggregate(t=Sum('total_amount'))['t'] or 0)
+    prev_team_rev = (Invoice.objects.filter(user__in=executives, date__gte=prev_first, date__lte=prev_last)
+                      .aggregate(t=Sum('amount_paid'))['t'] or 0) + \
+                    (InvoicePurchase.objects.filter(user__in=executives, date__gte=prev_first, date__lte=prev_last)
+                      .aggregate(t=Sum('total_amount'))['t'] or 0)
     rev_pct, rev_dir = _pct_change(team_revenue, prev_team_rev)
 
     team_regs     = Registration.objects.filter(date__gte=first, date__lte=last).count()
@@ -4409,11 +4426,7 @@ def student_self_register(request, token):
                 link.save()
                 # Sync to CRM student list
                 sync_registration_to_crm(reg, consultant_username=link.consultant.username)
-                # Send welcome email to student
-                try:
-                    _send_welcome_email(reg, request)
-                except Exception:
-                    pass
+                # Welcome email sent by cron 1 hour after registration
                 # Notify consultant
                 try:
                     from .models import Notification
