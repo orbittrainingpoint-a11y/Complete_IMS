@@ -129,6 +129,14 @@
           <td>
             <div class="d-flex gap-1">
               <a href="{% url 'print_certificate' cert.id %}" target="_blank" class="btn btn-outline-primary btn-sm" title="Print/View"><i class="fas fa-print"></i></a>
+              {% if user.username == 'admin' or user.profile.role == 'admin' %}
+              <button type="button" class="btn btn-outline-danger btn-sm" title="Delete"
+                      data-bs-toggle="modal" data-bs-target="#deleteCertModal"
+                      data-cert-id="{{ cert.id }}"
+                      data-cert-name="{{ cert.student_name }} — {{ cert.course_name }}">
+                <i class="fas fa-trash"></i>
+              </button>
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -139,6 +147,31 @@
     </table>
   </div>
 </div>
+
+<!-- Delete Certificate Modal -->
+{% if user.username == 'admin' or user.profile.role == 'admin' %}
+<div class="modal fade" id="deleteCertModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h6 class="modal-title"><i class="fas fa-trash me-2"></i>Delete Certificate</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center py-3">
+        <p class="mb-1" style="font-size:13px;">Are you sure you want to delete this certificate?</p>
+        <p class="text-danger fw-bold mb-0" style="font-size:12px;" id="deleteCertName"></p>
+      </div>
+      <div class="modal-footer justify-content-center gap-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <form id="deleteCertForm" method="post" action="">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- KHDA Modal (preserved) -->
 {% if user.username == 'admin' or user.profile.role == 'admin' %}
@@ -209,6 +242,13 @@ function filterCerts() {
     r.style.display = ok ? '' : 'none';
   });
 }
+
+// Delete modal wiring
+document.getElementById('deleteCertModal')?.addEventListener('show.bs.modal', e => {
+  const btn = e.relatedTarget;
+  document.getElementById('deleteCertName').textContent = btn.dataset.certName;
+  document.getElementById('deleteCertForm').action = `/certificates/${btn.dataset.certId}/delete/`;
+});
 
 // KPI counts
 document.addEventListener('DOMContentLoaded', () => {

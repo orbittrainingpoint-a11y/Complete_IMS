@@ -57,6 +57,7 @@ urlpatterns = [
     path('upload-certificate/<int:registration_id>/', views.upload_certificate, name='upload_certificate'),
     path('certificates/khda-form/', views.khda_certificate_form, name='khda_certificate_form'),
     path('certificates/create-khda/', views.create_khda_certificate, name='create_khda_certificate'),
+    path('certificates/<int:pk>/delete/', views.delete_certificate, name='delete_certificate'),
     path('upload-form/<int:registration_id>/', views.upload_form, name='upload_form'),
     path('proposals/', views.proposal_dashboard, name='proposal_dashboard'),
     path('proposals/create/', views.create_proposal, name='create_proposal'),

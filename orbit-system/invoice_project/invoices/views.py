@@ -3292,6 +3292,22 @@ def create_khda_certificate(request):
         }, status=500)
 
 @login_required
+@require_POST
+def delete_certificate(request, pk):
+    try:
+        role = request.user.profile.role
+    except Exception:
+        role = ''
+    if request.user.username != 'admin' and role != 'admin':
+        messages.error(request, "Only admins can delete certificates.")
+        return redirect('certificate_dashboard')
+    certificate = get_object_or_404(Certificate, pk=pk)
+    certificate.delete()
+    messages.success(request, "Certificate deleted successfully.")
+    return redirect('certificate_dashboard')
+
+
+@login_required
 def proposal_dashboard(request):
     qs = Proposal.objects.select_related('course', 'trainer').order_by('-created_at')
     search = request.GET.get('q', '')
