@@ -1,0 +1,286 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Institute Settings{% endblock %}
+{% block breadcrumb_label %}<span class="current">Settings</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.settings-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:24px 28px; margin-bottom:24px; }
+.settings-card h6 { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--text-muted); margin-bottom:18px; padding-bottom:10px; border-bottom:1px solid var(--border); }
+.form-label { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; color:#64748b; margin-bottom:4px; }
+.form-control, .form-select { border-radius:8px; font-size:14px; }
+.form-control:focus { box-shadow:0 0 0 3px rgba(59,130,246,.15); border-color:#3b82f6; }
+.img-preview { width:120px; height:80px; object-fit:contain; border:1px solid var(--border); border-radius:8px; background:#f8fafc; padding:6px; }
+.img-placeholder { width:120px; height:80px; border:2px dashed var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:11px; background:#f8fafc; }
+.upload-zone { border:2px dashed #cbd5e1; border-radius:10px; padding:18px 16px; background:#f8fafc; transition:border-color .2s; cursor:pointer; }
+.upload-zone:hover { border-color:#3b82f6; background:#eff6ff; }
+.upload-zone input[type=file] { display:none; }
+.upload-zone label { cursor:pointer; font-size:13px; color:#64748b; margin:0; width:100%; }
+.tab-pill { display:inline-block; padding:7px 18px; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid var(--border); color:var(--text-muted); transition:all .15s; }
+.tab-pill.active { background:#1e40af; color:#fff; border-color:#1e40af; }
+.settings-section { display:none; }
+.settings-section.active { display:block; }
+.save-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid var(--border); padding:14px 28px; margin:-24px -28px -24px; margin-top:12px; border-radius:0 0 14px 14px; display:flex; justify-content:flex-end; gap:10px; z-index:10; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <div class="page-title"><i class="fas fa-cog me-2" style="color:#1e40af;"></i>Institute Settings</div>
+    <div class="page-subtitle">Configure company information, branding, banking, and document defaults</div>
+  </div>
+  {% if setting.updated_at %}
+  <small class="text-muted" style="font-size:11px;">Last saved: {{ setting.updated_at|date:"d M Y H:i" }}</small>
+  {% endif %}
+</div>
+
+<!-- Tab nav -->
+<div class="d-flex gap-2 flex-wrap mb-4" id="settingsTabs">
+  <span class="tab-pill active" onclick="switchSection(this,'identity')"><i class="fas fa-building me-1"></i>Company Info</span>
+  <span class="tab-pill" onclick="switchSection(this,'branding')"><i class="fas fa-image me-1"></i>Branding & Stamps</span>
+  <span class="tab-pill" onclick="switchSection(this,'banking')"><i class="fas fa-university me-1"></i>Banking</span>
+  <span class="tab-pill" onclick="switchSection(this,'documents')"><i class="fas fa-file-alt me-1"></i>Documents</span>
+  <span class="tab-pill" onclick="switchSection(this,'social')"><i class="fas fa-share-alt me-1"></i>Social</span>
+</div>
+
+<form method="post" enctype="multipart/form-data" id="settingsForm">
+  {% csrf_token %}
+
+  <!-- ── Company Identity ─────────────────────────────────── -->
+  <div class="settings-section active" id="section-identity">
+    <div class="settings-card">
+      <h6><i class="fas fa-building me-2"></i>Company Identity</h6>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Company Name <span class="text-danger">*</span></label>
+          <input type="text" name="company_name" class="form-control" value="{{ setting.company_name }}" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Tagline / Slogan</label>
+          <input type="text" name="tagline" class="form-control" value="{{ setting.tagline }}" placeholder="e.g. Excellence in Training">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Address</label>
+          <textarea name="address" class="form-control" rows="2">{{ setting.address }}</textarea>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">P.O. Box</label>
+          <input type="text" name="po_box" class="form-control" value="{{ setting.po_box }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">City</label>
+          <input type="text" name="city" class="form-control" value="{{ setting.city }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Country</label>
+          <input type="text" name="country" class="form-control" value="{{ setting.country }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Phone</label>
+          <input type="text" name="phone" class="form-control" value="{{ setting.phone }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" class="form-control" value="{{ setting.email }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Website</label>
+          <input type="url" name="website" class="form-control" value="{{ setting.website }}" placeholder="https://">
+        </div>
+      </div>
+    </div>
+    <div class="settings-card">
+      <h6><i class="fas fa-gavel me-2"></i>Legal &amp; Licensing</h6>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">TRN Number</label>
+          <input type="text" name="trn_number" class="form-control" value="{{ setting.trn_number }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">License Number</label>
+          <input type="text" name="license_number" class="form-control" value="{{ setting.license_number }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">License Authority</label>
+          <input type="text" name="license_authority" class="form-control" value="{{ setting.license_authority }}" placeholder="e.g. KHDA, DED">
+        </div>
+      </div>
+    </div>
+    <div class="settings-card">
+      <div class="save-bar">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Branding ──────────────────────────────────────────── -->
+  <div class="settings-section" id="section-branding">
+    <div class="settings-card">
+      <h6><i class="fas fa-image me-2"></i>Branding Images</h6>
+      <p style="font-size:13px;color:#64748b;margin-bottom:20px;">These images appear on invoices, certificates, proposals, and emails. PNG with transparent background recommended.</p>
+      <div class="row g-4">
+
+        {% for f in img_fields %}
+        <div class="col-md-6">
+          <label class="form-label">{{ f.label }}</label>
+          <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">{{ f.hint }}</p>
+          <div class="d-flex align-items-start gap-3">
+            <div>
+              {% if f.url %}
+                <img src="{{ f.url }}" class="img-preview" id="img_{{ f.name }}">
+              {% else %}
+                <div class="img-placeholder" id="img_{{ f.name }}"><i class="fas fa-image" style="font-size:20px;opacity:.3;"></i></div>
+              {% endif %}
+            </div>
+            <div class="flex-grow-1">
+              <div class="upload-zone" onclick="document.getElementById('file_{{ f.name }}').click()">
+                <label>
+                  <i class="fas fa-upload me-2" style="color:#3b82f6;"></i>
+                  <span id="label_{{ f.name }}">Click to upload {{ f.label }}</span>
+                </label>
+                <input type="file" id="file_{{ f.name }}" name="{{ f.name }}" accept="image/*"
+                       onchange="previewImg(this, 'img_{{ f.name }}', 'label_{{ f.name }}')">
+              </div>
+              {% if f.has_file %}
+              <div class="form-check mt-2">
+                <input type="checkbox" name="{{ f.name }}_clear" id="clear_{{ f.name }}" class="form-check-input">
+                <label for="clear_{{ f.name }}" class="form-check-label" style="font-size:12px;color:#ef4444;">Remove current image</label>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+
+      </div>
+    </div>
+    <div class="settings-card">
+      <div class="save-bar">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Banking ───────────────────────────────────────────── -->
+  <div class="settings-section" id="section-banking">
+    <div class="settings-card">
+      <h6><i class="fas fa-university me-2"></i>Bank Account Details</h6>
+      <p style="font-size:13px;color:#64748b;margin-bottom:20px;">These appear on invoices and payment receipts.</p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Bank Name</label>
+          <input type="text" name="bank_name" class="form-control" value="{{ setting.bank_name }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Account Name</label>
+          <input type="text" name="bank_account_name" class="form-control" value="{{ setting.bank_account_name }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Account Number</label>
+          <input type="text" name="bank_account_no" class="form-control" value="{{ setting.bank_account_no }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">IBAN</label>
+          <input type="text" name="bank_iban" class="form-control" value="{{ setting.bank_iban }}" placeholder="AE...">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">SWIFT / BIC Code</label>
+          <input type="text" name="bank_swift" class="form-control" value="{{ setting.bank_swift }}">
+        </div>
+      </div>
+    </div>
+    <div class="settings-card">
+      <div class="save-bar">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Documents ─────────────────────────────────────────── -->
+  <div class="settings-section" id="section-documents">
+    <div class="settings-card">
+      <h6><i class="fas fa-file-alt me-2"></i>Invoice &amp; Document Defaults</h6>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Invoice Prefix</label>
+          <input type="text" name="invoice_prefix" class="form-control" value="{{ setting.invoice_prefix }}" placeholder="ORB">
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Used in generated invoice numbers</div>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Invoice Footer Text</label>
+          <textarea name="invoice_footer" class="form-control" rows="3" placeholder="e.g. Thank you for choosing Orbit Training Centre. Payment due within 30 days.">{{ setting.invoice_footer }}</textarea>
+        </div>
+      </div>
+    </div>
+    <div class="settings-card">
+      <div class="save-bar">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Social ─────────────────────────────────────────────── -->
+  <div class="settings-section" id="section-social">
+    <div class="settings-card">
+      <h6><i class="fas fa-share-alt me-2"></i>Social Media Links</h6>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label"><i class="fab fa-instagram me-1" style="color:#e1306c;"></i>Instagram</label>
+          <input type="url" name="social_instagram" class="form-control" value="{{ setting.social_instagram }}" placeholder="https://instagram.com/...">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label"><i class="fab fa-linkedin me-1" style="color:#0077b5;"></i>LinkedIn</label>
+          <input type="url" name="social_linkedin" class="form-control" value="{{ setting.social_linkedin }}" placeholder="https://linkedin.com/company/...">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label"><i class="fab fa-facebook me-1" style="color:#1877f2;"></i>Facebook</label>
+          <input type="url" name="social_facebook" class="form-control" value="{{ setting.social_facebook }}" placeholder="https://facebook.com/...">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label"><i class="fab fa-twitter me-1" style="color:#1da1f2;"></i>Twitter / X</label>
+          <input type="url" name="social_twitter" class="form-control" value="{{ setting.social_twitter }}" placeholder="https://twitter.com/...">
+        </div>
+      </div>
+    </div>
+    <div class="settings-card">
+      <div class="save-bar">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function switchSection(pill, name) {
+  document.querySelectorAll('.tab-pill').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+  pill.classList.add('active');
+  document.getElementById('section-' + name).classList.add('active');
+}
+
+function previewImg(input, imgId, labelId) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const el = document.getElementById(imgId);
+    if (el.tagName === 'IMG') {
+      el.src = e.target.result;
+    } else {
+      // placeholder div — replace with img
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = 'img-preview';
+      img.id = imgId;
+      el.replaceWith(img);
+    }
+    document.getElementById(labelId).textContent = input.files[0].name;
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+</script>
+{% endblock %}

@@ -51,7 +51,7 @@ import datetime
 
 logger = logging.getLogger(__name__)
 
-from .models import UserProfile, SalesTarget, QuotationItemOverride, QuotationLevel
+from .models import UserProfile, SalesTarget, QuotationItemOverride, QuotationLevel, InstituteSetting, CertificationRequest
 from django.contrib.auth.models import User
 import calendar
 
@@ -5048,6 +5048,83 @@ def _attach_logo_inline(msg):
         return True
     except Exception:
         return False
+
+
+# ─────────────────────────────────────────────
+# INSTITUTE SETTINGS
+# ─────────────────────────────────────────────
+
+@login_required
+@user_passes_test(is_admin_user)
+def institute_settings(request):
+    setting = InstituteSetting.get()
+    if request.method == 'POST':
+        # Text fields
+        for field in [
+            'company_name', 'tagline', 'address', 'po_box', 'city', 'country',
+            'phone', 'email', 'website', 'trn_number', 'license_number', 'license_authority',
+            'invoice_prefix', 'invoice_footer',
+            'bank_name', 'bank_account_name', 'bank_account_no', 'bank_iban', 'bank_swift',
+            'social_instagram', 'social_linkedin', 'social_facebook', 'social_twitter',
+        ]:
+            val = request.POST.get(field, '').strip()
+            setattr(setting, field, val)
+
+        # Image fields — only update if a new file was uploaded
+        for img_field in ['company_logo', 'stamp', 'authorization_logo', 'signature']:
+            file = request.FILES.get(img_field)
+            if file:
+                # Delete old file to save storage
+                old = getattr(setting, img_field)
+                if old:
+                    try:
+                        import os as _os
+                        from django.conf import settings as _s
+                        old_path = _os.path.join(_s.MEDIA_ROOT, old.name)
+                        if _os.path.isfile(old_path):
+                            _os.remove(old_path)
+                    except Exception:
+                        pass
+                setattr(setting, img_field, file)
+            # Handle "clear" checkbox
+            if request.POST.get(f'{img_field}_clear'):
+                old = getattr(setting, img_field)
+                if old:
+                    try:
+                        import os as _os
+                        from django.conf import settings as _s
+                        old_path = _os.path.join(_s.MEDIA_ROOT, old.name)
+                        if _os.path.isfile(old_path):
+                            _os.remove(old_path)
+                    except Exception:
+                        pass
+                setattr(setting, img_field, None)
+
+        setting.save()
+        messages.success(request, 'Settings saved successfully.')
+        return redirect('institute_settings')
+
+    img_fields = [
+        ('company_logo',       'Company Logo',          'Main logo on invoices, emails, and proposals'),
+        ('stamp',              'Company Stamp',          'Official stamp for certificates and official documents'),
+        ('authorization_logo', 'Authorization Logo',     'Accreditation / authorization badge (KHDA, ISO, etc.)'),
+        ('signature',          'Authorized Signature',   'Signature image of authorized signatory'),
+    ]
+    # Build image field data with current file info for template
+    img_field_data = []
+    for name, label, hint in img_fields:
+        current = getattr(setting, name)
+        img_field_data.append({
+            'name': name,
+            'label': label,
+            'hint': hint,
+            'url': current.url if current else None,
+            'has_file': bool(current),
+        })
+    return render(request, 'settings/institute_settings.html', {
+        'setting': setting,
+        'img_fields': img_field_data,
+    })
 
 
 # ─────────────────────────────────────────────

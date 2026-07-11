@@ -5,6 +5,7 @@ from . import views
 
 urlpatterns = [
     path('', views.orbit_dashboard, name='orbit_dashboard'),
+    path('settings/', views.institute_settings, name='institute_settings'),
     path('manage/users/', views.manage_users, name='manage_users'),
     path('manage/sync-crm/', views.sync_all_crm_users, name='sync_all_crm_users'),
     path('manage/users/<int:user_id>/role/', views.update_user_role, name='update_user_role'),

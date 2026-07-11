@@ -1,10 +1,49 @@
 {% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Add Material — {{ course.name }}{% endblock %}
+{% block breadcrumb_label %}
+  <a href="{% url 'course_list' %}" style="color:var(--text-muted);text-decoration:none;">Courses</a>
+  <span style="margin:0 6px;color:var(--border);">/</span>
+  <a href="{% url 'course_detail' course.id %}" style="color:var(--text-muted);text-decoration:none;">{{ course.name }}</a>
+  <span style="margin:0 6px;color:var(--border);">/</span>
+  <span class="current">Add Material</span>
+{% endblock %}
 
 {% block content %}
-<h2>Add Content to {{ course.name }}</h2>
-<form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="btn btn-primary">Upload</button>
-</form>
+<div class="page-header mb-4">
+  <div class="page-title">Upload Course Material</div>
+  <div class="page-subtitle">{{ course.name }}</div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card" style="border-radius:14px;border:1px solid var(--border);padding:28px;">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">Title</label>
+          <input type="text" name="title" class="form-control" placeholder="e.g. Chapter 1 — Introduction" required
+                 style="border-radius:8px;font-size:14px;">
+        </div>
+        <div class="mb-4">
+          <label class="form-label" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">File</label>
+          <div style="border:2px dashed #cbd5e1;border-radius:10px;padding:24px;background:#f8fafc;text-align:center;cursor:pointer;"
+               onclick="document.getElementById('materialFile').click()">
+            <i class="fas fa-cloud-upload-alt" style="font-size:32px;color:#94a3b8;display:block;margin-bottom:8px;"></i>
+            <span id="fileLabel" style="font-size:13px;color:#64748b;">Click to choose a file (PDF, DOC, PPT, MP4…)</span>
+            <input type="file" id="materialFile" name="file" required style="display:none;"
+                   onchange="document.getElementById('fileLabel').textContent = this.files[0].name">
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary flex-grow-1">
+            <i class="fas fa-upload me-2"></i>Upload Material
+          </button>
+          <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}

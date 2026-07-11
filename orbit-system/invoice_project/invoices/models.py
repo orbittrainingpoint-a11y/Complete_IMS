@@ -1164,3 +1164,71 @@ class GatewayPayout(models.Model):
         if self.actual_received is not None:
             return self.actual_received - self.net_payout
         return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INSTITUTE / COMPANY SETTINGS  (singleton — always pk=1)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _setting_upload(field):
+    def _path(instance, filename):
+        ext = os.path.splitext(filename)[1]
+        return f'company_settings/{field}{ext}'
+    return _path
+
+
+class InstituteSetting(models.Model):
+    # ── Identity ──────────────────────────────────────────────
+    company_name     = models.CharField(max_length=255, default='Orbit Training Centre')
+    tagline          = models.CharField(max_length=255, blank=True)
+    address          = models.TextField(blank=True)
+    po_box           = models.CharField(max_length=50, blank=True)
+    city             = models.CharField(max_length=100, blank=True)
+    country          = models.CharField(max_length=100, blank=True, default='UAE')
+    phone            = models.CharField(max_length=30, blank=True)
+    email            = models.EmailField(blank=True)
+    website          = models.URLField(blank=True)
+
+    # ── Legal / Tax ───────────────────────────────────────────
+    trn_number       = models.CharField(max_length=50, blank=True, verbose_name='TRN Number')
+    license_number   = models.CharField(max_length=100, blank=True)
+    license_authority = models.CharField(max_length=200, blank=True, help_text='e.g. KHDA, DED')
+
+    # ── Branding / Documents ──────────────────────────────────
+    company_logo     = models.ImageField(upload_to=_setting_upload('logo'), null=True, blank=True,
+                                         help_text='Main logo used on invoices/emails (PNG recommended)')
+    stamp            = models.ImageField(upload_to=_setting_upload('stamp'), null=True, blank=True,
+                                         help_text='Official company stamp for certificates/documents')
+    authorization_logo = models.ImageField(upload_to=_setting_upload('auth_logo'), null=True, blank=True,
+                                            help_text='Accreditation / authorization badge')
+    signature        = models.ImageField(upload_to=_setting_upload('signature'), null=True, blank=True,
+                                         help_text='Authorized signatory signature image')
+
+    # ── Invoice / Document settings ───────────────────────────
+    invoice_prefix   = models.CharField(max_length=20, blank=True, default='ORB',
+                                         help_text='Prefix for invoice numbers')
+    invoice_footer   = models.TextField(blank=True, help_text='Text printed at bottom of invoices')
+    bank_name        = models.CharField(max_length=200, blank=True)
+    bank_account_name = models.CharField(max_length=200, blank=True)
+    bank_account_no  = models.CharField(max_length=50, blank=True)
+    bank_iban        = models.CharField(max_length=50, blank=True)
+    bank_swift       = models.CharField(max_length=20, blank=True)
+
+    # ── Social ────────────────────────────────────────────────
+    social_instagram = models.URLField(blank=True)
+    social_linkedin  = models.URLField(blank=True)
+    social_facebook  = models.URLField(blank=True)
+    social_twitter   = models.URLField(blank=True)
+
+    updated_at       = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Institute Setting'
+
+    def __str__(self):
+        return self.company_name
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
