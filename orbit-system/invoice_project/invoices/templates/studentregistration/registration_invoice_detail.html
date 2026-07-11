@@ -54,9 +54,9 @@
 <!-- ── STATUS CHIPS ── -->
 <div class="status-bar">
   {% if form_uploaded %}
-    <span class="status-pill sp-green"><i class="fas fa-check-circle"></i>Form Uploaded</span>
+    <span class="status-pill sp-green"><i class="fas fa-check-circle"></i>Enrolment Doc Uploaded</span>
   {% else %}
-    <span class="status-pill sp-gray"><i class="fas fa-file"></i>Form Pending</span>
+    <span class="status-pill sp-gray"><i class="fas fa-file"></i>Enrolment Doc Pending</span>
   {% endif %}
 
   {% if certificate_uploaded %}
@@ -83,7 +83,7 @@
 <!-- ── QUICK ACTIONS ── -->
 <div class="action-strip">
   {% if not form_uploaded %}
-  <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#formUploadModal"><i class="fas fa-upload me-1"></i>Upload Form</button>
+  <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#formUploadModal"><i class="fas fa-upload me-1"></i>Upload Enrolment Doc</button>
   {% endif %}
   {% if not certificate_uploaded %}
   <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#certificateUploadModal"><i class="fas fa-upload me-1"></i>Upload Certificate</button>
