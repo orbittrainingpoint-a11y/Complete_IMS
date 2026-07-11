@@ -5050,6 +5050,236 @@ def _attach_logo_inline(msg):
         return False
 
 
+# ─────────────────────────────────────────────
+# CERTIFICATION REQUEST FLOW
+# ─────────────────────────────────────────────
+
+@login_required
+@require_POST
+def send_cert_request(request, pk):
+    """Send a token-based certification request form link to the student/client."""
+    from django.core.mail import EmailMultiAlternatives
+    from django.conf import settings as _s
+    from invoices.models import CertificationRequest
+
+    registration = get_object_or_404(Registration, pk=pk)
+    course_name = request.POST.get('course_name', '').strip()
+    if not course_name:
+        messages.error(request, "Please select a course.")
+        return redirect('registration_invoice_detail', registration_id=pk)
+
+    # Create a fresh request token each time
+    cert_req = CertificationRequest.objects.create(
+        registration=registration,
+        course_name=course_name,
+        sent_by=request.user,
+    )
+
+    form_url = request.build_absolute_uri(reverse('cert_request_form', args=[cert_req.token]))
+    recipient = registration.email
+
+    subject = f"Certificate Request — {registration.first_name} {registration.last_name}"
+    text_body = (
+        f"Dear {registration.first_name} {registration.last_name},\n\n"
+        f"Please complete the certification request form for your course: {course_name}\n\n"
+        f"Click the link below to fill in the form:\n{form_url}\n\n"
+        f"Orbit Training Centre"
+    )
+    html_body = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
+      <h2 style="color:#1e40af;">Certificate Request Form</h2>
+      <p>Dear <strong>{registration.first_name} {registration.last_name}</strong>,</p>
+      <p>Please complete the certification request form for your course:</p>
+      <p style="font-size:16px;font-weight:bold;color:#1e40af;">{course_name}</p>
+      <p>Click the button below to fill in your course completion details:</p>
+      <a href="{form_url}" style="display:inline-block;background:#1e40af;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
+        Complete Certification Form
+      </a>
+      <p style="color:#64748b;font-size:12px;margin-top:24px;">
+        If the button doesn't work, copy and paste this link:<br>{form_url}
+      </p>
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin-top:24px;">
+      <p style="color:#64748b;font-size:12px;">Orbit Training Centre</p>
+    </div>
+    """
+    try:
+        msg = EmailMultiAlternatives(subject, text_body, _s.DEFAULT_FROM_EMAIL, [recipient])
+        msg.attach_alternative(html_body, 'text/html')
+        msg.send(fail_silently=False)
+        messages.success(request, f"Certification request form sent to {recipient}.")
+    except Exception as e:
+        messages.error(request, f"Email could not be sent: {e}")
+
+    return redirect('registration_invoice_detail', registration_id=pk)
+
+
+def cert_request_form(request, token):
+    """Public form for client to fill in course completion details."""
+    from invoices.models import CertificationRequest
+    cert_req = get_object_or_404(CertificationRequest, token=token)
+
+    if cert_req.status in ('approved', 'rejected'):
+        return render(request, 'certificates/cert_request_done.html', {
+            'cert_req': cert_req,
+            'already_done': True,
+        })
+
+    if request.method == 'POST':
+        course_completed = request.POST.get('course_completed')
+        completion_date = request.POST.get('completion_date', '').strip()
+        client_notes = request.POST.get('client_notes', '').strip()
+
+        if course_completed == 'no':
+            return render(request, 'certificates/cert_request_form.html', {
+                'cert_req': cert_req,
+                'error_not_completed': True,
+            })
+
+        if not completion_date:
+            return render(request, 'certificates/cert_request_form.html', {
+                'cert_req': cert_req,
+                'error_date': True,
+            })
+
+        import datetime as _dt
+        try:
+            parsed_date = _dt.date.fromisoformat(completion_date)
+        except ValueError:
+            return render(request, 'certificates/cert_request_form.html', {
+                'cert_req': cert_req,
+                'error_date': True,
+            })
+
+        cert_req.course_completed = True
+        cert_req.completion_date = parsed_date
+        cert_req.client_notes = client_notes
+        cert_req.submitted_at = timezone.now()
+        cert_req.status = 'submitted'
+        cert_req.save()
+
+        # Notify admin by email
+        _notify_admin_cert_request(cert_req, request)
+
+        return render(request, 'certificates/cert_request_done.html', {
+            'cert_req': cert_req,
+            'already_done': False,
+        })
+
+    return render(request, 'certificates/cert_request_form.html', {'cert_req': cert_req})
+
+
+def _notify_admin_cert_request(cert_req, request):
+    from django.core.mail import EmailMultiAlternatives
+    from django.conf import settings as _s
+    try:
+        admin_url = request.build_absolute_uri(reverse('cert_requests_admin'))
+        reg = cert_req.registration
+        subject = f"New Cert Request: {reg.first_name} {reg.last_name} — {cert_req.course_name}"
+        body = (
+            f"A certification request has been submitted.\n\n"
+            f"Student: {reg.first_name} {reg.last_name} ({reg.registration_number})\n"
+            f"Course: {cert_req.course_name}\n"
+            f"Completion Date: {cert_req.completion_date}\n\n"
+            f"Review: {admin_url}"
+        )
+        msg = EmailMultiAlternatives(subject, body, _s.DEFAULT_FROM_EMAIL, [_s.DEFAULT_FROM_EMAIL])
+        msg.send(fail_silently=True)
+    except Exception:
+        pass
+
+
+@login_required
+def cert_requests_admin(request):
+    """Admin page to review and generate certificates from submitted requests."""
+    from invoices.models import CertificationRequest
+    try:
+        role = request.user.profile.role
+    except Exception:
+        role = ''
+    if request.user.username != 'admin' and role != 'admin':
+        messages.error(request, "Admin access only.")
+        return redirect('student_dashboard')
+
+    requests_qs = CertificationRequest.objects.select_related(
+        'registration', 'sent_by', 'generated_certificate'
+    ).order_by('-sent_at')
+
+    status_filter = request.GET.get('status', 'submitted')
+    if status_filter and status_filter != 'all':
+        requests_qs = requests_qs.filter(status=status_filter)
+
+    return render(request, 'certificates/cert_requests_admin.html', {
+        'cert_requests': requests_qs,
+        'status_filter': status_filter,
+    })
+
+
+@login_required
+@require_POST
+def cert_request_generate(request, pk):
+    """Admin generates a certificate from a submitted certification request."""
+    from invoices.models import CertificationRequest
+    try:
+        role = request.user.profile.role
+    except Exception:
+        role = ''
+    if request.user.username != 'admin' and role != 'admin':
+        messages.error(request, "Admin access only.")
+        return redirect('cert_requests_admin')
+
+    cert_req = get_object_or_404(CertificationRequest, pk=pk)
+    grade = request.POST.get('grade', 'A').strip()
+    from_date = request.POST.get('from_date', '').strip()
+    end_date_val = request.POST.get('end_date', '').strip() or (
+        str(cert_req.completion_date) if cert_req.completion_date else ''
+    )
+
+    import datetime as _dt
+    try:
+        parsed_from = _dt.date.fromisoformat(from_date) if from_date else None
+        parsed_end = _dt.date.fromisoformat(end_date_val) if end_date_val else cert_req.completion_date
+    except ValueError:
+        parsed_from = None
+        parsed_end = cert_req.completion_date
+
+    reg = cert_req.registration
+    certificate = Certificate.objects.create(
+        register_number=reg.registration_number,
+        student_name=f"{reg.first_name} {reg.last_name}",
+        course_name=cert_req.course_name,
+        from_date=parsed_from,
+        end_date=parsed_end,
+        grade=grade,
+    )
+
+    cert_req.generated_certificate = certificate
+    cert_req.status = 'approved'
+    cert_req.save(update_fields=['generated_certificate', 'status'])
+
+    messages.success(request, f"Certificate generated for {reg.first_name} {reg.last_name} — {cert_req.course_name}.")
+    return redirect('cert_requests_admin')
+
+
+@login_required
+@require_POST
+def cert_request_reject(request, pk):
+    """Admin rejects a certification request."""
+    from invoices.models import CertificationRequest
+    try:
+        role = request.user.profile.role
+    except Exception:
+        role = ''
+    if request.user.username != 'admin' and role != 'admin':
+        messages.error(request, "Admin access only.")
+        return redirect('cert_requests_admin')
+
+    cert_req = get_object_or_404(CertificationRequest, pk=pk)
+    cert_req.status = 'rejected'
+    cert_req.save(update_fields=['status'])
+    messages.success(request, "Certification request rejected.")
+    return redirect('cert_requests_admin')
+
+
 def _send_welcome_email(registration, request=None):
     """Send a welcome email to a newly registered student."""
     from django.core.mail import EmailMultiAlternatives

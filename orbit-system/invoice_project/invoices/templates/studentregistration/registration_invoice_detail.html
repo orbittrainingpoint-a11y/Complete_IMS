@@ -75,6 +75,7 @@
   {% endif %}
   <a href="{% url 'create_invoice' %}?reg={{ registration.registration_number }}" class="btn btn-outline-success btn-sm"><i class="fas fa-file-invoice me-1"></i>Create Tax Invoice</a>
   <button type="button" class="btn btn-sm" style="background:#1e40af;color:#fff;" data-bs-toggle="modal" data-bs-target="#enrollmentLetterModal"><i class="fas fa-envelope me-1"></i>Send Enrollment Letter</button>
+  <button type="button" class="btn btn-sm" style="background:#059669;color:#fff;" data-bs-toggle="modal" data-bs-target="#certRequestModal"><i class="fas fa-certificate me-1"></i>Send Certificate Request</button>
 </div>
 
 <!-- ── STUDENT INFO ── -->
@@ -313,6 +314,43 @@
           <button type="submit" class="btn btn-primary w-100">Upload Form</button>
         </form>
       </div>
+    </div>
+  </div>
+</div>
+<!-- ── CERTIFICATE REQUEST MODAL ── -->
+<div class="modal fade" id="certRequestModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#059669;color:#fff;">
+        <h5 class="modal-title"><i class="fas fa-certificate me-2"></i>Send Certificate Request</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'send_cert_request' registration.pk %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p style="font-size:13px;color:#475569;">
+            This will send a certificate request form to <strong>{{ registration.email }}</strong>. The student will confirm their course completion date and status.
+          </p>
+          <div class="mb-3">
+            <label class="form-label" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Select Course <span class="text-danger">*</span></label>
+            <select name="course_name" class="form-select" required>
+              <option value="">— Choose a course —</option>
+              {% for course in unique_courses %}
+              <option value="{{ course.name }}">{{ course.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534;">
+            <i class="fas fa-info-circle me-1"></i>The client will fill in the completion date and confirm whether the course was completed. Once submitted, you can review and generate the certificate from the <a href="{% url 'cert_requests_admin' %}" style="color:#166534;font-weight:700;">Certificate Requests</a> page.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm" style="background:#059669;color:#fff;">
+            <i class="fas fa-paper-plane me-1"></i>Send Form Link
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

@@ -1,0 +1,121 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Certificate Requests{% endblock %}
+{% block breadcrumb_label %}<span class="current">Certificate Requests</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.req-card { border:1px solid var(--border); border-radius:12px; padding:18px 20px; background:#fff; margin-bottom:14px; }
+.req-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.07); }
+.info-row { display:flex; flex-wrap:wrap; gap:8px 24px; font-size:13px; color:var(--text-muted); margin:8px 0 12px; }
+.info-row strong { color:var(--text-main); }
+.status-pill { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:600; }
+.sp-submitted { background:#dbeafe; color:#1e40af; }
+.sp-pending { background:#fef9c3; color:#92400e; }
+.sp-approved { background:#dcfce7; color:#166534; }
+.sp-rejected { background:#fee2e2; color:#991b1b; }
+.filter-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+.filter-tabs a { font-size:12px; padding:5px 14px; border-radius:20px; border:1px solid var(--border); text-decoration:none; color:var(--text-muted); font-weight:600; }
+.filter-tabs a.active { background:#1e40af; color:#fff; border-color:#1e40af; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <div class="page-title">Certificate Requests</div>
+    <div class="page-subtitle">Review and generate certificates from client submissions</div>
+  </div>
+</div>
+
+<div class="filter-tabs">
+  <a href="?status=submitted" class="{% if status_filter == 'submitted' %}active{% endif %}">Pending Review</a>
+  <a href="?status=pending" class="{% if status_filter == 'pending' %}active{% endif %}">Awaiting Response</a>
+  <a href="?status=approved" class="{% if status_filter == 'approved' %}active{% endif %}">Approved</a>
+  <a href="?status=rejected" class="{% if status_filter == 'rejected' %}active{% endif %}">Rejected</a>
+  <a href="?status=all" class="{% if status_filter == 'all' %}active{% endif %}">All</a>
+</div>
+
+{% if cert_requests %}
+  {% for req in cert_requests %}
+  <div class="req-card">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <div style="font-size:16px;font-weight:700;">{{ req.registration.first_name }} {{ req.registration.last_name }}</div>
+        <div style="font-size:12px;color:var(--text-muted);">{{ req.registration.registration_number }}</div>
+      </div>
+      {% if req.status == 'submitted' %}
+        <span class="status-pill sp-submitted">Submitted — Pending Review</span>
+      {% elif req.status == 'pending' %}
+        <span class="status-pill sp-pending">Awaiting Client Response</span>
+      {% elif req.status == 'approved' %}
+        <span class="status-pill sp-approved">Certificate Generated</span>
+      {% else %}
+        <span class="status-pill sp-rejected">Rejected</span>
+      {% endif %}
+    </div>
+
+    <div class="info-row">
+      <span><strong>Course:</strong> {{ req.course_name }}</span>
+      <span><strong>Sent:</strong> {{ req.sent_at|date:"d M Y H:i" }}</span>
+      {% if req.submitted_at %}<span><strong>Submitted:</strong> {{ req.submitted_at|date:"d M Y H:i" }}</span>{% endif %}
+      {% if req.completion_date %}<span><strong>Completion Date:</strong> {{ req.completion_date|date:"d M Y" }}</span>{% endif %}
+      {% if req.sent_by %}<span><strong>Sent By:</strong> {{ req.sent_by.get_full_name|default:req.sent_by.username }}</span>{% endif %}
+    </div>
+
+    {% if req.client_notes %}
+    <div style="font-size:13px;background:#f8fafc;border-radius:8px;padding:8px 12px;margin-bottom:12px;color:#475569;">
+      <strong>Client Notes:</strong> {{ req.client_notes }}
+    </div>
+    {% endif %}
+
+    {% if req.status == 'submitted' %}
+    <!-- Generate Certificate form -->
+    <form method="post" action="{% url 'cert_request_generate' req.pk %}" class="d-flex flex-wrap align-items-end gap-2 mt-2">
+      {% csrf_token %}
+      <div>
+        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);display:block;margin-bottom:4px;">From Date</label>
+        <input type="date" name="from_date" class="form-control form-control-sm" style="width:150px;">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);display:block;margin-bottom:4px;">End / Completion Date</label>
+        <input type="date" name="end_date" class="form-control form-control-sm" style="width:150px;" value="{{ req.completion_date|date:'Y-m-d' }}">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);display:block;margin-bottom:4px;">Grade</label>
+        <select name="grade" class="form-select form-select-sm" style="width:90px;">
+          <option value="A+">A+</option>
+          <option value="A" selected>A</option>
+          <option value="B+">B+</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-success btn-sm px-3">
+        <i class="fas fa-certificate me-1"></i>Generate Certificate
+      </button>
+    </form>
+    <form method="post" action="{% url 'cert_request_reject' req.pk %}" class="d-inline mt-2">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Reject this request?')">
+        <i class="fas fa-times me-1"></i>Reject
+      </button>
+    </form>
+
+    {% elif req.status == 'approved' and req.generated_certificate %}
+    <div class="d-flex gap-2 mt-2">
+      <a href="{% url 'print_certificate' req.generated_certificate.pk %}" target="_blank" class="btn btn-outline-primary btn-sm">
+        <i class="fas fa-print me-1"></i>View Certificate
+      </a>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+  <div style="text-align:center;padding:60px;color:var(--text-muted);">
+    <i class="fas fa-inbox" style="font-size:40px;opacity:.3;display:block;margin-bottom:12px;"></i>
+    No requests found for this filter.
+  </div>
+{% endif %}
+{% endblock %}

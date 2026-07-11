@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.utils.text import slugify
 import datetime
+import uuid
 from decimal import Decimal, ROUND_HALF_UP
 from django.utils.crypto import get_random_string
 from django.core.exceptions import ValidationError
@@ -599,6 +600,31 @@ class FormUpload(models.Model):
 
     def __str__(self):
         return f"Form for {self.registration.registration_number}"
+
+
+class CertificationRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending Response'),
+        ('submitted', 'Submitted by Client'),
+        ('approved', 'Certificate Generated'),
+        ('rejected', 'Rejected'),
+    ]
+    registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name='cert_requests')
+    course_name = models.CharField(max_length=200)
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    sent_at = models.DateTimeField(auto_now_add=True)
+    sent_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    # Filled by client on form submission
+    completion_date = models.DateField(null=True, blank=True)
+    course_completed = models.BooleanField(null=True, blank=True)
+    client_notes = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    # Admin side
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    generated_certificate = models.ForeignKey('Certificate', on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f"CertReq {self.registration.registration_number} — {self.course_name}"
     
 def validate_png(value):
     if not value.name.lower().endswith('.png'):
