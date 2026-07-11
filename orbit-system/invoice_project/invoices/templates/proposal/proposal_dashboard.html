@@ -1,56 +1,125 @@
 {% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Proposals{% endblock %}
+{% block breadcrumb_label %}<span class="current">Proposals</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.prop-table th { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);padding:10px 14px; }
+.prop-table td { font-size:13px;vertical-align:middle;padding:12px 14px;border-bottom:1px solid var(--border); }
+.prop-table tbody tr:last-child td { border-bottom:none; }
+.prop-table tbody tr:hover { background:#f8faff; }
+.action-btn { width:30px;height:30px;border-radius:7px;border:none;display:inline-flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:all .15s;text-decoration:none; }
+.btn-edit   { background:rgba(37,99,235,.1);color:#2563eb; }
+.btn-print  { background:rgba(16,185,129,.1);color:#059669; }
+.btn-del    { background:rgba(239,68,68,.1);color:#dc2626; }
+.btn-edit:hover  { background:#2563eb;color:#fff; }
+.btn-print:hover { background:#059669;color:#fff; }
+.btn-del:hover   { background:#dc2626;color:#fff; }
+.search-wrap { position:relative;max-width:260px; }
+.search-wrap i { position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px; }
+.search-wrap input { padding-left:34px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;height:34px;width:100%; }
+.search-wrap input:focus { outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1); }
+.prop-num { font-size:11px;font-weight:700;color:#2563eb;background:rgba(37,99,235,.08);border-radius:6px;padding:2px 8px;white-space:nowrap; }
+.empty-state { text-align:center;padding:72px 24px;color:var(--text-muted); }
+.empty-state i { font-size:44px;opacity:.2;display:block;margin-bottom:14px; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h1 class="mb-4">Proposal Dashboard</h1>
-    <a href="{% url 'create_proposal' %}" class="btn btn-primary mb-3">Create New Proposal</a>
-    <div class="table-responsive">
-        <table class="table table-striped table-hover">
-            <thead class="thead-dark">
-                <tr>
-                    <th>Proposal Number</th>
-                    <th>Client Name</th>
-                    <th>Course</th>
-                    <th>Date</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for proposal in proposals %}
-                <tr>
-                    <td>{{ proposal.proposal_number }}</td>
-                    <td>{{ proposal.client_name }}</td>
-                    <td>{{ proposal.course.name }}</td>
-                    <td>{{ proposal.date }}</td>
-                    <td>
-                        <a href="{% url 'edit_proposal' proposal.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
-                        {% if user.username == 'admin' %}
-                        <a href="{% url 'delete_proposal' proposal.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
-                        {% endif %}
-                        <a href="{% url 'print_proposal' proposal.pk %}" class="btn btn-sm btn-outline-secondary">Print</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% if proposals.has_other_pages %}
-    <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top" style="background:var(--bg);border-radius:0 0 12px 12px;">
-      <small class="text-muted">Showing {{ proposals.start_index }}–{{ proposals.end_index }} of {{ paginator.count }} proposals</small>
-      <nav><ul class="pagination pagination-sm mb-0 gap-1">
-        {% if proposals.has_previous %}
-        <li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ proposals.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
-        {% endif %}
-        {% for num in proposals.paginator.page_range %}
-          {% if num == proposals.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
-          {% elif num >= proposals.number|add:"-2" and num <= proposals.number|add:"2" %}<li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ num }}">{{ num }}</a></li>
-          {% endif %}
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+  <div>
+    <div class="page-title">Proposals</div>
+    <div class="page-subtitle">Create and manage training proposals for clients</div>
+  </div>
+  <a href="{% url 'create_proposal' %}" class="btn btn-primary btn-sm">
+    <i class="fas fa-plus me-1"></i>New Proposal
+  </a>
+</div>
+
+<!-- Search -->
+<div class="d-flex justify-content-end mb-3">
+  <form method="get" class="search-wrap">
+    <i class="fas fa-search"></i>
+    <input type="text" name="q" value="{{ search|default:'' }}" placeholder="Search client, course…" autocomplete="off">
+  </form>
+</div>
+
+<div class="card" style="overflow:hidden;">
+  {% if proposals %}
+  <div class="table-responsive">
+    <table class="table prop-table mb-0">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Proposal No.</th>
+          <th>Client</th>
+          <th>Course</th>
+          <th>Trainer</th>
+          <th>Location</th>
+          <th>Date</th>
+          <th style="width:110px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for proposal in proposals %}
+        <tr>
+          <td style="color:var(--text-muted);font-size:11px;">{{ forloop.counter }}</td>
+          <td><span class="prop-num">{{ proposal.proposal_number }}</span></td>
+          <td>
+            <div style="font-weight:600;">{{ proposal.client_name }}</div>
+          </td>
+          <td style="color:var(--text-muted);">{{ proposal.course.name }}</td>
+          <td style="color:var(--text-muted);">
+            {% if proposal.trainer %}{{ proposal.trainer.name }}{% else %}—{% endif %}
+          </td>
+          <td style="color:var(--text-muted);">{{ proposal.location|default:"—" }}</td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ proposal.date|date:"d M Y" }}</td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{% url 'print_proposal' proposal.pk %}" class="action-btn btn-print" title="Print / View" target="_blank"><i class="fas fa-print"></i></a>
+              <a href="{% url 'edit_proposal' proposal.pk %}" class="action-btn btn-edit" title="Edit"><i class="fas fa-pen"></i></a>
+              {% if user.username == 'admin' or user.profile.role == 'admin' %}
+              <a href="{% url 'delete_proposal' proposal.pk %}" class="action-btn btn-del" title="Delete"
+                 onclick="return confirm('Delete this proposal?')"><i class="fas fa-trash"></i></a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
         {% endfor %}
-        {% if proposals.has_next %}
-        <li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ proposals.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
+      </tbody>
+    </table>
+  </div>
+
+  {% if proposals.has_other_pages %}
+  <div class="d-flex align-items-center justify-content-between px-4 py-3 border-top">
+    <small class="text-muted">Showing {{ proposals.start_index }}–{{ proposals.end_index }} of {{ proposals.paginator.count }} proposals</small>
+    <nav><ul class="pagination pagination-sm mb-0 gap-1">
+      {% if proposals.has_previous %}
+      <li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ proposals.previous_page_number }}"><i class="fas fa-chevron-left"></i></a></li>
+      {% endif %}
+      {% for num in proposals.paginator.page_range %}
+        {% if num == proposals.number %}<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num >= proposals.number|add:"-2" and num <= proposals.number|add:"2" %}<li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ num }}">{{ num }}</a></li>
         {% endif %}
-      </ul></nav>
-    </div>
+      {% endfor %}
+      {% if proposals.has_next %}
+      <li class="page-item"><a class="page-link" href="?{% if search %}q={{ search }}&{% endif %}page={{ proposals.next_page_number }}"><i class="fas fa-chevron-right"></i></a></li>
+      {% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty-state">
+    <i class="fas fa-file-contract"></i>
+    {% if search %}
+      No proposals match "<strong>{{ search }}</strong>". <a href="{% url 'proposal_dashboard' %}">Clear search</a>
+    {% else %}
+      No proposals yet. <a href="{% url 'create_proposal' %}">Create your first one →</a>
     {% endif %}
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

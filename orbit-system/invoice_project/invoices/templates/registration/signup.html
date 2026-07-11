@@ -1,66 +1,236 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add User — Orbit ERP</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body { background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-        .card { background: #1e293b; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
-        .card-header { background: rgba(16,185,129,.1); border-bottom: 1px solid rgba(16,185,129,.2); }
-        .form-control, .form-select { background: #0f172a; border-color: rgba(255,255,255,.15); color: #e2e8f0; }
-        .form-control:focus, .form-select:focus { background: #0f172a; border-color: #10b981; box-shadow: 0 0 0 .2rem rgba(16,185,129,.25); color: #e2e8f0; }
-        .form-label { color: #94a3b8; font-size: .85rem; }
-        label { color: #94a3b8; }
-        input, select { color: #e2e8f0 !important; }
-        /* Options in native OS dropdown always render on white — force dark text */
-        select option { color: #1e293b !important; background: #fff !important; }
-        .btn-success { background: #10b981; border-color: #10b981; }
-        .btn-success:hover { background: #059669; border-color: #059669; }
-        .text-muted { color: #64748b !important; }
-        .badge-role { font-size: .7rem; padding: 2px 8px; border-radius: 4px; }
-    </style>
-</head>
-<body>
-    <div class="container" style="max-width:480px;">
-        <div class="card shadow-lg">
-            <div class="card-header py-3 px-4">
-                <h5 class="mb-0 text-white"><i class="fas fa-user-plus me-2 text-success"></i>Add New User</h5>
-                <p class="mb-0 text-muted" style="font-size:.82rem;">Sales manager &amp; executive accounts are auto-synced to CRM.</p>
+{% extends "base_generic.html" %}
+{% block title %}Add New User{% endblock %}
+{% block breadcrumb_label %}
+    <a href="{% url 'manage_users' %}" style="color:var(--text-muted);text-decoration:none;">User Management</a>
+    <span style="color:var(--border);margin:0 6px;">/</span>
+    <span class="current">Add New User</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.signup-wrap { max-width:640px; margin:0 auto; }
+.hero-banner {
+    background: linear-gradient(135deg,#1e40af 0%,#4f46e5 60%,#7c3aed 100%);
+    border-radius:16px 16px 0 0;
+    padding:32px 36px 28px;
+    position:relative;
+    overflow:hidden;
+}
+.hero-banner::after {
+    content:'';
+    position:absolute;inset:0;
+    background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    pointer-events:none;
+}
+.hero-icon {
+    width:56px;height:56px;border-radius:14px;
+    background:rgba(255,255,255,.15);
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;color:#fff;margin-bottom:16px;
+    backdrop-filter:blur(4px);
+}
+.signup-body { background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 16px 16px;padding:32px 36px 36px; }
+.field-group { margin-bottom:20px; }
+.field-group label {
+    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+    color:var(--text-muted);display:block;margin-bottom:6px;
+}
+.field-group .input-wrap { position:relative; }
+.field-group .input-wrap .fi {
+    position:absolute;left:13px;top:50%;transform:translateY(-50%);
+    color:var(--text-muted);font-size:14px;pointer-events:none;
+}
+.field-group .input-wrap input,
+.field-group .input-wrap select {
+    padding-left:38px;
+    border-radius:10px;font-size:14px;
+    border:1.5px solid var(--border);
+    background:var(--bg);color:var(--text);
+    width:100%;padding-top:10px;padding-bottom:10px;
+    transition:border-color .15s,box-shadow .15s;
+}
+.field-group .input-wrap input:focus,
+.field-group .input-wrap select:focus {
+    outline:none;border-color:#2563eb;
+    box-shadow:0 0 0 3px rgba(37,99,235,.12);
+    background:var(--bg);color:var(--text);
+}
+.field-group .input-wrap input::placeholder { color:var(--text-muted);opacity:.6; }
+.field-error { font-size:11px;color:#dc2626;margin-top:4px; }
+.role-grid { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px; }
+.role-card {
+    border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;
+    transition:all .15s;position:relative;
+}
+.role-card input[type=radio] { position:absolute;opacity:0;width:0;height:0; }
+.role-card .rc-icon { font-size:18px;margin-bottom:6px; }
+.role-card .rc-name { font-size:13px;font-weight:700;color:var(--text);line-height:1.2; }
+.role-card .rc-desc { font-size:10px;color:var(--text-muted);margin-top:2px;line-height:1.4; }
+.role-card:hover { border-color:#2563eb;background:rgba(37,99,235,.04); }
+.role-card.selected { border-color:#2563eb;background:rgba(37,99,235,.07); }
+.role-card.selected .rc-name { color:#2563eb; }
+.divider { border:none;border-top:1px solid var(--border);margin:24px 0; }
+.submit-btn {
+    width:100%;padding:13px;font-size:15px;font-weight:700;border-radius:12px;
+    background:linear-gradient(135deg,#1e40af,#4f46e5);border:none;color:#fff;
+    cursor:pointer;transition:opacity .15s,transform .1s;letter-spacing:.3px;
+}
+.submit-btn:hover { opacity:.92;transform:translateY(-1px); }
+.submit-btn:active { transform:translateY(0); }
+.cancel-link { display:block;text-align:center;margin-top:14px;font-size:13px;color:var(--text-muted);text-decoration:none; }
+.cancel-link:hover { color:var(--text); }
+.alert-msg { border-radius:10px;font-size:13px;padding:10px 14px;margin-bottom:20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="signup-wrap">
+
+  <div class="hero-banner">
+    <div class="hero-icon"><i class="fas fa-user-plus"></i></div>
+    <div style="color:#fff;font-size:22px;font-weight:800;line-height:1.2;">Add New User</div>
+    <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:6px;">Create a staff account. Sales roles are automatically synced to the CRM.</div>
+  </div>
+
+  <div class="signup-body">
+    {% if messages %}
+      {% for msg in messages %}
+      <div class="alert-msg alert-{% if msg.tags == 'error' %}danger{% else %}{{ msg.tags }}{% endif %} alert">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+
+      <!-- Account Credentials -->
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-muted);margin-bottom:14px;">
+        <i class="fas fa-id-card me-1"></i> Account Credentials
+      </div>
+
+      <div class="row g-3 mb-2">
+        <div class="col-md-6">
+          <div class="field-group">
+            <label>Username <span style="color:#ef4444;">*</span></label>
+            <div class="input-wrap">
+              <i class="fi fas fa-at"></i>
+              <input type="text" name="username" placeholder="e.g. john.doe" required
+                     value="{{ form.username.value|default:'' }}"
+                     autocomplete="off">
             </div>
-            <div class="card-body p-4">
-                {% if messages %}
-                    {% for msg in messages %}
-                    <div class="alert alert-{% if msg.tags == 'error' %}danger{% else %}{{ msg.tags }}{% endif %} py-2">{{ msg }}</div>
-                    {% endfor %}
-                {% endif %}
-
-                <form method="post">
-                    {% csrf_token %}
-                    {{ form.as_p }}
-
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold"><i class="fas fa-shield-alt me-1 text-warning"></i>Role</label>
-                        <select name="role" class="form-select" required>
-                            <option value="sales_executive" selected>Sales Executive</option>
-                            <option value="sales_manager">Sales Manager</option>
-                            <option value="accounts">Accounts</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                        <div class="form-text text-muted">Sales roles are automatically created in the CRM.</div>
-                    </div>
-
-                    <div class="d-grid gap-2 mt-4">
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-user-check me-2"></i>Create User
-                        </button>
-                        <a href="{% url 'manage_users' %}" class="btn btn-outline-secondary">Cancel</a>
-                    </div>
-                </form>
-            </div>
+            {% if form.username.errors %}<div class="field-error">{{ form.username.errors|join:", " }}</div>{% endif %}
+          </div>
         </div>
-    </div>
-</body>
-</html>
+        <div class="col-md-6">
+          <div class="field-group">
+            <label>Email Address</label>
+            <div class="input-wrap">
+              <i class="fi fas fa-envelope"></i>
+              <input type="email" name="email" placeholder="john@example.com"
+                     value="{{ form.email.value|default:'' }}">
+            </div>
+            {% if form.email.errors %}<div class="field-error">{{ form.email.errors|join:", " }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="field-group">
+            <label>Password <span style="color:#ef4444;">*</span></label>
+            <div class="input-wrap">
+              <i class="fi fas fa-lock"></i>
+              <input type="password" name="password" id="pw1" placeholder="Min 6 characters" required minlength="6">
+            </div>
+            {% if form.password.errors %}<div class="field-error">{{ form.password.errors|join:", " }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="field-group">
+            <label>Confirm Password <span style="color:#ef4444;">*</span></label>
+            <div class="input-wrap">
+              <i class="fi fas fa-lock-open" id="confirmIcon"></i>
+              <input type="password" name="password_confirm" id="pw2" placeholder="Repeat password" required>
+            </div>
+            <div class="field-error" id="pwMismatch" style="display:none;">Passwords do not match</div>
+            {% if form.password_confirm.errors %}<div class="field-error">{{ form.password_confirm.errors|join:", " }}</div>{% endif %}
+            {% if form.non_field_errors %}<div class="field-error">{{ form.non_field_errors|join:", " }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Role Selection -->
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-muted);margin-bottom:14px;">
+        <i class="fas fa-shield-alt me-1"></i> Role &amp; Permissions
+      </div>
+
+      <div class="role-grid" id="roleGrid">
+        <label class="role-card" data-role="sales_executive">
+          <input type="radio" name="role" value="sales_executive" checked>
+          <div class="rc-icon">🧑‍💼</div>
+          <div class="rc-name">Sales Executive</div>
+          <div class="rc-desc">Can create registrations &amp; quotations; limited to own data</div>
+        </label>
+        <label class="role-card" data-role="sales_manager">
+          <input type="radio" name="role" value="sales_manager">
+          <div class="rc-icon">👔</div>
+          <div class="rc-name">Sales Manager</div>
+          <div class="rc-desc">Full sales visibility; can view all executives' data</div>
+        </label>
+        <label class="role-card" data-role="accounts">
+          <input type="radio" name="role" value="accounts">
+          <div class="rc-icon">📊</div>
+          <div class="rc-name">Accounts</div>
+          <div class="rc-desc">Invoice, payment &amp; financial reports access</div>
+        </label>
+        <label class="role-card" data-role="admin">
+          <input type="radio" name="role" value="admin">
+          <div class="rc-icon">🛡️</div>
+          <div class="rc-name">Admin</div>
+          <div class="rc-desc">Full system access including user management</div>
+        </label>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px;"><i class="fas fa-sync-alt me-1"></i>Sales Manager &amp; Executive accounts are automatically created in the CRM.</div>
+
+      <div class="mt-4">
+        <button type="submit" class="submit-btn" id="submitBtn">
+          <i class="fas fa-user-check me-2"></i>Create User Account
+        </button>
+        <a href="{% url 'manage_users' %}" class="cancel-link">Cancel — back to User Management</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Role card selection highlight
+document.querySelectorAll('.role-card').forEach(card => {
+  const radio = card.querySelector('input[type=radio]');
+  if (radio.checked) card.classList.add('selected');
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+  });
+});
+
+// Password match check
+const pw1 = document.getElementById('pw1');
+const pw2 = document.getElementById('pw2');
+const mismatch = document.getElementById('pwMismatch');
+const icon = document.getElementById('confirmIcon');
+function checkPw() {
+  if (!pw2.value) { mismatch.style.display='none'; icon.className='fi fas fa-lock-open'; return; }
+  if (pw1.value === pw2.value) {
+    mismatch.style.display = 'none';
+    icon.className = 'fi fas fa-check-circle';
+    icon.style.color = '#10b981';
+  } else {
+    mismatch.style.display = 'block';
+    icon.className = 'fi fas fa-times-circle';
+    icon.style.color = '#dc2626';
+  }
+}
+pw1.addEventListener('input', checkPw);
+pw2.addEventListener('input', checkPw);
+</script>
+{% endblock %}
