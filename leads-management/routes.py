@@ -826,6 +826,12 @@ def lead_detail_simple(id):
 @login_required
 def delete_lead(id):
     lead = Lead.query.get_or_404(id)
+    # Remove child records before deleting to avoid FK constraint errors
+    LeadInteraction.query.filter_by(lead_id=id).delete(synchronize_session=False)
+    LeadQuote.query.filter_by(lead_id=id).delete(synchronize_session=False)
+    Meeting.query.filter(Meeting.lead_id == id).update({'lead_id': None}, synchronize_session=False)
+    Student.query.filter(Student.lead_id == id).update({'lead_id': None}, synchronize_session=False)
+    PaymentLink.query.filter(PaymentLink.lead_id == id).update({'lead_id': None}, synchronize_session=False)
     db.session.delete(lead)
     db.session.commit()
     flash('Lead deleted successfully!', 'success')
