@@ -61,6 +61,12 @@
       <span><strong>Sent:</strong> {{ req.sent_at|date:"d M Y H:i" }}</span>
       {% if req.submitted_at %}<span><strong>Submitted:</strong> {{ req.submitted_at|date:"d M Y H:i" }}</span>{% endif %}
       {% if req.completion_date %}<span><strong>Completion Date:</strong> {{ req.completion_date|date:"d M Y" }}</span>{% endif %}
+      {% if req.class_rating %}<span><strong>Class Rating:</strong>
+        {% if req.class_rating == 'excellent' %}⭐⭐⭐⭐⭐ Excellent
+        {% elif req.class_rating == 'good' %}⭐⭐⭐⭐ Good
+        {% elif req.class_rating == 'average' %}⭐⭐⭐ Average
+        {% else %}⭐ Poor{% endif %}
+      </span>{% endif %}
       {% if req.sent_by %}<span><strong>Sent By:</strong> {{ req.sent_by.get_full_name|default:req.sent_by.username }}</span>{% endif %}
     </div>
 

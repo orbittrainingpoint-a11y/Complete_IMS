@@ -5401,8 +5401,11 @@ def cert_request_form(request, token):
                 'error_date': True,
             })
 
+        class_rating = request.POST.get('class_rating', '').strip()
+
         cert_req.course_completed = True
         cert_req.completion_date = parsed_date
+        cert_req.class_rating = class_rating
         cert_req.client_notes = client_notes
         cert_req.submitted_at = timezone.now()
         cert_req.status = 'submitted'

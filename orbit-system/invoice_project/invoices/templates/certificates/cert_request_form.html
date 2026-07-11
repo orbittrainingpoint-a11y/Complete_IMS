@@ -17,6 +17,11 @@
   .alert { border-radius:10px; font-size:14px; }
   .header-bar { background:linear-gradient(135deg,#1e40af,#3b82f6); color:#fff; border-radius:16px 16px 0 0; padding:28px 32px; }
   .not-completed-msg { display:none; }
+  .rating-option { cursor:pointer; }
+  .rating-option input[type=radio] { display:none; }
+  .rating-pill { display:inline-block; padding:8px 16px; border-radius:30px; border:1.5px solid #cbd5e1; font-size:13px; font-weight:600; color:#475569; cursor:pointer; transition:all .15s; background:#f8fafc; }
+  .rating-option input[type=radio]:checked + .rating-pill { background:#1e40af; color:#fff; border-color:#1e40af; }
+  .rating-pill:hover { border-color:#1e40af; color:#1e40af; }
 </style>
 </head>
 <body>
@@ -100,9 +105,31 @@
               <input type="date" name="completion_date" id="completionDate" class="form-control">
             </div>
 
+            <div id="ratingGroup" class="mb-3" style="display:none;">
+              <label class="form-label">How was the class? <span class="text-danger">*</span></label>
+              <div class="d-flex gap-2 flex-wrap mt-1" id="ratingBtns">
+                <label class="rating-option">
+                  <input type="radio" name="class_rating" value="excellent" required>
+                  <span class="rating-pill">⭐⭐⭐⭐⭐ Excellent</span>
+                </label>
+                <label class="rating-option">
+                  <input type="radio" name="class_rating" value="good">
+                  <span class="rating-pill">⭐⭐⭐⭐ Good</span>
+                </label>
+                <label class="rating-option">
+                  <input type="radio" name="class_rating" value="average">
+                  <span class="rating-pill">⭐⭐⭐ Average</span>
+                </label>
+                <label class="rating-option">
+                  <input type="radio" name="class_rating" value="poor">
+                  <span class="rating-pill">⭐ Poor</span>
+                </label>
+              </div>
+            </div>
+
             <div id="notesGroup" class="mb-4" style="display:none;">
-              <label class="form-label">Additional Notes <span style="color:#94a3b8;">(optional)</span></label>
-              <textarea name="client_notes" class="form-control" rows="3" placeholder="Any remarks about the course or completion..."></textarea>
+              <label class="form-label">Additional Comments <span style="color:#94a3b8;">(optional)</span></label>
+              <textarea name="client_notes" class="form-control" rows="3" placeholder="Any remarks about the course, trainer, or your experience..."></textarea>
             </div>
 
             <button type="submit" id="submitBtn" class="btn btn-primary w-100 py-2" disabled>
@@ -118,36 +145,44 @@
 </div>
 
 <script>
-const sel = document.getElementById('completionStatus');
-const notMsg = document.getElementById('notCompletedMsg');
-const dateGrp = document.getElementById('completionDateGroup');
-const notesGrp = document.getElementById('notesGroup');
-const submitBtn = document.getElementById('submitBtn');
-const dateInput = document.getElementById('completionDate');
+const sel        = document.getElementById('completionStatus');
+const notMsg     = document.getElementById('notCompletedMsg');
+const dateGrp    = document.getElementById('completionDateGroup');
+const ratingGrp  = document.getElementById('ratingGroup');
+const notesGrp   = document.getElementById('notesGroup');
+const submitBtn  = document.getElementById('submitBtn');
+const dateInput  = document.getElementById('completionDate');
+
+function checkReady() {
+  const dateOk   = !!dateInput.value;
+  const ratingOk = !!document.querySelector('input[name="class_rating"]:checked');
+  submitBtn.disabled = !(dateOk && ratingOk);
+}
 
 sel.addEventListener('change', function() {
   if (this.value === 'yes') {
-    notMsg.style.display = 'none';
-    dateGrp.style.display = '';
-    notesGrp.style.display = '';
-    submitBtn.disabled = false;
+    notMsg.style.display    = 'none';
+    dateGrp.style.display   = '';
+    ratingGrp.style.display = '';
+    notesGrp.style.display  = '';
+    checkReady();
   } else if (this.value === 'no') {
-    notMsg.style.display = '';
-    dateGrp.style.display = 'none';
-    notesGrp.style.display = 'none';
+    notMsg.style.display    = '';
+    dateGrp.style.display   = 'none';
+    ratingGrp.style.display = 'none';
+    notesGrp.style.display  = 'none';
     submitBtn.disabled = true;
   } else {
-    notMsg.style.display = 'none';
-    dateGrp.style.display = 'none';
-    notesGrp.style.display = 'none';
+    notMsg.style.display    = 'none';
+    dateGrp.style.display   = 'none';
+    ratingGrp.style.display = 'none';
+    notesGrp.style.display  = 'none';
     submitBtn.disabled = true;
   }
 });
 
-// Keep submit disabled until date is filled
-dateInput.addEventListener('change', function() {
-  submitBtn.disabled = !this.value;
-});
+dateInput.addEventListener('change', checkReady);
+document.querySelectorAll('input[name="class_rating"]').forEach(r => r.addEventListener('change', checkReady));
 </script>
 </body>
 </html>
