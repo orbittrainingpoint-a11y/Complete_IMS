@@ -1,0 +1,116 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Refunds{% endblock %}
+{% block breadcrumb_label %}<span class="current">Refunds</span>{% endblock %}
+
+{% block extra_css %}
+<style>
+.refund-table th { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); font-weight:600; }
+.refund-table td { font-size:13px; vertical-align:middle; }
+.refund-table tbody tr.refund-refunded { background:#fef2f2; }
+.status-badge { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:600; white-space:nowrap; }
+.sb-pending   { background:#fef9c3; color:#92400e; }
+.sb-confirmed { background:#dcfce7; color:#166534; }
+.sb-cancelled { background:#f1f5f9; color:#64748b; }
+.filter-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+.filter-tabs a { font-size:12px; padding:5px 14px; border-radius:20px; border:1px solid var(--border); text-decoration:none; color:var(--text-muted); font-weight:600; }
+.filter-tabs a.active { background:#dc2626; color:#fff; border-color:#dc2626; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <div class="page-title"><i class="fas fa-undo me-2" style="color:#dc2626;"></i>Refunds</div>
+    <div class="page-subtitle">All refund requests and their status</div>
+  </div>
+</div>
+
+<div class="filter-tabs">
+  <a href="?status=" class="{% if not status_filter %}active{% endif %}">All</a>
+  <a href="?status=pending" class="{% if status_filter == 'pending' %}active{% endif %}">Pending</a>
+  <a href="?status=confirmed" class="{% if status_filter == 'confirmed' %}active{% endif %}">Confirmed</a>
+  <a href="?status=cancelled" class="{% if status_filter == 'cancelled' %}active{% endif %}">Cancelled</a>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table refund-table mb-0">
+      <thead>
+        <tr>
+          <th>Registration</th>
+          <th>Student</th>
+          <th>Amount</th>
+          <th style="max-width:220px;">Reason</th>
+          <th>Document</th>
+          <th>Status</th>
+          <th>Initiated</th>
+          <th>Processed By</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for refund in refunds %}
+        <tr class="{% if refund.status == 'confirmed' %}refund-refunded{% endif %}">
+          <td>
+            <a href="{% url 'registration_invoice_detail' refund.registration.id %}"
+               style="font-weight:700;color:var(--primary);font-size:12px;font-family:monospace;">
+              {{ refund.registration.registration_number }}
+            </a>
+          </td>
+          <td>
+            <div style="font-weight:600;">{{ refund.registration.first_name }} {{ refund.registration.last_name }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">{{ refund.registration.email }}</div>
+          </td>
+          <td style="font-weight:700;color:#dc2626;">AED {{ refund.amount|floatformat:2 }}</td>
+          <td style="max-width:220px;white-space:normal;font-size:12px;color:#475569;">{{ refund.reason|truncatechars:80 }}</td>
+          <td>
+            {% if refund.document %}
+              <a href="{{ refund.document.url }}" target="_blank" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-file me-1"></i>View
+              </a>
+            {% else %}
+              <span style="color:var(--text-muted);font-size:12px;">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if refund.status == 'pending' %}
+              <span class="status-badge sb-pending"><i class="fas fa-clock me-1"></i>Pending</span>
+            {% elif refund.status == 'confirmed' %}
+              <span class="status-badge sb-confirmed"><i class="fas fa-check me-1"></i>Confirmed</span>
+            {% else %}
+              <span class="status-badge sb-cancelled">Cancelled</span>
+            {% endif %}
+          </td>
+          <td style="font-size:11px;color:var(--text-muted);">
+            {{ refund.initiated_at|date:"d M Y H:i" }}<br>
+            <span>{{ refund.initiated_by.get_full_name|default:refund.initiated_by.username }}</span>
+          </td>
+          <td style="font-size:11px;color:var(--text-muted);">
+            {% if refund.confirmed_by %}
+              {{ refund.confirmed_by.get_full_name|default:refund.confirmed_by.username }}<br>
+              {{ refund.confirmed_at|date:"d M Y H:i" }}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if refund.status == 'pending' %}
+            <a href="{% url 'confirm_refund' refund.pk %}" class="btn btn-danger btn-sm">
+              <i class="fas fa-check me-1"></i>Review
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="9" style="text-align:center;padding:60px;color:var(--text-muted);">
+            <i class="fas fa-undo" style="font-size:40px;opacity:.3;display:block;margin-bottom:12px;"></i>
+            No refunds found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

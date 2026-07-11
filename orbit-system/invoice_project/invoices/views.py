@@ -51,7 +51,7 @@ import datetime
 
 logger = logging.getLogger(__name__)
 
-from .models import UserProfile, SalesTarget, QuotationItemOverride, QuotationLevel, InstituteSetting, CertificationRequest
+from .models import UserProfile, SalesTarget, QuotationItemOverride, QuotationLevel, InstituteSetting, CertificationRequest, Refund
 from django.contrib.auth.models import User
 import calendar
 
@@ -2527,8 +2527,8 @@ def _month_label(date):
     return date.strftime('%B %Y')
 
 def _revenue_for_user(user, first, last):
-    """CRM-linked individual invoices + corporate tax invoices (registration=None) for the user."""
-    # Corporate tax invoices have registration=None (created via create_tax_invoice_from_pi)
+    """CRM-linked individual invoices + corporate tax invoices (registration=None) for the user.
+    Excludes invoices belonging to refunded registrations."""
     corp_inv_revenue = Invoice.objects.filter(
         user=user, date__gte=first, date__lte=last, registration__isnull=True
     ).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
@@ -2540,7 +2540,9 @@ def _revenue_for_user(user, first, last):
                 """SELECT COALESCE(SUM(i.amount_paid), 0)
                    FROM invoices_invoice i
                    INNER JOIN invoices_registrationcrmlink l ON l.registration_id = i.registration_id
-                   WHERE i.user_id = %s AND i.date >= %s AND i.date <= %s""",
+                   INNER JOIN invoices_registration r ON r.id = i.registration_id
+                   WHERE i.user_id = %s AND i.date >= %s AND i.date <= %s
+                     AND r.is_refunded = 0""",
                 (user.id, first.strftime('%Y-%m-%d'), last.strftime('%Y-%m-%d'))
             )
             _row = _cu.fetchone()
@@ -2549,7 +2551,7 @@ def _revenue_for_user(user, first, last):
     except Exception:
         crm_revenue = Invoice.objects.filter(
             user=user, date__gte=first, date__lte=last, registration__isnull=False
-        ).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
+        ).exclude(registration__is_refunded=True).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
     return crm_revenue + Decimal(str(corp_inv_revenue))
 
 def _last_6_months():
@@ -2576,8 +2578,10 @@ def _admin_dashboard(request):
     prev_first, prev_last = _last_month_range(today)
 
     month_revenue = Invoice.objects.filter(date__gte=first, date__lte=last)\
+                        .exclude(registration__is_refunded=True)\
                         .aggregate(t=Sum('amount_paid'))['t'] or 0
     prev_revenue  = Invoice.objects.filter(date__gte=prev_first, date__lte=prev_last)\
+                        .exclude(registration__is_refunded=True)\
                         .aggregate(t=Sum('amount_paid'))['t'] or 0
     rev_pct, rev_dir = _pct_change(month_revenue, prev_revenue)
 
@@ -2605,6 +2609,7 @@ def _admin_dashboard(request):
         mf = m
         ml = m.replace(day=calendar.monthrange(m.year, m.month)[1])
         v = Invoice.objects.filter(date__gte=mf, date__lte=ml)\
+              .exclude(registration__is_refunded=True)\
               .aggregate(t=Sum('amount_paid'))['t'] or 0
         rev_data.append(float(v))
 
@@ -5048,6 +5053,171 @@ def _attach_logo_inline(msg):
         return True
     except Exception:
         return False
+
+
+# ─────────────────────────────────────────────
+# REFUND SYSTEM
+# ─────────────────────────────────────────────
+
+@login_required
+def initiate_refund(request, pk):
+    registration = get_object_or_404(Registration, pk=pk)
+    if registration.is_refunded:
+        messages.error(request, "This registration has already been refunded.")
+        return redirect('registration_invoice_detail', registration_id=pk)
+
+    # Prevent duplicate pending refund
+    existing = Refund.objects.filter(registration=registration).first()
+    if existing and existing.status == 'pending':
+        messages.warning(request, "A refund request is already pending for this registration.")
+        return redirect('confirm_refund', pk=existing.pk)
+
+    invoices = Invoice.objects.filter(registration=registration)
+    total_paid = invoices.aggregate(t=Sum('amount_paid'))['t'] or 0
+
+    if request.method == 'POST':
+        reason = request.POST.get('reason', '').strip()
+        amount = request.POST.get('amount', '0').strip()
+        doc = request.FILES.get('document')
+
+        if not reason:
+            messages.error(request, "Please provide a reason for the refund.")
+            return render(request, 'refunds/initiate_refund.html', {
+                'registration': registration, 'total_paid': total_paid, 'invoices': invoices,
+            })
+
+        try:
+            amount_dec = Decimal(amount)
+        except Exception:
+            amount_dec = Decimal('0')
+
+        refund = Refund.objects.create(
+            registration=registration,
+            reason=reason,
+            amount=amount_dec,
+            document=doc,
+            initiated_by=request.user,
+            status='pending',
+        )
+        return redirect('confirm_refund', pk=refund.pk)
+
+    return render(request, 'refunds/initiate_refund.html', {
+        'registration': registration,
+        'total_paid': total_paid,
+        'invoices': invoices,
+    })
+
+
+@login_required
+def confirm_refund(request, pk):
+    refund = get_object_or_404(Refund, pk=pk)
+    registration = refund.registration
+
+    if refund.status != 'pending':
+        messages.error(request, "This refund has already been processed.")
+        return redirect('refund_list')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'cancel':
+            refund.status = 'cancelled'
+            refund.save(update_fields=['status'])
+            messages.success(request, "Refund cancelled.")
+            return redirect('registration_invoice_detail', registration_id=registration.pk)
+
+        if action == 'confirm':
+            refund.admin_notes = request.POST.get('admin_notes', '').strip()
+            refund.refund_reference = request.POST.get('refund_reference', '').strip()
+            refund.status = 'confirmed'
+            refund.confirmed_by = request.user
+            refund.confirmed_at = timezone.now()
+            refund.save()
+
+            # Mark registration as refunded
+            registration.is_refunded = True
+            registration.save(update_fields=['is_refunded'])
+
+            # Send confirmation email to student
+            _send_refund_email(refund, request)
+
+            messages.success(request, f"Refund confirmed for {registration.first_name} {registration.last_name}. Email sent to {registration.email}.")
+            return redirect('refund_list')
+
+    invoices = Invoice.objects.filter(registration=registration)
+    return render(request, 'refunds/confirm_refund.html', {
+        'refund': refund,
+        'registration': registration,
+        'invoices': invoices,
+    })
+
+
+def _send_refund_email(refund, request):
+    from django.core.mail import EmailMultiAlternatives
+    from django.conf import settings as _s
+    reg = refund.registration
+    subject = f"Refund Confirmation — {reg.registration_number}"
+    amount_str = f"AED {float(refund.amount):,.2f}" if refund.amount else "as discussed"
+    ref_str = f" (Ref: {refund.refund_reference})" if refund.refund_reference else ""
+    html_body = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
+      <h2 style="color:#1e40af;">Refund Confirmation</h2>
+      <p>Dear <strong>{reg.first_name} {reg.last_name}</strong>,</p>
+      <p>We confirm that a refund has been processed for your registration.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr><td style="padding:8px;background:#f8fafc;font-weight:600;width:40%;">Registration No.</td>
+            <td style="padding:8px;">{reg.registration_number}</td></tr>
+        <tr><td style="padding:8px;font-weight:600;">Refund Amount</td>
+            <td style="padding:8px;color:#059669;font-weight:700;">{amount_str}</td></tr>
+        <tr><td style="padding:8px;background:#f8fafc;font-weight:600;">Reference{ref_str}</td>
+            <td style="padding:8px;">{refund.refund_reference or '—'}</td></tr>
+        <tr><td style="padding:8px;font-weight:600;">Reason</td>
+            <td style="padding:8px;">{refund.reason}</td></tr>
+        <tr><td style="padding:8px;background:#f8fafc;font-weight:600;">Processed On</td>
+            <td style="padding:8px;">{refund.confirmed_at.strftime('%d %B %Y') if refund.confirmed_at else '—'}</td></tr>
+      </table>
+      <p style="color:#64748b;font-size:13px;">If you have any questions please contact us.</p>
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin-top:24px;">
+      <p style="color:#94a3b8;font-size:12px;">Orbit Training Centre</p>
+    </div>
+    """
+    text_body = (
+        f"Dear {reg.first_name} {reg.last_name},\n\n"
+        f"Your refund has been processed.\n"
+        f"Registration: {reg.registration_number}\n"
+        f"Amount: {amount_str}\n"
+        f"Reason: {refund.reason}\n\n"
+        "Orbit Training Centre"
+    )
+    try:
+        msg = EmailMultiAlternatives(subject, text_body, _s.DEFAULT_FROM_EMAIL, [reg.email])
+        msg.attach_alternative(html_body, 'text/html')
+        msg.send(fail_silently=False)
+    except Exception:
+        pass
+
+
+@login_required
+def refund_list(request):
+    try:
+        role = request.user.profile.role
+    except Exception:
+        role = ''
+    if request.user.username != 'admin' and role not in ('admin', 'accounts'):
+        messages.error(request, "Access restricted.")
+        return redirect('student_dashboard')
+
+    refunds = Refund.objects.select_related(
+        'registration', 'initiated_by', 'confirmed_by'
+    ).order_by('-initiated_at')
+
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        refunds = refunds.filter(status=status_filter)
+
+    return render(request, 'refunds/refund_list.html', {
+        'refunds': refunds,
+        'status_filter': status_filter,
+    })
 
 
 # ─────────────────────────────────────────────

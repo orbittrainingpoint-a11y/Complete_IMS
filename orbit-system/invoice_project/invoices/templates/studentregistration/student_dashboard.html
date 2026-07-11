@@ -17,6 +17,9 @@
 .filter-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:20px; }
 .filter-card .form-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:4px; }
 .filter-card .form-control, .filter-card .form-select { font-size:13px; border-radius:8px; border-color:var(--border); }
+.reg-row-refunded td { opacity:.45; }
+.reg-row-refunded { background:#fef2f2 !important; }
+.refund-badge { font-size:10px; background:#fecaca; color:#991b1b; border-radius:12px; padding:2px 7px; font-weight:700; letter-spacing:.3px; }
 </style>
 {% endblock %}
 
@@ -85,9 +88,10 @@
       </thead>
       <tbody>
         {% for item in registration_data %}
-        <tr>
+        <tr class="{% if item.registration.is_refunded %}reg-row-refunded{% endif %}">
           <td>
             <span class="reg-num">{{ item.registration.registration_number }}</span>
+            {% if item.registration.is_refunded %}<span class="refund-badge">REFUNDED</span>{% endif %}
             <button class="btn-copy-num" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:10px;padding:1px 4px;" title="Copy" onclick="navigator.clipboard.writeText('{{ item.registration.registration_number }}');this.innerHTML='<i class=\'fas fa-check\' style=\'color:green;\'></i>';setTimeout(()=>this.innerHTML='<i class=\'fas fa-copy\'></i>',1500)"><i class="fas fa-copy"></i></button>
           </td>
           <td style="font-size:12px;">{{ item.registration.consultant_name|default:"—" }}</td>

@@ -734,6 +734,11 @@
             </a>
         </div>
         <div class="nav-item">
+            <a href="{% url 'refund_list' %}" class="nav-link {% if request.resolver_match.url_name in 'refund_list,initiate_refund,confirm_refund' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-undo"></i></span> Refunds
+            </a>
+        </div>
+        <div class="nav-item">
             <a href="{% url 'institute_settings' %}" class="nav-link {% if request.resolver_match.url_name == 'institute_settings' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-cog"></i></span> Settings
             </a>

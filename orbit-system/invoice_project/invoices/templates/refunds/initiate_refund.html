@@ -1,0 +1,101 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Initiate Refund — {{ registration.registration_number }}{% endblock %}
+{% block breadcrumb_label %}
+  <a href="{% url 'registration_invoice_detail' registration.id %}" style="color:var(--text-muted);text-decoration:none;">{{ registration.registration_number }}</a>
+  <span style="margin:0 6px;color:var(--border);">/</span>
+  <span class="current">Initiate Refund</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.refund-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:28px; }
+.form-label { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:#64748b; margin-bottom:4px; }
+.info-row { display:flex; flex-wrap:wrap; gap:6px 24px; font-size:13px; color:var(--text-muted); }
+.info-row strong { color:var(--text-main); }
+.amount-field { font-size:18px; font-weight:700; color:#059669; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+  <div class="page-title" style="color:#dc2626;"><i class="fas fa-undo me-2"></i>Initiate Refund</div>
+  <div class="page-subtitle">Fill in the refund details. A confirmation step follows before processing.</div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-md-8">
+
+    <!-- Student info -->
+    <div class="refund-card mb-3">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">Registration Details</div>
+      <div class="info-row">
+        <span><strong>Reg No:</strong> {{ registration.registration_number }}</span>
+        <span><strong>Student:</strong> {{ registration.first_name }} {{ registration.last_name }}</span>
+        <span><strong>Email:</strong> {{ registration.email }}</span>
+        <span><strong>Phone:</strong> {{ registration.phone_no }}</span>
+        <span><strong>Total Paid:</strong> <span style="color:#059669;font-weight:700;">AED {{ total_paid|floatformat:2 }}</span></span>
+      </div>
+      {% if invoices %}
+      <div class="table-responsive mt-3">
+        <table class="table table-sm mb-0" style="font-size:12px;">
+          <thead>
+            <tr style="color:var(--text-muted);">
+              <th>Invoice #</th><th>Date</th><th>Total</th><th>Paid</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in invoices %}
+            <tr>
+              <td>{{ inv.invoice_number }}</td>
+              <td>{{ inv.date|date:"d M Y" }}</td>
+              <td>AED {{ inv.total_amount|floatformat:2 }}</td>
+              <td style="color:#059669;font-weight:600;">AED {{ inv.amount_paid|floatformat:2 }}</td>
+              <td>{{ inv.status }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Refund form -->
+    <div class="refund-card">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Refund Amount (AED) <span class="text-danger">*</span></label>
+          <input type="number" name="amount" class="form-control amount-field" step="0.01" min="0"
+                 value="{{ total_paid|floatformat:2 }}" required style="border-radius:8px;max-width:220px;">
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Default is the full amount paid. Adjust if partial refund.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Reason for Refund <span class="text-danger">*</span></label>
+          <textarea name="reason" class="form-control" rows="4" required
+                    placeholder="Describe the reason for this refund in detail..."
+                    style="border-radius:8px;font-size:14px;"></textarea>
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Supporting Document <span style="color:#94a3b8;">(optional)</span></label>
+          <div style="border:2px dashed #cbd5e1;border-radius:10px;padding:20px;background:#f8fafc;text-align:center;cursor:pointer;"
+               onclick="document.getElementById('refundDoc').click()">
+            <i class="fas fa-file-upload" style="font-size:28px;color:#94a3b8;display:block;margin-bottom:8px;"></i>
+            <span id="docLabel" style="font-size:13px;color:#64748b;">Click to upload refund document (PDF, image, etc.)</span>
+            <input type="file" id="refundDoc" name="document" style="display:none;"
+                   onchange="document.getElementById('docLabel').textContent = this.files[0].name">
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-danger flex-grow-1">
+            <i class="fas fa-arrow-right me-2"></i>Proceed to Confirmation
+          </button>
+          <a href="{% url 'registration_invoice_detail' registration.id %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

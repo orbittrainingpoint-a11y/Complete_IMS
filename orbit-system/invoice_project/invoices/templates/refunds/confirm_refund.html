@@ -1,0 +1,128 @@
+{% extends 'base_generic.html' %}
+{% load static %}
+
+{% block title %}Confirm Refund — {{ registration.registration_number }}{% endblock %}
+{% block breadcrumb_label %}
+  <a href="{% url 'registration_invoice_detail' registration.id %}" style="color:var(--text-muted);text-decoration:none;">{{ registration.registration_number }}</a>
+  <span style="margin:0 6px;color:var(--border);">/</span>
+  <span class="current">Confirm Refund</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.confirm-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:28px; margin-bottom:20px; }
+.warn-banner { background:#fef2f2; border:1px solid #fca5a5; border-radius:12px; padding:20px 24px; margin-bottom:24px; }
+.detail-table td { padding:10px 14px; font-size:13px; }
+.detail-table tr:nth-child(odd) td { background:#f8fafc; }
+.form-label { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:#64748b; margin-bottom:4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+  <div class="page-title" style="color:#dc2626;"><i class="fas fa-exclamation-triangle me-2"></i>Confirm Refund</div>
+  <div class="page-subtitle">Review the details carefully. This action cannot be undone.</div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-md-8">
+
+    <div class="warn-banner d-flex gap-3 align-items-start">
+      <i class="fas fa-exclamation-circle" style="font-size:24px;color:#dc2626;margin-top:2px;"></i>
+      <div>
+        <strong style="font-size:14px;color:#dc2626;">This will permanently mark the registration as refunded.</strong>
+        <ul style="margin:8px 0 0;font-size:13px;color:#7f1d1d;padding-left:20px;">
+          <li>Registration <strong>{{ registration.registration_number }}</strong> will be marked as disabled/refunded</li>
+          <li>All linked invoices will be excluded from revenue calculations</li>
+          <li>A refund confirmation email will be sent to <strong>{{ registration.email }}</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="confirm-card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:14px;">Refund Summary</div>
+      <table class="detail-table w-100" style="border-collapse:collapse;">
+        <tr><td style="font-weight:600;width:35%;">Student</td><td>{{ registration.first_name }} {{ registration.last_name }}</td></tr>
+        <tr><td style="font-weight:600;">Registration No.</td><td>{{ registration.registration_number }}</td></tr>
+        <tr><td style="font-weight:600;">Email</td><td>{{ registration.email }}</td></tr>
+        <tr><td style="font-weight:600;">Refund Amount</td><td style="color:#059669;font-weight:700;font-size:16px;">AED {{ refund.amount|floatformat:2 }}</td></tr>
+        <tr><td style="font-weight:600;">Reason</td><td style="white-space:pre-line;">{{ refund.reason }}</td></tr>
+        <tr><td style="font-weight:600;">Document</td>
+            <td>
+              {% if refund.document %}
+                <a href="{{ refund.document.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                  <i class="fas fa-file me-1"></i>View Document
+                </a>
+              {% else %}
+                <span style="color:var(--text-muted);">No document uploaded</span>
+              {% endif %}
+            </td>
+        </tr>
+        <tr><td style="font-weight:600;">Initiated By</td><td>{{ refund.initiated_by.get_full_name|default:refund.initiated_by.username }}</td></tr>
+        <tr><td style="font-weight:600;">Initiated At</td><td>{{ refund.initiated_at|date:"d M Y H:i" }}</td></tr>
+      </table>
+    </div>
+
+    <!-- Admin notes + reference + final confirm -->
+    <div class="confirm-card">
+      <form method="post" id="confirmForm">
+        {% csrf_token %}
+        <input type="hidden" name="action" id="actionField" value="">
+        <div class="mb-3">
+          <label class="form-label">Refund Reference / Transaction ID <span style="color:#94a3b8;">(optional)</span></label>
+          <input type="text" name="refund_reference" class="form-control" placeholder="e.g. bank transfer ref, cheque number"
+                 style="border-radius:8px;font-size:14px;">
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Admin Notes <span style="color:#94a3b8;">(optional)</span></label>
+          <textarea name="admin_notes" class="form-control" rows="3"
+                    placeholder="Any internal notes about this refund..."
+                    style="border-radius:8px;font-size:14px;"></textarea>
+        </div>
+        <div class="d-flex gap-3">
+          <button type="button" class="btn btn-danger flex-grow-1 py-2" onclick="submitAction('confirm')"
+                  data-bs-toggle="modal" data-bs-target="#finalModal">
+            <i class="fas fa-check-circle me-2"></i>Confirm & Process Refund
+          </button>
+          <button type="button" class="btn btn-outline-secondary" onclick="submitAction('cancel');document.getElementById('confirmForm').submit()">
+            <i class="fas fa-times me-1"></i>Cancel Refund
+          </button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<!-- Final confirmation modal -->
+<div class="modal fade" id="finalModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h6 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Final Confirmation</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center py-3">
+        <p style="font-size:14px;margin-bottom:4px;">Are you absolutely sure you want to process this refund?</p>
+        <p style="font-size:13px;color:#dc2626;font-weight:600;">This cannot be undone.</p>
+        <p style="font-size:12px;color:#64748b;">A confirmation email will be sent to<br><strong>{{ registration.email }}</strong></p>
+      </div>
+      <div class="modal-footer justify-content-center gap-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Go Back</button>
+        <button type="button" class="btn btn-danger btn-sm px-4" onclick="document.getElementById('confirmForm').submit()">
+          Yes, Process Refund
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function submitAction(action) {
+  document.getElementById('actionField').value = action;
+}
+</script>
+{% endblock %}

@@ -162,6 +162,7 @@ class Registration(models.Model):
     student_status = models.CharField(max_length=20, choices=STUDENT_STATUS_CHOICES, default='active')
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     welcome_email_sent = models.BooleanField(default=False)
+    is_refunded = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if not self.registration_number:
@@ -626,6 +627,33 @@ class CertificationRequest(models.Model):
     def __str__(self):
         return f"CertReq {self.registration.registration_number} — {self.course_name}"
     
+def refund_doc_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1]
+    return f'refund_docs/{instance.registration.registration_number}_{ext}'
+
+
+class Refund(models.Model):
+    STATUS_CHOICES = [
+        ('pending',   'Pending Confirmation'),
+        ('confirmed', 'Confirmed & Processed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    registration    = models.OneToOneField(Registration, on_delete=models.CASCADE, related_name='refund')
+    reason          = models.TextField()
+    document        = models.FileField(upload_to=refund_doc_upload_path, null=True, blank=True)
+    amount          = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    refund_reference = models.CharField(max_length=100, blank=True)
+    status          = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    initiated_by    = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='refunds_initiated')
+    confirmed_by    = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='refunds_confirmed')
+    initiated_at    = models.DateTimeField(auto_now_add=True)
+    confirmed_at    = models.DateTimeField(null=True, blank=True)
+    admin_notes     = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"Refund {self.registration.registration_number} — {self.get_status_display()}"
+
+
 def validate_png(value):
     if not value.name.lower().endswith('.png'):
         raise ValidationError('Only PNG files are allowed.')
