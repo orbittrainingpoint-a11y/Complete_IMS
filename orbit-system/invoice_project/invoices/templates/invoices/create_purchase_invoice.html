@@ -161,10 +161,15 @@
                             {{ form.payment }}
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-6" id="col_number_of_person">
                         <div class="field-row" id="wrap_number_of_person">
                             <label>Number of Persons <span style="color:#ef4444;">*</span></label>
                             {{ form.number_of_person }}
+                        </div>
+                        <div class="field-row" id="wrap_corp_persons" style="display:none;">
+                            <label>Total Candidates</label>
+                            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 14px;font-size:14px;font-weight:700;color:#1e40af;" id="corp_persons_display">—</div>
+                            <div style="font-size:11px;color:#64748b;margin-top:4px;"><i class="fas fa-info-circle me-1"></i>Calculated from the candidates linked to this company</div>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -260,9 +265,12 @@ function setMode(mode) {
     if (mode === 'individual') {
         $('#sectionIndividual').show(); $('#sectionCorporate').hide();
         $('#modeIndividual').addClass('active'); $('#modeCorporate').removeClass('active');
+        $('#wrap_number_of_person').show(); $('#wrap_corp_persons').hide();
     } else {
         $('#sectionIndividual').hide(); $('#sectionCorporate').show();
         $('#modeIndividual').removeClass('active'); $('#modeCorporate').addClass('active');
+        $('#wrap_number_of_person').hide(); $('#wrap_corp_persons').show();
+        $('#id_number_of_person').val(1);
     }
     calcTotals();
 }
@@ -429,6 +437,7 @@ function loadCorpPiData(companyId, companyName) {
             $('#clientNameLabel').html('Company Name <span style="color:#ef4444;">*</span>');
             $('#id_number_of_person').val(1);
             $('#id_discount').val(0);
+            $('#corp_persons_display').text(data.total_candidates + ' person' + (data.total_candidates !== 1 ? 's' : ''));
 
             $('#corpResult').html(`
                 <div class="lookup-info status-found">
