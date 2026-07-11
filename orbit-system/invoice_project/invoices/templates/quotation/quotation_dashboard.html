@@ -127,7 +127,6 @@
           <td>
             <div class="d-flex gap-1">
               <button class="btn btn-primary btn-sm" onclick="openQuotationPrint(this.closest('tr'))" title="Print Quotation"><i class="fas fa-print"></i></button>
-              <button class="btn btn-sm btn-outline-warning" style="font-size:10px;font-weight:700;" onclick="goToPurchaseInvoice(this.closest('tr'))" title="Create Purchase Invoice">PI</button>
               <a href="{% url 'edit_quotation' quotation.pk %}" class="btn btn-outline-primary btn-sm" title="Edit"><i class="fas fa-pen"></i></a>
               {% if user.username == 'admin' or user.profile.role == 'admin' %}
               <a href="{% url 'delete_quotation' quotation.pk %}" class="btn btn-outline-danger btn-sm" title="Delete"><i class="fas fa-trash"></i></a>
@@ -202,17 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
 function openQuotationPrint(row) {
   const pk = row.dataset.pk;
   window.open('/quotation_detail/' + pk + '/?autoprint=1', '_blank', 'width=980,height=1200');
-}
-
-// Navigate to purchase invoice creation pre-filled from quotation data
-function goToPurchaseInvoice(row) {
-  const d = row.dataset;
-  const params = new URLSearchParams({
-    q_client: d.client || '',
-    q_discount: d.discount || '0',
-    q_ref: d.qnum || ''
-  });
-  window.location.href = '/create_purchase_invoice/?' + params.toString();
 }
 
 // Print quotation (old-format, kept for reference)
