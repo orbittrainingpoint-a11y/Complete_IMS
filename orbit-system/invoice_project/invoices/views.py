@@ -5378,6 +5378,7 @@ def cert_request_form(request, token):
     if request.method == 'POST':
         course_completed = request.POST.get('course_completed')
         completion_date = request.POST.get('completion_date', '').strip()
+        class_feedback = request.POST.get('class_feedback', '').strip()
         client_notes = request.POST.get('client_notes', '').strip()
 
         if course_completed == 'no':
@@ -5403,9 +5404,17 @@ def cert_request_form(request, token):
 
         class_rating = request.POST.get('class_rating', '').strip()
 
+        if not class_feedback:
+            return render(request, 'certificates/cert_request_form.html', {
+                'cert_req': cert_req,
+                'error_feedback': True,
+                'post_data': request.POST,
+            })
+
         cert_req.course_completed = True
         cert_req.completion_date = parsed_date
         cert_req.class_rating = class_rating
+        cert_req.class_feedback = class_feedback
         cert_req.client_notes = client_notes
         cert_req.submitted_at = timezone.now()
         cert_req.status = 'submitted'

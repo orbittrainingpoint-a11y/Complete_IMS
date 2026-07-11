@@ -127,9 +127,15 @@
               </div>
             </div>
 
+            <div id="feedbackGroup" class="mb-3" style="display:none;">
+              <label class="form-label">Write About the Class <span class="text-danger">*</span></label>
+              <textarea name="class_feedback" id="classFeedback" class="form-control" rows="4" placeholder="Tell us about your experience — the trainer, content, pace, what you found most valuable..."></textarea>
+              {% if error_feedback %}<div class="text-danger mt-1" style="font-size:12px;">Please write about your class experience before submitting.</div>{% endif %}
+            </div>
+
             <div id="notesGroup" class="mb-4" style="display:none;">
               <label class="form-label">Additional Comments <span style="color:#94a3b8;">(optional)</span></label>
-              <textarea name="client_notes" class="form-control" rows="3" placeholder="Any remarks about the course, trainer, or your experience..."></textarea>
+              <textarea name="client_notes" class="form-control" rows="3" placeholder="Anything else you'd like to add..."></textarea>
             </div>
 
             <button type="submit" id="submitBtn" class="btn btn-primary w-100 py-2" disabled>
@@ -145,43 +151,50 @@
 </div>
 
 <script>
-const sel        = document.getElementById('completionStatus');
-const notMsg     = document.getElementById('notCompletedMsg');
-const dateGrp    = document.getElementById('completionDateGroup');
-const ratingGrp  = document.getElementById('ratingGroup');
-const notesGrp   = document.getElementById('notesGroup');
-const submitBtn  = document.getElementById('submitBtn');
-const dateInput  = document.getElementById('completionDate');
+const sel          = document.getElementById('completionStatus');
+const notMsg       = document.getElementById('notCompletedMsg');
+const dateGrp      = document.getElementById('completionDateGroup');
+const ratingGrp    = document.getElementById('ratingGroup');
+const feedbackGrp  = document.getElementById('feedbackGroup');
+const notesGrp     = document.getElementById('notesGroup');
+const submitBtn    = document.getElementById('submitBtn');
+const dateInput    = document.getElementById('completionDate');
+const feedbackInput = document.getElementById('classFeedback');
 
 function checkReady() {
-  const dateOk   = !!dateInput.value;
-  const ratingOk = !!document.querySelector('input[name="class_rating"]:checked');
-  submitBtn.disabled = !(dateOk && ratingOk);
+  const dateOk     = !!dateInput.value;
+  const ratingOk   = !!document.querySelector('input[name="class_rating"]:checked');
+  const feedbackOk = feedbackInput.value.trim().length > 0;
+  submitBtn.disabled = !(dateOk && ratingOk && feedbackOk);
 }
 
 sel.addEventListener('change', function() {
   if (this.value === 'yes') {
-    notMsg.style.display    = 'none';
-    dateGrp.style.display   = '';
-    ratingGrp.style.display = '';
-    notesGrp.style.display  = '';
+    notMsg.style.display      = 'none';
+    dateGrp.style.display     = '';
+    ratingGrp.style.display   = '';
+    feedbackGrp.style.display = '';
+    notesGrp.style.display    = '';
     checkReady();
   } else if (this.value === 'no') {
-    notMsg.style.display    = '';
-    dateGrp.style.display   = 'none';
-    ratingGrp.style.display = 'none';
-    notesGrp.style.display  = 'none';
+    notMsg.style.display      = '';
+    dateGrp.style.display     = 'none';
+    ratingGrp.style.display   = 'none';
+    feedbackGrp.style.display = 'none';
+    notesGrp.style.display    = 'none';
     submitBtn.disabled = true;
   } else {
-    notMsg.style.display    = 'none';
-    dateGrp.style.display   = 'none';
-    ratingGrp.style.display = 'none';
-    notesGrp.style.display  = 'none';
+    notMsg.style.display      = 'none';
+    dateGrp.style.display     = 'none';
+    ratingGrp.style.display   = 'none';
+    feedbackGrp.style.display = 'none';
+    notesGrp.style.display    = 'none';
     submitBtn.disabled = true;
   }
 });
 
 dateInput.addEventListener('change', checkReady);
+feedbackInput.addEventListener('input', checkReady);
 document.querySelectorAll('input[name="class_rating"]').forEach(r => r.addEventListener('change', checkReady));
 </script>
 </body>

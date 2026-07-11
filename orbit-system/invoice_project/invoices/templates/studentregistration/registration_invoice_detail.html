@@ -411,9 +411,15 @@
         <div style="font-size:13px;">{{ req.submitted_at|date:"d M Y H:i"|default:"—" }}</div>
       </div>
     </div>
+    {% if req.class_feedback %}
+    <div style="margin-top:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#3b82f6;margin-bottom:3px;">About the Class</div>
+      <div style="font-size:13px;color:#1e40af;">{{ req.class_feedback }}</div>
+    </div>
+    {% endif %}
     {% if req.client_notes %}
     <div style="margin-top:10px;background:#fff;border-radius:8px;padding:10px 14px;">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:3px;">Client Notes</div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:3px;">Additional Notes</div>
       <div style="font-size:13px;color:#475569;">{{ req.client_notes }}</div>
     </div>
     {% endif %}

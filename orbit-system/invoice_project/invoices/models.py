@@ -621,6 +621,7 @@ class CertificationRequest(models.Model):
     class_rating = models.CharField(max_length=20, blank=True,
                                      choices=[('excellent','Excellent'),('good','Good'),
                                               ('average','Average'),('poor','Poor')])
+    class_feedback = models.TextField(blank=True)
     client_notes = models.TextField(blank=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     # Admin side
