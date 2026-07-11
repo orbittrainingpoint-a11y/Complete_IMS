@@ -653,6 +653,11 @@
             </a>
         </div>
         <div class="nav-item">
+            <a href="{% url 'cert_requests_admin' %}" class="nav-link {% if request.resolver_match.url_name in 'cert_requests_admin,cert_request_generate,cert_request_reject' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-file-signature"></i></span> Cert. Requests
+            </a>
+        </div>
+        <div class="nav-item">
             <a href="{% url 'student_form_links' %}" class="nav-link {% if request.resolver_match.url_name == 'student_form_links' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-share-alt"></i></span> Reg. Links
             </a>

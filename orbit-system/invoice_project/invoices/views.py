@@ -1495,7 +1495,9 @@ def registration_invoice_detail(request, registration_id):
     
     certificate_uploaded = CertificateUpload.objects.filter(registration=registration).exists()
     form_uploaded = FormUpload.objects.filter(registration=registration).exists()
-    
+    cert_requests = CertificationRequest.objects.filter(registration=registration).order_by('-sent_at')
+    generated_certificates = Certificate.objects.filter(register_number=registration.registration_number)
+
     context = {
         'registration': registration,
         'unique_courses': unique_courses,
@@ -1507,6 +1509,8 @@ def registration_invoice_detail(request, registration_id):
         'total_course_amount': total_course_amount,
         'certificate_uploaded': certificate_uploaded,
         'form_uploaded': form_uploaded,
+        'cert_requests': cert_requests,
+        'generated_certificates': generated_certificates,
     }
     return render(request, 'studentregistration/registration_invoice_detail.html', context)
 

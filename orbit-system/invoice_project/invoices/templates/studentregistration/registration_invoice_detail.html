@@ -336,6 +336,101 @@
     </div>
   </div>
 </div>
+<!-- ── CERTIFICATE REQUESTS SECTION ── -->
+{% if cert_requests %}
+<div class="detail-section">
+  <h5><i class="fas fa-certificate me-2"></i>Certificate Requests</h5>
+  {% for req in cert_requests %}
+  <div style="border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px;
+              {% if req.status == 'submitted' %}background:#eff6ff;border-color:#bfdbfe;
+              {% elif req.status == 'approved' %}background:#f0fdf4;border-color:#bbf7d0;
+              {% elif req.status == 'rejected' %}background:#fef2f2;border-color:#fca5a5;
+              {% else %}background:#fefce8;border-color:#fde68a;{% endif %}">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <span style="font-weight:700;font-size:14px;">{{ req.course_name }}</span>
+        <span style="font-size:11px;margin-left:8px;
+          {% if req.status == 'submitted' %}background:#dbeafe;color:#1e40af;
+          {% elif req.status == 'approved' %}background:#dcfce7;color:#166534;
+          {% elif req.status == 'rejected' %}background:#fee2e2;color:#991b1b;
+          {% else %}background:#fef9c3;color:#92400e;{% endif %}
+          padding:2px 10px;border-radius:20px;font-weight:600;">
+          {% if req.status == 'submitted' %}Submitted — Pending Review
+          {% elif req.status == 'approved' %}Certificate Generated
+          {% elif req.status == 'rejected' %}Rejected
+          {% else %}Waiting for Client Response{% endif %}
+        </span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);">Sent: {{ req.sent_at|date:"d M Y H:i" }}</div>
+    </div>
+
+    {% if req.status == 'submitted' %}
+    <div style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;">
+      <div style="background:#fff;border-radius:8px;padding:10px 14px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:3px;">Completion Status</div>
+        <div style="font-weight:700;color:#059669;font-size:14px;">
+          <i class="fas fa-check-circle me-1"></i>Course Completed
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:10px 14px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:3px;">Completion Date</div>
+        <div style="font-weight:700;font-size:14px;">{{ req.completion_date|date:"d M Y"|default:"—" }}</div>
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:10px 14px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:3px;">Submitted On</div>
+        <div style="font-size:13px;">{{ req.submitted_at|date:"d M Y H:i"|default:"—" }}</div>
+      </div>
+    </div>
+    {% if req.client_notes %}
+    <div style="margin-top:10px;background:#fff;border-radius:8px;padding:10px 14px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:3px;">Client Notes</div>
+      <div style="font-size:13px;color:#475569;">{{ req.client_notes }}</div>
+    </div>
+    {% endif %}
+    <div style="margin-top:12px;">
+      <a href="{% url 'cert_requests_admin' %}?status=submitted" class="btn btn-primary btn-sm">
+        <i class="fas fa-certificate me-1"></i>Review &amp; Generate Certificate
+      </a>
+    </div>
+
+    {% elif req.status == 'approved' and req.generated_certificate %}
+    <div style="margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span style="font-size:13px;color:#166534;"><i class="fas fa-check-circle me-1"></i>Certificate issued on {{ req.generated_certificate.created_at|date:"d M Y" }}</span>
+      <a href="{% url 'print_certificate' req.generated_certificate.pk %}" target="_blank" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-print me-1"></i>View Certificate
+      </a>
+    </div>
+
+    {% elif req.status == 'pending' %}
+    <div style="margin-top:8px;font-size:12px;color:#92400e;">
+      <i class="fas fa-clock me-1"></i>Waiting for client to fill in the form. Sent to {{ registration.email }}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── GENERATED CERTIFICATES ── -->
+{% if generated_certificates %}
+<div class="detail-section">
+  <h5><i class="fas fa-award me-2"></i>Generated Certificates</h5>
+  {% for cert in generated_certificates %}
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px 14px;border:1px solid #bbf7d0;border-radius:10px;background:#f0fdf4;margin-bottom:8px;">
+    <div>
+      <span style="font-weight:700;">{{ cert.course_name }}</span>
+      <span style="font-size:12px;color:#166534;margin-left:10px;">{{ cert.certificate_number }}</span>
+      <span style="font-size:12px;color:var(--text-muted);margin-left:10px;">{{ cert.from_date|date:"d M Y" }} → {{ cert.end_date|date:"d M Y" }}</span>
+      <span style="font-size:12px;font-weight:600;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;margin-left:6px;">{{ cert.grade }}</span>
+    </div>
+    <a href="{% url 'print_certificate' cert.pk %}" target="_blank" class="btn btn-outline-success btn-sm">
+      <i class="fas fa-print me-1"></i>Print
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <!-- ── CERTIFICATE REQUEST MODAL ── -->
 <div class="modal fade" id="certRequestModal" tabindex="-1">
   <div class="modal-dialog">
