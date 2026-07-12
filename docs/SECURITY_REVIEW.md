@@ -1,213 +1,178 @@
 # Security Review Document
 ## Orbit ERP — Institute Management System
 
-**Document Version:** 2.0
-**Date:** 2026-07-06
-**Review Type:** Internal Code Audit (Updated)
+**Document Version:** 3.0
+**Date:** 2026-07-13
+**Status:** Production
 
 ---
 
-## 1. Executive Summary
+## 1. Authentication
 
-Since the v1.0 security review (2026-06-25), all three CRITICAL issues have been resolved. The system is now deployed on VPS with environment-variable-driven configuration, Gunicorn + Apache (replacing the old Windows/IIS setup), and HTTPS termination at the proxy.
+### 1.1 Primary Login
 
-**Overall Risk Level: LOW–MEDIUM** for a production SaaS deployment.
-**Remaining risks** are medium-priority operational hardening items.
+- Django's built-in `authenticate()` + `login()` — bcrypt-compatible password hashing
+- Session-based auth (`sessionid` cookie, `HttpOnly`, `Secure` in production)
+- All views decorated with `@login_required` (redirect to `/accounts/login/`)
+- Login and logout events written to `AuditLog` table with IP address
+
+### 1.2 CRM SSO
+
+- HMAC-SHA256 token with timestamp component
+- Token TTL: **90 seconds** — prevents replay attacks
+- Shared secret `CRM_SSO_SECRET` stored in `settings.py` (not in code or DB)
+- Token verified on both sides before session is created
+
+### 1.3 Public Token Forms
+
+- Certificate request forms at `/cert-request/<uuid:token>/` are unauthenticated
+- Secured by UUID4 token (128-bit entropy) — link is single-use in practice (one submission sets status=submitted and the form displays a success page)
+- No sensitive personal data returned to the client — form is submit-only
 
 ---
 
-## 2. Resolved Issues (Since v1.0)
+## 2. Authorization
 
-### ~~SEC-01: Debug Mode in Production~~ — FIXED
-`DEBUG` is now read from `DJANGO_DEBUG` environment variable, defaulting to `False`.
+### 2.1 Role Checks
 
+All privileged operations check `request.user.userprofile.role` or `request.user.is_superuser`.
+
+| Protection | Where Applied |
+|------------|--------------|
+| Admin-only decorator/check | User management, settings, audit log, delete certificates, delete proposals |
+| Accounts access | Refund list, refund confirm |
+| Own-data filter | Sales executive sees only their own registrations |
+| 1-hour edit lock | Sales executives blocked from editing registrations after 60 minutes |
+
+### 2.2 Object-Level Access
+
+Sales executives are filtered at query level:
 ```python
-DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
+if role == 'sales_executive':
+    registrations = registrations.filter(consultant=request.user.get_full_name())
 ```
 
-### ~~SEC-02: Hardcoded Secret Key~~ — FIXED
-`SECRET_KEY` is now loaded from `DJANGO_SECRET_KEY` environment variable.
+### 2.3 Insecure Direct Object Reference (IDOR)
 
+- All `<pk>` lookups use `get_object_or_404` — returns 404 for unknown IDs
+- No tenant isolation needed (single-tenant system)
+
+---
+
+## 3. Input Handling
+
+### 3.1 SQL Injection
+
+- All ORM queries use parameterized queries by default
+- Raw SQL (used in `_revenue_for_user`) uses Django `connection.cursor()` with `%s` placeholders — not string formatting
+
+### 3.2 Cross-Site Scripting (XSS)
+
+- Django template engine auto-escapes all `{{ variable }}` output
+- `mark_safe()` is not used on user-supplied content
+- Rich text content (e.g. `class_feedback`, `client_notes`) rendered as plain text, never as HTML
+
+### 3.3 File Uploads
+
+- File uploads use `FileField` / `ImageField` — Django validates MIME type for images via Pillow
+- Files stored under `MEDIA_ROOT` (not in static files directory)
+- Media files served by Nginx, not Django, in production — no server-side execution of uploaded files
+
+### 3.4 CSRF
+
+- Django `CsrfViewMiddleware` active on all POST requests
+- All forms include `{% csrf_token %}`
+- AJAX POST requests in custom JS include `X-CSRFToken` header or `csrfmiddlewaretoken` field
+
+---
+
+## 4. Session & Cookie Security
+
+| Setting | Value |
+|---------|-------|
+| `SESSION_COOKIE_HTTPONLY` | True (Django default) |
+| `SESSION_COOKIE_SECURE` | True on VPS (HTTPS enforced by Nginx) |
+| `CSRF_COOKIE_SECURE` | True on VPS |
+| `X-Frame-Options` | DENY (Django default via `XFrameOptionsMiddleware`) |
+| `Secure` header | Via Nginx HTTPS |
+
+---
+
+## 5. Sensitive Data Handling
+
+### 5.1 Passwords
+
+- User passwords hashed via Django's PBKDF2+SHA256 (default)
+- CRM passwords synced using `werkzeug.security.generate_password_hash` (scrypt/PBKDF2 compatible)
+- No plaintext passwords stored or logged
+
+### 5.2 Secrets in Settings
+
+The following are stored in `settings.py` only — never in the codebase, DB, or logs:
+- `SECRET_KEY`
+- `CRM_SSO_SECRET`
+- `EMAIL_HOST_PASSWORD`
+- `CRM_DB_PASSWORD`
+
+### 5.3 Personally Identifiable Information
+
+Stored in `invoices_registration`: name, DOB, passport number, Emirates ID, UID, phone, email, nationality. This data:
+- Is accessible only to authenticated staff
+- Is not exposed in any public API response
+- Email addresses used only for cert request and refund notification emails
+
+---
+
+## 6. Audit Logging
+
+All login and logout events are logged to `invoices_auditlog`:
 ```python
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'fallback-dev-only-key')
+@receiver(user_logged_in)
+def on_user_logged_in(sender, user, request, **kwargs):
+    ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', ''))
+    AuditLog.objects.create(user=user, action='login', ip_address=ip, ...)
 ```
 
-### ~~SEC-03: Hardcoded Database Password~~ — FIXED
-All database credentials are now in `/var/www/html/orbit/.env.erp`.
-
-### ~~SEC-04 (HIGH): Root Database User~~ — FIXED
-Production uses a dedicated `orbit_app` MySQL user with per-database grants (SELECT, INSERT, UPDATE, DELETE only on `orbit_invoice` and `leads`).
-
-### ~~SEC-B4: Admin Username Hardcode~~ — FIXED
-The legacy `if request.user.username == 'admin':` check has been replaced with `is_admin_user(request.user)`, which checks `UserProfile.role`.
+Audit log viewable by Admin only at `/audit/`.
 
 ---
 
-## 3. Current Security Architecture
+## 7. Infrastructure Security
 
-### 3.1 Authentication
-- Django session-based authentication (`django.contrib.auth`)
-- Passwords hashed with PBKDF2-SHA256 (Django default, 870,000 iterations as of Django 5)
-- `@login_required` decorator enforced on all non-public views
-- Role-based access: `is_admin_user()` checks `UserProfile.role in ('admin',) or user.is_superuser`
-- No public API — all endpoints require active session
-
-### 3.2 CSRF Protection
-- All HTML forms use `{% csrf_token %}`
-- AJAX POSTs must include `X-CSRFToken` header
-- `CSRF_TRUSTED_ORIGINS` set to `https://orbittraining.online,https://www.orbittraining.online`
-
-### 3.3 Transport Security
-- Apache terminates HTTPS with Let's Encrypt SSL certificate
-- HTTP → HTTPS redirect enforced at Apache level (301 permanent)
-- `SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')` — Django trusts Apache's `X-Forwarded-Proto` header
-
-### 3.4 SSO Bridge Security
-- Algorithm: HMAC-SHA256
-- Token payload: `base64url({"u": username, "t": unix_timestamp})`
-- Token TTL: 90 seconds
-- Signature comparison: `hmac.compare_digest()` (constant-time, prevents timing attacks)
-- Shared secret: `CRM_SSO_SECRET` stored in env files, not in source code
-- HTTPS-only: tokens are only transmitted over TLS-encrypted connections in production
-
-### 3.5 Audit Logging
-- Login and logout events are automatically logged via Django signals
-- `AuditLog` entries include: `user`, `action`, `model_name`, `object_id`, `object_repr`, `ip_address`, `timestamp`
-- IP address extracted from `HTTP_X_FORWARDED_FOR` (first address), then `REMOTE_ADDR`
-- Audit log view is admin-only
-
-### 3.6 File Upload Security
-- Uploaded files stored in `media/` directory with structured paths
-- Media files served directly by Apache (not through Django view)
-- File type validation is done at the Django form/model level
+| Layer | Security Measure |
+|-------|-----------------|
+| Transport | HTTPS via Let's Encrypt (auto-renews with Certbot) |
+| Web server | Nginx — no directory listing, no server version in headers |
+| Application | DEBUG=False on VPS — no stack traces exposed to users |
+| Database | MariaDB on localhost only — not exposed to external network |
+| SSH | Key-based auth recommended for VPS access |
+| Static/media | Nginx serves directly — Django app not in the path |
 
 ---
 
-## 4. Remaining Security Items
+## 8. Known Limitations and Accepted Risks
 
-### SEC-05 (MEDIUM): SSO Secret Rotation Policy
-**Current:** `CRM_SSO_SECRET` is a static string that has never been rotated.
-**Risk:** If the secret leaks, an attacker could forge SSO tokens. The 90-second TTL limits damage but does not eliminate it.
-**Recommendation:**
-- Establish a rotation schedule (e.g., every 6 months or immediately if exposed)
-- Update both `.env.erp` and `.env.crm` simultaneously, then restart both services
-
----
-
-### SEC-06 (MEDIUM): No Rate Limiting on Login
-**Current:** No brute-force protection on `POST /accounts/login/`
-**Risk:** Automated credential stuffing or password guessing is possible.
-**Recommendation:**
-- Add `django-axes` (failed login lockout) or `django-ratelimit`
-- Configure account lockout after 10 failed attempts
+| Item | Risk Level | Notes |
+|------|-----------|-------|
+| No rate limiting on login | Low-Medium | Brute force possible; mitigated by strong passwords policy |
+| No MFA | Low | Single-tenant internal tool; SSO is HMAC-only |
+| Cert request token is not invalidated after use | Low | UUID entropy makes guessing impractical; status check blocks re-submission |
+| Email SMTP via Gmail app password | Low | App password can be rotated independently from account password |
+| pymysql direct CRM DB write | Low | Internal only; not exposed externally; credentials in settings.py |
+| Media files served at predictable paths | Low | Staff-uploaded files; no sensitive docs publicly accessible without knowing exact filename |
 
 ---
 
-### SEC-07 (MEDIUM): Media File Access Control
-**Current:** All files in `media/` are publicly accessible via direct URL if the path is known.
-**Risk:** Uploaded documents (certificates, trade licenses, VAT certificates) could be accessed without authentication.
-**Recommendation:**
-- For sensitive uploads (portal/trade_license/, portal/vat/), serve via Django view with `@login_required` using `FileResponse`
-- Or configure Apache to require authentication for the `media/portal/` path
+## 9. Recommendations
+
+1. **Rate limit `/accounts/login/`** — use `django-axes` or similar to block repeated failures
+2. **Add MFA** for admin accounts (TOTP via `django-otp`)
+3. **Certificate request token expiry** — add a `expires_at` field; reject form submissions after 7 days
+4. **Rotate `CRM_SSO_SECRET`** periodically — recommend quarterly rotation
+5. **Separate media disk** — avoid storing uploads on the same partition as the OS
+6. **Database backups** — automate nightly `mysqldump` to a separate backup location
 
 ---
 
-### SEC-08 (MEDIUM): Session Lifetime
-**Current:** Default Django session expiry (browser session only — expires on browser close).
-**Risk:** Users on shared computers who forget to log out leave sessions accessible.
-**Recommendation:**
-```python
-SESSION_COOKIE_AGE = 43200  # 12 hours in seconds
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_SAVE_EVERY_REQUEST = True  # Slide the expiry on activity
-```
-
----
-
-### SEC-09 (LOW): X-Frame-Options / Clickjacking
-**Current:** `XFrameOptionsMiddleware` is in `INSTALLED_APPS` with default `DENY`.
-**Status:** Already mitigated by Django default.
-**No action needed.**
-
----
-
-### SEC-10 (LOW): CRM Internal API Authentication
-**Current:** CRM `/api/internal/lead/<id>` endpoint is protected by `Authorization: Bearer <CRM_SSO_SECRET>` header.
-**Risk (low):** If the VPS internal network is compromised, this API could be queried. The secret is shared with the SSO token, so rotating SSO secret also rotates API auth.
-**Recommendation:** Consider a separate API key for internal API vs SSO token, providing independent revocation.
-
----
-
-### SEC-11 (LOW): CRM DB Write Access from ERP
-**Current:** The `sync_user_to_crm()` function in views.py writes directly to the CRM MySQL database using `pymysql` with the credentials from `CRM_DB_*` env variables.
-**Risk:** The ERP process has INSERT/UPDATE access to the CRM database. A bug in ERP could corrupt CRM data.
-**Recommendation:** Replace with a CRM API endpoint for user sync, so the two databases are only connected at the application layer, not the DB layer.
-
----
-
-### SEC-12 (LOW): Django Admin Exposure
-**Current:** `/admin/` is enabled and accessible.
-**Risk:** Default path is a well-known target for automated attacks.
-**Recommendation:**
-```python
-# settings.py — use a non-guessable admin path
-# In urls.py:
-path('orbit-control-panel/', admin.site.urls),
-```
-Or restrict `/admin/` to internal IP in Apache.
-
----
-
-### SEC-13 (INFO): ALLOWED_HOSTS Configuration
-**Status:** Set via `ALLOWED_HOSTS` env variable in `.env.erp`. Properly configured for production.
-**No action needed.**
-
----
-
-### SEC-14 (INFO): Password Hashing (CRM User Sync)
-**Current:** `sync_user_to_crm()` creates CRM user records with werkzeug `pbkdf2:sha256` hashes (so Flask-Login can authenticate them).
-**Status:** Acceptable — werkzeug pbkdf2 is a secure password hashing scheme.
-**No action needed.**
-
----
-
-## 5. Security Checklist
-
-| Check | Status |
-|-------|--------|
-| DEBUG=False in production | PASS |
-| SECRET_KEY from env var | PASS |
-| Database password from env var | PASS |
-| Dedicated DB user (not root) | PASS |
-| HTTPS / TLS | PASS |
-| CSRF protection on forms | PASS |
-| CSRF trusted origins configured | PASS |
-| Login required on views | PASS |
-| Admin hardcode removed | PASS |
-| SSO token TTL (90s) | PASS |
-| HMAC constant-time comparison | PASS |
-| Audit log for login/logout | PASS |
-| Role-based access control | PASS |
-| X-Frame-Options DENY | PASS |
-| Rate limiting on login | MISSING |
-| Session timeout configured | MISSING |
-| SSO secret rotation policy | MISSING |
-| Media file auth for sensitive docs | MISSING |
-| Separate CRM API for user sync | LOW PRIORITY |
-| Non-guessable admin URL | LOW PRIORITY |
-
----
-
-## 6. Incident Response Notes
-
-If a security incident occurs:
-
-1. **Suspected SSO token leak:** Update `CRM_SSO_SECRET` in both `.env.erp` and `.env.crm` immediately, then `sudo systemctl restart orbit-erp orbit-crm`
-2. **Suspected DB credential leak:** Change DB password in MySQL and update `.env.erp`, restart `orbit-erp`
-3. **Audit log review:** Navigate to `/audit/` (admin login required) — filters: user, action, date range, IP address
-4. **Django secret key compromise:** Rotate `DJANGO_SECRET_KEY` — note this invalidates all existing sessions and signed cookies, logging out all users
-
----
-
-*Document updated: 2026-07-06*
-*Reflects production system at orbittraining.online*
+*Document updated: 2026-07-13*
+*Version 3.0 — adds public cert-request token security, refund access control, v3 role matrix updates*

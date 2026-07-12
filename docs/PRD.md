@@ -1,8 +1,8 @@
 # Product Requirements Document (PRD)
 ## Orbit ERP — Institute Management System
 
-**Document Version:** 2.0
-**Date:** 2026-07-06
+**Document Version:** 3.0
+**Date:** 2026-07-13
 **Product:** Orbit ERP Institute Management System
 **Organization:** Orbit Training Point
 **Status:** Production (Live System — orbittraining.online)
@@ -11,10 +11,10 @@
 
 ## 1. Executive Summary
 
-Orbit ERP is a web-based Enterprise Resource Planning system built for Orbit Training Point, a professional training institute operating in the UAE. The system manages the full lifecycle of training operations — from lead capture and student registration to course delivery, invoicing, certificate issuance, and business reporting.
+Orbit ERP is a web-based Enterprise Resource Planning system built for Orbit Training Point, a professional training institute operating in the UAE. The system manages the full lifecycle of training operations — from lead capture and student registration to course delivery, invoicing, certificate issuance, refund processing, and business reporting.
 
 Two applications work together as a unified platform:
-- **Django ERP** (`orbit-system/`) — core back-office operations, invoicing, registration, certificates, reporting
+- **Django ERP** (`orbit-system/`) — core back-office operations, invoicing, registration, certificates, refunds, reporting, institute settings
 - **Flask CRM** (`leads-management/`) — lead pipeline management, follow-ups, meetings, and sales analytics
 
 Both apps share user accounts via a HMAC-signed SSO bridge, enabling one-click navigation between them.
@@ -31,6 +31,7 @@ Both apps share user accounts via a HMAC-signed SSO bridge, enabling one-click n
 - Enable real-time visibility into revenue, registrations, lead pipeline, and expenses
 - Produce professional client-facing documents (tax invoices, quotations, certificates, proposals) on demand
 - Track 100% of student journeys from lead to certified graduate
+- Provide complete refund management with audit trails and client notifications
 
 ---
 
@@ -38,11 +39,10 @@ Both apps share user accounts via a HMAC-signed SSO bridge, enabling one-click n
 
 | Role | Description | Primary Modules |
 |------|-------------|-----------------|
-| **Admin** | Full system access, user management, targets, audit log | Dashboard, All Modules |
+| **Admin** | Full system access, user management, targets, audit log, institute settings | Dashboard, All Modules |
 | **Sales Manager** | Lead management, quotations, proposals, team oversight | Leads (CRM), Quotations, Reports |
 | **Accounts** | Invoice tracking, payment management, financial reports | Invoices, Reports, Expenses |
-| **Sales Executive** | Lead management, registrations, quotations | Leads (CRM), Registrations, Quotations |
-| **Training Coordinator** | Course management, certificates, scheduling | Courses, Certificates, Schedule |
+| **Sales Executive** | Lead management, registrations, quotations (1-hr edit window) | Leads (CRM), Registrations, Quotations |
 
 Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executive`) via the UserProfile model. Access to sensitive views is controlled by role.
 
@@ -73,6 +73,7 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | INV-15 | Quick-pay action (Mark as Paid) from invoice list |
 | INV-16 | Bulk invoice actions (bulk status update) |
 | INV-17 | Level-based pricing: Intermediate, Professional, Advanced for Online/Offline and Private |
+| INV-18 | Refunded registration invoices excluded from all revenue calculations |
 
 ### 4.2 Student Registration
 
@@ -94,6 +95,8 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | REG-12 | Pre-fill registration from CRM lead via SSO link |
 | REG-13 | Token-based self-registration links for students (StudentFormLink) |
 | REG-14 | Company portal registration (CompanyPortalRequest) for corporate self-service |
+| REG-15 | Sales executives can only edit registrations within 1 hour of creation |
+| REG-16 | Refunded registrations shown with visual disabled state; excluded from revenue |
 
 ### 4.3 Course Management
 
@@ -120,7 +123,13 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | CERT-04 | Record course dates and grade |
 | CERT-05 | Print professional certificate layouts |
 | CERT-06 | Upload pre-issued certificates (PDF) against registrations |
-| CERT-07 | Upload registration forms as supporting documents |
+| CERT-07 | Upload registration enrolment documents |
+| CERT-08 | Admin can delete incorrectly issued certificates |
+| CERT-09 | Send token-based certificate request form to client for completion confirmation |
+| CERT-10 | Client confirms course completion, rates the class, and writes class feedback |
+| CERT-11 | Admin reviews submitted certificate requests and generates certificate |
+| CERT-12 | "Not Completed" status blocks certificate issuance with clear client message |
+| CERT-13 | Certificate request status shown on registration detail page |
 
 ### 4.5 Quotation Management
 
@@ -149,7 +158,35 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | PROP-04 | Auto-generate white/inverted version of logo for dark backgrounds |
 | PROP-05 | Print professional proposal layout with branding |
 
-### 4.7 CRM / Lead Management (Flask App)
+### 4.7 Refund Management
+
+**Priority:** High | **Status:** Implemented
+
+| ID | Requirement |
+|----|-------------|
+| REF-01 | Initiate refund from registration detail with reason and supporting document |
+| REF-02 | Two-step confirmation before refund is processed |
+| REF-03 | Send refund notification email to client on confirmation |
+| REF-04 | Mark registration as refunded (is_refunded = True) |
+| REF-05 | Refunded registrations visually distinguished with disabled styling and REFUNDED badge |
+| REF-06 | All revenue calculations exclude refunded registrations |
+| REF-07 | Admin refund list with filter tabs (Pending / Confirmed / Cancelled) |
+| REF-08 | Refund stores: reason, document upload, amount, reference, admin notes |
+| REF-09 | Refund status: Pending Confirmation → Confirmed & Processed / Cancelled |
+
+### 4.8 Institute Settings
+
+**Priority:** Medium | **Status:** Implemented
+
+| ID | Requirement |
+|----|-------------|
+| SET-01 | Admin can configure company name, address, phone, email, TRN |
+| SET-02 | Upload company logo, stamp, authorization logo, signature |
+| SET-03 | Configure banking details for invoice footer |
+| SET-04 | Configure social media links |
+| SET-05 | Singleton settings record (one row per system) |
+
+### 4.9 CRM / Lead Management (Flask App)
 
 **Priority:** High | **Status:** Implemented (separate Flask application)
 
@@ -165,8 +202,9 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | CRM-08 | Track quoted amounts per lead |
 | CRM-09 | One-click "Register in ERP" button that pre-fills the Django registration form via SSO |
 | CRM-10 | SSO bridge: staff log in once; both apps share the session via HMAC token |
+| CRM-11 | Deleting a lead cleans up all child records (interactions, quotes, meeting links) safely |
 
-### 4.8 Trainer & Company Profiles
+### 4.10 Trainer & Company Profiles
 
 **Priority:** Medium | **Status:** Implemented
 
@@ -176,7 +214,7 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | PRF-02 | Assign trainers to proposals |
 | PRF-03 | Create company profiles with PDF documents |
 
-### 4.9 Coupon Management
+### 4.11 Coupon Management
 
 **Priority:** Low | **Status:** Implemented
 
@@ -188,7 +226,7 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | CPN-04 | Set expiry date and max usage count per coupon |
 | CPN-05 | Validate coupon codes via AJAX at checkout |
 
-### 4.10 Reporting & Business Intelligence
+### 4.12 Reporting & Business Intelligence
 
 **Priority:** High | **Status:** Implemented
 
@@ -202,8 +240,9 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | RPT-06 | Certificate report (issued by period/type/course) |
 | RPT-07 | Expense report (by category, vendor, date range) |
 | RPT-08 | Fee reminder dashboard (overdue and upcoming invoices) |
+| RPT-09 | All revenue reports exclude refunded registrations |
 
-### 4.11 Notifications
+### 4.13 Notifications
 
 **Priority:** Medium | **Status:** Implemented
 
@@ -213,7 +252,7 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | NOTIF-02 | Notification types: Invoice Due, Overdue Invoice, Certificate Ready, New Registration, Target Alert, System |
 | NOTIF-03 | Mark individual or all notifications as read |
 
-### 4.12 Training Schedule
+### 4.14 Training Schedule
 
 **Priority:** Medium | **Status:** Implemented
 
@@ -223,7 +262,7 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | SCH-02 | Assign instructor, class type, and status (Upcoming/Ongoing/Completed/Cancelled) |
 | SCH-03 | Link schedules to courses |
 
-### 4.13 Expense Tracking
+### 4.15 Expense Tracking
 
 **Priority:** Medium | **Status:** Implemented
 
@@ -234,7 +273,7 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | EXP-03 | Link expenses to courses |
 | EXP-04 | Expense report with category and date filters |
 
-### 4.14 Audit Log
+### 4.16 Audit Log
 
 **Priority:** High | **Status:** Implemented
 
@@ -244,7 +283,7 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | AUD-02 | Audit log view (admin-only) with filters |
 | AUD-03 | Record action, model, object, changes, and IP for every audit event |
 
-### 4.15 User Management
+### 4.17 User Management
 
 **Priority:** High | **Status:** Implemented
 
@@ -255,6 +294,7 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | USR-03 | Sales roles automatically synced to Flask CRM |
 | USR-04 | Monthly sales targets per user (amount + registration count) |
 | USR-05 | CRM-SSO sync: all existing CRM users batch-synced to ERP |
+| USR-06 | Attractive add-user form with role selection cards and live password validation |
 
 ---
 
@@ -273,6 +313,7 @@ Users are assigned a role (`admin`, `sales_manager`, `accounts`, `sales_executiv
 | **VAT** | 5% UAE VAT added on top of price (never back-calculated) |
 | **Discount Caps** | 20% max for single-course invoices; 30% max for multi-course invoices |
 | **Domain** | https://orbittraining.online (Apache proxy → Gunicorn) |
+| **Schema Constraint** | No existing columns, tables, or data may be modified or removed; all changes are additive |
 
 ---
 
@@ -311,13 +352,14 @@ Returns: { id, full_name, status, phone, email, interested_course }
 CRM Lead → Follow-up → Qualified → Click "Register in ERP" (SSO) →
 Registration Form (pre-filled) → Course Selection + Level Pricing →
 Invoice Generated → Tax Invoice Printed → Payment Recorded →
-Certificate Issued → Record Complete
+Certificate Request Sent to Client → Client Confirms + Rates Class →
+Admin Reviews → Certificate Issued → Record Complete
 ```
 
 ### 7.2 Corporate Client Flow
 ```
 Quotation Request → Proposal Sent → PO Received →
-Corporate Registration → Invoice → Training Delivered →
+Corporate Registration → Purchase Invoice → Training Delivered →
 KHDA Certificates → Account Settled
 ```
 
@@ -327,12 +369,28 @@ Invoice Created → Sent to Client → Payment Installments Recorded →
 (InvoicePayment records) → Status Updated → Certificate Released
 ```
 
+### 7.4 Refund Flow
+```
+Request Received → Initiate Refund (reason + document) →
+Two-step Confirmation Modal → Refund Email to Client →
+Registration Marked Refunded → Removed from Revenue Reports
+```
+
+### 7.5 Certificate Request Flow
+```
+Admin sends token link to client →
+Client opens public form (no login) → Selects completion status →
+Fills completion date + class rating + class feedback (required) →
+Submits → Admin reviews on Cert Requests page →
+Admin generates certificate with dates and grade
+```
+
 ---
 
 ## 8. Out of Scope (Current Version)
 
 - Student self-service portal (logged in)
-- Automated email notifications
+- Automated email notifications (manual emails only)
 - SMS reminders
 - Live payment gateway integration (Tabby/Tamara API)
 - Student assessment/exam module
@@ -357,5 +415,6 @@ Invoice Created → Sent to Client → Payment Installments Recorded →
 
 ---
 
-*Document updated: 2026-07-06*
+*Document updated: 2026-07-13*
 *Reflects production system at orbittraining.online*
+*Version 3.0 — adds Refund system, Certificate Request flow, Institute Settings, edit lock enforcement*

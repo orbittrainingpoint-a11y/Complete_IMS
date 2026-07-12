@@ -1,334 +1,158 @@
 # Orbit ERP — Advanced Features & Gap Analysis Roadmap
-**Institute Management System | Date: 2026-07-06 | Version: 2.0**
+**Institute Management System | Date: 2026-07-13 | Version: 3.0**
 
 > **Migration Safety Note:** Every feature in this document is designed to be additive — new tables, new columns with defaults, new views. Nothing modifies or removes existing columns, tables, or data that the running system depends on.
 
 ---
 
-## Implementation Status Key
+## Status Key
 
 | Symbol | Meaning |
 |--------|---------|
-| DONE | Fully implemented and live |
-| PARTIAL | Core implemented; enhancements remain |
-| OPEN | Not yet started |
-| DEFERRED | Removed from scope |
+| ✅ | Completed and deployed |
+| 🔄 | In progress |
+| ⏳ | Planned — not yet started |
+| ❌ | Excluded from scope |
 
 ---
 
-## 1. Critical Code Bugs
+## Completed in v3 (July 2026)
 
-### B1 — `__str__` Method Typos — DONE
-All model `_str_()` typos have been corrected. Dropdowns and admin panels display correctly.
+All items below were completed during the 2026-07-06 to 2026-07-13 sprint:
 
-### B2 — Duplicate Total Calculation Logic — OPEN
-`Invoice.calculate_total_amount()` and `Invoice.get_total_amount()` still both exist. Views may call either one inconsistently.
-
-**Fix:** Audit all view calls. Remove `get_total_amount()`, use `calculate_total_amount()` everywhere.
-**DB change:** None.
-
-### B3 — Certificate Data Integrity — OPEN
-`Certificate.register_number` is a plain string (not FK). If a Registration's `registration_number` changes, certificates become stale.
-
-**Fix:** Add lookup helper; flag mismatches in admin.
-**DB change:** None.
-
-### B4 — Admin Hardcode in Legacy View — DONE
-`if request.user.username == 'admin':` replaced with `is_admin_user(request.user)` throughout.
-
----
-
-## 2. Student Lifecycle Management
-
-### S1 — Student Status Tracking — DONE
-`Registration.student_status` field implemented with values: `active`, `completed`, `dropped`, `suspended`, `pending`.
-- `POST /student/<pk>/status/` endpoint implemented
-- Status badge displayed on registration detail page
-
-### S2 — Student Self-Registration Link — DONE
-`StudentFormLink` model implemented. Token-based URL allows student to submit their own details (without pricing visibility).
-- Generate link at `/portal/student-links/generate/`
-- Student submits at `/portal/student/<token>/`
-
-### S3 — Student Portal (Full) — OPEN
-Full student-facing portal (login, view own invoices, download certificates).
-**Effort:** HIGH | **DB:** New `StudentUser` table or extend existing auth.
-
-### S4 — Attendance Tracking — DEFERRED
-Out of scope per project constraint. System already tracks `student_status` as a proxy.
+| Feature | Description |
+|---------|-------------|
+| ✅ Refund Management | Full lifecycle: initiate → confirm/cancel; email; revenue exclusion via `is_refunded` flag |
+| ✅ Certificate Request Flow | UUID token email → public client form → admin review → auto-generate certificate |
+| ✅ Class Feedback (required) | `class_feedback` text field on cert request; required before submit; shown in admin |
+| ✅ Institute Settings | Singleton settings page: company info, branding uploads, banking, social links |
+| ✅ Safe Lead Delete | CRM delete_lead clears child FK records before deleting parent |
+| ✅ Corporate PI Fix | Number of Persons hidden in corporate PI mode; read-only candidate count shown |
+| ✅ PI Button Removed | Removed PI button from quotation table — cannot create PI from quotation |
+| ✅ Redesigned Add-User Form | Role cards, gradient hero, live password match indicator |
+| ✅ Proposal UI Redesign | Dashboard, create, edit pages match system design language |
+| ✅ 1-Hour Edit Lock | Sales executives blocked from editing registrations after 60 minutes |
+| ✅ Refunded Registration State | REFUNDED badge, opacity, red banner; excluded from all revenue queries |
+| ✅ Certificate Delete (Admin) | Admin can delete certificates from dashboard with confirmation modal |
+| ✅ Previous Payment Reference | Shown on invoice form only when a prior invoice exists for the registration |
+| ✅ CRM SSO | HMAC bidirectional auto-login between ERP and CRM |
+| ✅ User→CRM Sync | Sales roles auto-synced to CRM database on create/edit |
 
 ---
 
-## 3. Financial & Accounting
+## Phase 1 — High Priority (Next Sprint)
 
-### F1 — Level-Based Pricing — DONE
-`Course` model has 6 price fields: `oo_intermediate`, `oo_professional`, `oo_advanced`, `priv_intermediate`, `priv_professional`, `priv_advanced`. `get_rate(class_type, level)` method implemented.
+### 1.1 Login Rate Limiting
+- **What:** Block brute-force login attempts after N failures
+- **How:** Install `django-axes`; configure `AXES_FAILURE_LIMIT = 5`, `AXES_COOLOFF_TIME = 1` hour
+- **DB change:** Adds `axes_*` tables (new — safe)
 
-Legacy flat rates (`rate`, `batch_rate`, `online_rate`, `private_rate`) preserved for backward compatibility.
+### 1.2 Certificate Request Token Expiry
+- **What:** Public cert-request links expire after 7 days
+- **How:** Add `expires_at` DateTimeField to `CertificationRequest`; check in `cert_request_form` view
+- **DB change:** `AddField` on `CertificationRequest` — safe
 
-### F2 — VAT Separation — DONE
-`vat_rate` stored as `0.05` decimal. Applied additively: `total = subtotal × 1.05`. Never back-calculated into price.
+### 1.3 Automated Database Backups
+- **What:** Nightly `mysqldump` to `/backups/` with 30-day retention
+- **How:** Cron job on VPS: `0 2 * * * mysqldump orbit_invoice > /backups/orbit_$(date +\%Y\%m\%d).sql`
+- **DB change:** None
 
-### F3 — Discount Cap Enforcement — DONE
-- Single course: max 20%
-- Multi-course invoice: max 30%
-- Enforced in frontend JS and backend validation
+### 1.4 Password Policy
+- **What:** Enforce minimum 8 characters, require complexity on signup and password change
+- **How:** Add `AUTH_PASSWORD_VALIDATORS` in `settings.py`; update error messages in templates
+- **DB change:** None
 
-### F4 — Installment Payment Tracking — DONE
-`InvoicePayment` model records individual payment installments per invoice.
-- `GET /invoice/<pk>/payments/` — view installment history
-- `POST /invoice/<pk>/payments/add/` — record new payment
-
-### F5 — Expense Tracking & Input VAT — DONE
-`Expense` model with categories: rent, salaries, marketing, software, travel, utilities, other.
-- VAT report at `/reports/vat/` compares output VAT (from invoices) vs input VAT (from expenses).
-
-### F6 — Coupon Enhancement — DONE
-Added to `Coupon` model: `expiry_date`, `max_uses`, `used_count`. Coupon validation endpoint checks expiry and usage count.
-
-### F7 — Recurring Invoice / Auto-Reminder — PARTIAL
-`FeeReminderLog` model and fee reminder dashboard at `/fee-reminders/` implemented.
-Actual automated email delivery (cronjob or celery) not confirmed as implemented.
-
-**Remaining:** Add Django management command or Celery task to send daily fee reminder emails.
-**DB change:** None.
-
-### F8 — Quotation → Invoice Conversion — OPEN
-High-value workflow: "Convert to Invoice" button on quotation detail page, pre-populating invoice form.
-**Effort:** MEDIUM | **DB:** None (uses existing Invoice + InvoiceItem models).
-
-### F9 — Quotation Per-Item Price Override — DONE
-`QuotationItemOverride` model allows admin to override the computed price per quotation item.
-
-### F10 — Quotation Acceptance Workflow — OPEN
-Add `status` field to `Quotation`: draft/sent/accepted/rejected/expired. "Mark Accepted" button records acceptance date and auto-creates invoice.
-**Effort:** MEDIUM | **DB:** Add `status`, `accepted_at` columns to Quotation (new columns, no structural change).
-
-### F11 — Quotation Expiry Date — OPEN
-Add `expiry_date` to `Quotation` model. Show "Expired" badge if past due.
-**Effort:** LOW | **DB:** New nullable column.
-
-### F12 — Bulk Payment Upload / Reconciliation — OPEN
-Import a CSV of bank transactions and auto-match to invoices.
-**Effort:** HIGH | **DB:** New `BankImport` table.
+### 1.5 Receipt Generation
+- **What:** Dedicated printable receipt (simpler than invoice — just amount paid + reference)
+- **How:** New template `invoices/receipt_print.html`; new URL `/invoice/<pk>/receipt/`
+- **DB change:** None
 
 ---
 
-## 4. Academic Operations
+## Phase 2 — Medium Priority
 
-### A1 — Training Schedule — DONE (partial)
-`TrainingSchedule` model with fields: `registration`, `course`, `trainer`, `location`, `start_date`, `end_date`, `status`.
-- CRUD at `/schedule/`
-- No calendar/Gantt view yet
+### 2.1 Bulk Certificate Generation (CSV Import)
+- **What:** Upload a CSV of students to auto-generate multiple certificates
+- **How:** New view + template; parse CSV; create Certificate rows; download report of results
+- **DB change:** None (creates Certificate records using existing model)
 
-**Remaining:** Add calendar view (FullCalendar.js integration).
-**Effort:** MEDIUM | **DB:** None.
+### 2.2 Quotation Expiry Date
+- **What:** Quotations auto-expire after a configurable number of days
+- **How:** `AddField expires_at` to `Quotation`; visual warning when near/past expiry; filter in quotation list
+- **DB change:** `AddField` on `Quotation` — safe
 
-### A2 — Trainer Conflict Detection — OPEN
-Check for double-booked trainer/room when creating a TrainingSchedule.
-**Effort:** MEDIUM | **DB:** None (logic only).
+### 2.3 Proposal → PDF Export (Server-Side)
+- **What:** Generate a proper PDF instead of browser print
+- **How:** Install `weasyprint` or `xhtml2pdf`; add `/print_proposal/<pk>/pdf/` URL returning `application/pdf`
+- **DB change:** None
 
-### A3 — Course Prerequisite Mapping — OPEN
-**Effort:** LOW | **DB:** New `CoursePrerequisite` junction table.
+### 2.4 Sales Executive Leaderboard
+- **What:** Performance comparison across executives — registrations, revenue, target %
+- **How:** New report view using existing `SalesTarget` and Registration data
+- **DB change:** None
 
----
-
-## 5. HR & Trainer Management
-
-### H1 — Trainer Profile — DONE
-`TrainerProfile` model with PDF upload. List at `/trainer-profile/list/`.
-
-### H2 — Staff Leave Management — OPEN
-**Effort:** HIGH | **DB:** New `LeaveRequest` table.
-
----
-
-## 6. Reporting & Business Intelligence
-
-### R1 — Revenue Report — DONE
-`/reports/revenue/` with date range, consultant, and class type filters. CSV export at `/reports/revenue/export/`.
-
-### R2 — Receivables Aging Report — DONE
-`/reports/aging/` groups overdue invoices by 0–15, 16–30, 31–60, 61–90, 90+ days.
-
-### R3 — VAT Report — DONE
-`/reports/vat/` compares output VAT (invoices) vs input VAT (expenses).
-
-### R4 — Enrollment Report — DONE
-`/reports/enrollment/` by period, consultant, course, class type.
-
-### R5 — Certificate Report — DONE
-`/reports/certificates/` by period, type, course.
-
-### R6 — Executive Performance Report — PARTIAL
-Revenue report can filter by consultant. Dedicated target vs actual report not implemented.
-
-**Remaining:** Build target-vs-actual dashboard: compare `SalesTarget.target_amount` with actual invoiced amount per consultant per month.
-**DB change:** None.
-
-### R7 — Report Exports (CSV/PDF) — PARTIAL
-Revenue report has CSV export. Aging, VAT, enrollment reports do not have export.
-**Effort:** LOW (each) | **DB:** None.
+### 2.5 CRM In-App Notifications
+- **What:** Notify CRM users when a lead is assigned or a follow-up is due
+- **How:** Add `crm_notification` table in leads_db; show bell icon in CRM nav
+- **DB change:** New table in leads_db — safe
 
 ---
 
-## 7. Notifications & Communication
+## Phase 3 — Lower Priority / Future
 
-### N1 — In-App Notifications — DONE
-`Notification` model. Bell icon in sidebar shows unread count (via context processor). Read/read-all endpoints implemented.
+### 3.1 Multi-Factor Authentication (MFA)
+- **What:** TOTP for admin and accounts roles
+- **How:** Install `django-otp` + `qrcode`; add setup/verify views; enforce on admin logins
+- **DB change:** Adds `otp_*` tables — safe
 
-### N2 — Email Notifications for Due Invoices — PARTIAL
-`FeeReminderLog` model tracks reminder history. Dashboard at `/fee-reminders/` shows due invoices.
+### 3.2 Student Self-Service Portal
+- **What:** Students view their own registration, invoices, certificate status
+- **How:** Token-based access (extend existing StudentFormLink pattern); read-only views
+- **DB change:** Possible `AddField` for portal token on Registration — safe
 
-**Remaining:** Django management command (`python manage.py send_fee_reminders`) that sends emails and logs to `FeeReminderLog`. Schedule via cron.
-**DB change:** None.
+### 3.3 Scheduled Report Emails
+- **What:** Email revenue/enrollment summary to managers weekly
+- **How:** Celery + Redis worker; cron-style periodic tasks
+- **DB change:** Adds Celery task result tables — safe
 
-### N3 — SMS Notifications — OPEN
-**Effort:** MEDIUM | **DB:** Add `sms_sent` flag to `FeeReminderLog`.
+### 3.4 Quotation → Proposal Auto-Population
+- **What:** Pre-fill proposal from a confirmed quotation
+- **How:** New view that reads quotation data and creates Proposal with fields mapped
+- **DB change:** None
 
----
+### 3.5 Multi-Language Support
+- **What:** Arabic language option for printed documents (invoices, certificates)
+- **How:** Django i18n; separate Arabic PDF templates; RTL CSS
+- **DB change:** None
 
-## 8. Payments & Integrations
-
-### P1 — Online Payment Gateway — OPEN
-Tabby and Tamara are tracked as payment method strings on Invoice. No actual gateway integration.
-**Effort:** HIGH | **DB:** New `PaymentGatewayTransaction` table.
-
-### P2 — WhatsApp Notification — OPEN
-Send invoice/reminder via WhatsApp API.
-**Effort:** MEDIUM | **DB:** Log to `FeeReminderLog` channel field.
-
----
-
-## 9. Security & Compliance
-
-### SC1 — Audit Log (Login/Logout) — DONE
-`AuditLog` model. Signals auto-log login and logout with IP address (reads X-Forwarded-For).
-
-### SC2 — Role-Based Access Control — DONE
-`UserProfile.role` with values: `admin`, `sales_manager`, `accounts`, `sales_executive`. `is_admin_user()` gating on admin views.
-
-### SC3 — Audit Log (Model Changes) — OPEN
-Currently only login/logout are auto-logged. Create/update/delete of Invoices, Registrations, etc. are not logged.
-
-**Effort:** MEDIUM | **DB:** None (AuditLog model already exists).
-**Approach:** Add `post_save`/`post_delete` signals for key models, or use a library like `django-simple-history`.
-
-### SC4 — Brute-Force Login Protection — OPEN
-**Effort:** LOW | **DB:** None.
-**Approach:** Install `django-axes`, configure 10-attempt lockout with 15-minute reset.
-
-### SC5 — Session Timeout — OPEN
-**Effort:** LOW | **DB:** None.
-**Approach:** Set `SESSION_COOKIE_AGE = 43200` in settings.
+### 3.6 Payment Gateway Integration
+- **What:** Tabby and Tamara payment links generated from invoice page
+- **How:** New `PaymentGateway` model; API integration with provider SDKs; webhook handler
+- **DB change:** New `invoices_paymentgateway` table — safe
 
 ---
 
-## 10. System Administration
+## Permanently Excluded
 
-### SA1 — User Management Panel — DONE
-`/manage/users/` — list, edit, role assignment, password change, delete.
-`/manage/set-targets/` — monthly target setting per user.
-`/manage/sync-crm/` — batch sync of sales users to Flask CRM.
-
-### SA2 — CRM SSO Bridge — DONE
-`/crm-jump/` and `/crm-auth/` endpoints with HMAC token bridge. Token TTL 90 seconds.
-
-### SA3 — Company Portal — DONE
-`CompanyPortalRequest` + `CompanyPortalAttendee` models.
-- Admin generates link at `/admin-portal/generate/`
-- Company submits at `/portal/company/<token>/`
-- Admin reviews and approves at `/admin-portal/<id>/approve/`
-
-### SA4 — Global Search — DONE
-`/search/` endpoint searches registrations, invoices, courses, certificates.
+| Feature | Reason |
+|---------|--------|
+| Attendance tracking | Explicitly excluded from scope by stakeholder |
+| Payroll module | Out of scope — handled separately |
+| HR management | Out of scope |
 
 ---
 
-## 11. UI / UX Enhancements
+## Technical Debt to Address
 
-### UX1 — Pagination on List Views — OPEN
-All major lists (registrations, invoices, certificates, expenses, schedules) load all records.
-**Effort:** LOW (per view) | **DB:** None.
-
-### UX2 — Calendar View for Training Schedule — OPEN
-Integrate FullCalendar.js into `/schedule/` for drag-and-drop scheduling.
-**Effort:** MEDIUM | **DB:** None.
-
-### UX3 — Quotation PDF Print View — OPEN
-Currently quotations have no print/PDF template.
-**Effort:** LOW | **DB:** None.
-
-### UX4 — Column Sorting on Tables — OPEN
-**Effort:** LOW (JS, django-tables2, or manual) | **DB:** None.
-
-### UX5 — Empty State Illustrations — OPEN
-**Effort:** LOW | **DB:** None.
+| Item | Priority |
+|------|---------|
+| Split `views.py` (2000+ lines) into module files | Medium — maintainability |
+| Add automated test suite | Medium — currently no tests |
+| Separate `settings_local.py` from `settings.py` | Low — secrets management |
+| Move to `django-environ` for env-based config | Low — quality of life |
+| Upgrade gunicorn worker count based on VPS CPU | Low |
 
 ---
 
-## 12. Priority Matrix
-
-| Priority | Feature | Effort | Impact |
-|----------|---------|--------|--------|
-| P1 | Quotation → Invoice conversion (F8) | Medium | High |
-| P1 | Pagination on list views (UX1) | Low | High |
-| P1 | Brute-force login protection (SC4) | Low | High |
-| P2 | Fee reminder email automation (N2) | Medium | High |
-| P2 | Training schedule conflict detection (A2) | Medium | Medium |
-| P2 | Audit log for model changes (SC3) | Medium | High |
-| P2 | Session timeout config (SC5) | Low | Medium |
-| P2 | Quotation acceptance workflow (F10) | Medium | Medium |
-| P3 | Revenue report: target vs actual (R6) | Medium | Medium |
-| P3 | Report CSV exports for aging/VAT (R7) | Low | Low |
-| P3 | Quotation expiry date (F11) | Low | Low |
-| P3 | Calendar view for schedule (UX2) | Medium | Medium |
-| P4 | Student full portal (S3) | High | Medium |
-| P4 | Online payment gateway (P1) | High | High |
-| P4 | Staff leave management (H2) | High | Low |
-
----
-
-## 13. Implementation Phases (Updated)
-
-### Phase 1 — COMPLETED
-- User roles and targets
-- Level-based pricing
-- Coupon enhancement
-- Expense tracking
-- Fee reminder foundation
-- In-app notifications
-- Audit log (login/logout)
-- Training schedule
-- Student status
-- Company portal
-- Student form links
-- Installment payments
-- Revenue / Aging / VAT / Enrollment reports
-- CRM SSO bridge
-
-### Phase 2 — NEXT (3–4 weeks)
-- Pagination on all list views
-- Brute-force login protection (django-axes)
-- Session timeout configuration
-- Fee reminder email automation (management command + cron)
-- Quotation → Invoice conversion
-- Audit log for model-level changes
-
-### Phase 3 — MEDIUM TERM (1–3 months)
-- Quotation acceptance workflow and expiry
-- Training schedule conflict detection + calendar view
-- Executive target-vs-actual report
-- Report CSV exports (aging, VAT)
-- Media file auth for sensitive documents
-
-### Phase 4 — LONG TERM
-- Student portal (login, view invoices, download certificates)
-- Online payment gateway integration
-- WhatsApp notification integration
-- Staff leave management
-
----
-
-*Document updated: 2026-07-06*
-*Phase 1 reflects all features implemented as of 2026-07-06*
+*Document updated: 2026-07-13*
+*Version 3.0 — marks all v3 features as completed; updated roadmap phases; added technical debt section*

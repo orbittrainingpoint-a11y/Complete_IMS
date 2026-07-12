@@ -1,151 +1,115 @@
 # Deployment Guide
 ## Orbit ERP — Institute Management System
 
-**Document Version:** 2.0
-**Date:** 2026-07-06
+**Document Version:** 3.0
+**Date:** 2026-07-13
 
 ---
 
-## 1. System Overview
+## 1. Environment Overview
 
-| Component | Local Dev | VPS Production |
-|-----------|-----------|----------------|
-| Django ERP | `http://localhost:8000/` | Gunicorn on `:8001` |
-| Flask CRM | `http://localhost:5000/` | Gunicorn on `:5001` |
-| Web server | Django dev server | Apache (reverse proxy, HTTPS) |
-| Domain | — | `https://orbittraining.online` |
-| Database | MariaDB via XAMPP | MySQL 8 |
-| DB name | orbit_invoice | orbit_invoice |
-| CRM DB | leads (Flask SQLite / MySQL) | leads (MySQL) |
-| Env files | local `.env` | `/var/www/html/orbit/.env.erp`, `.env.crm` |
-| Services | Manual | `orbit-erp.service`, `orbit-crm.service` (systemd) |
+| Environment | URL | Port | Service | Path |
+|-------------|-----|------|---------|------|
+| Local ERP | http://localhost:8000 | 8000 | `python manage.py runserver` | `D:\Insittute management system\orbit-system\invoice_project\` |
+| Local CRM | http://localhost:5000 | 5000 | `flask run` | `D:\Insittute management system\leads-management\` |
+| VPS ERP | https://orbittraining.online | 8001 | `orbit-erp.service` (systemd) | `/var/www/html/orbit/orbit-system/invoice_project/` |
+| VPS CRM | https://crm.orbittraining.online | 5001 | `crm.service` (systemd) | `/var/www/html/orbit/leads-management/` |
 
 ---
 
-## 2. Local Development Setup (Windows + XAMPP)
+## 2. Local Development Setup
 
 ### 2.1 Prerequisites
 
-| Software | Version | Purpose |
-|----------|---------|---------|
-| Python | 3.10+ | Runtime |
-| XAMPP | 8.x | MariaDB + phpMyAdmin |
-| Git | Any | Version control |
+- Python 3.14
+- XAMPP (MySQL/MariaDB running)
+- Git
 
-### 2.2 Django ERP Setup
+### 2.2 ERP Setup
 
-```powershell
-# Navigate to ERP source
-cd "D:\Insittute management system\orbit-system"
+```bash
+# 1. Clone repo
+git clone <repo-url>
+cd "Insittute management system"
 
-# Create and activate virtual environment
-python -m venv myenv
-myenv\Scripts\activate
+# 2. Create and activate venv
+cd orbit-system
+python -m venv venv314
+venv314\Scripts\activate    # Windows
 
-# Install dependencies
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Create database
+mysql -u root -e "CREATE DATABASE orbit_invoice CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 5. Import existing data
+mysql -u root orbit_invoice < orbit_invoice_backup.sql
+
+# 6. Configure settings.py
+#    Set DB credentials, email app password, CRM_SSO_SECRET
+
+# 7. Run migrations
 cd invoice_project
-pip install -r server_requirements.txt
-```
-
-### 2.3 Database Setup (Local)
-
-**Start MariaDB** via XAMPP Control Panel, then:
-
-```sql
--- phpMyAdmin or MySQL CLI
-CREATE DATABASE orbit_invoice
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_general_ci;
-```
-
-If you have a SQL dump:
-```powershell
-"C:\xampp\mysql\bin\mysql.exe" -u root orbit_invoice < orbit_invoice_backup.sql
-```
-
-### 2.4 Environment Configuration (Local)
-
-Create `D:\Insittute management system\orbit-system\invoice_project\.env`:
-
-```ini
-DJANGO_SECRET_KEY=your-local-dev-secret-key
-DJANGO_DEBUG=True
-DB_NAME=orbit_invoice
-DB_USER=root
-DB_PASSWORD=
-DB_HOST=localhost
-DB_PORT=3306
-CRM_SSO_SECRET=orbit-erp-crm-sso-bridge-2024-x9q3mz
-CRM_URL=http://localhost:5000
-ERP_URL=http://localhost:8000
-```
-
-### 2.5 Apply Migrations
-
-```powershell
 python manage.py migrate
-```
 
-> **Important:** Do not use `makemigrations` on a production-synced DB without reviewing the generated SQL. The constraint is: **never alter existing table columns or remove tables**.
-
-### 2.6 Run Django ERP (Development)
-
-```powershell
+# 8. Start server
 python manage.py runserver 8000
 ```
 
-Access at: `http://localhost:8000/`
+### 2.3 CRM Setup
 
----
-
-## 3. Flask CRM Setup (Local)
-
-### 3.1 Navigate to CRM
-
-```powershell
-cd "D:\Insittute management system\leads-management"
+```bash
+cd "Insittute management system/leads-management"
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
+# Edit config: set DB, CRM_SSO_SECRET (must match ERP)
+flask run --port 5000
 ```
-
-### 3.2 CRM Environment
-
-Create `D:\Insittute management system\leads-management\.env`:
-
-```ini
-FLASK_SECRET_KEY=your-crm-secret
-CRM_SSO_SECRET=orbit-erp-crm-sso-bridge-2024-x9q3mz
-ERP_URL=http://localhost:8000
-DATABASE_URL=mysql+pymysql://root:@localhost/leads
-```
-
-### 3.3 Run Flask CRM (Development)
-
-```powershell
-python app.py
-```
-
-Access at: `http://localhost:5000/`
 
 ---
 
-## 4. VPS Production Deployment
+## 3. VPS Deployment — Django ERP
 
-### 4.1 Server Requirements
+### 3.1 Standard Code Deploy
 
-| Component | Spec |
-|-----------|------|
-| OS | Ubuntu 22.04 LTS |
-| RAM | 4 GB minimum |
-| Disk | 20 GB minimum |
-| Python | 3.10+ |
-| Web server | Apache 2.4 with `mod_proxy`, `mod_ssl` |
-| DB | MySQL 8 |
+```bash
+# SSH into VPS
+ssh user@orbittraining.online
 
-### 4.2 Django ERP — Gunicorn Service
+# Pull latest
+cd /var/www/html/orbit/orbit-system
+git pull origin main
 
-**File:** `/etc/systemd/system/orbit-erp.service`
+# Activate venv
+source /var/www/html/orbit/venv_erp/bin/activate
+
+# Migrate (always run after pull — safe if no new migrations)
+cd invoice_project
+python manage.py migrate
+
+# Collect static (if CSS/JS/templates changed)
+python manage.py collectstatic --noinput
+
+# Restart
+sudo systemctl restart orbit-erp.service
+sudo systemctl status orbit-erp.service
+```
+
+### 3.2 Log Monitoring
+
+```bash
+# Service log
+sudo journalctl -u orbit-erp.service -n 100 --no-pager
+
+# Django error log
+tail -f /var/www/html/orbit/orbit-system/invoice_project/django.log
+```
+
+### 3.3 Systemd Service File
+
+`/etc/systemd/system/orbit-erp.service`:
 
 ```ini
 [Unit]
@@ -154,12 +118,10 @@ After=network.target
 
 [Service]
 User=www-data
-Group=www-data
 WorkingDirectory=/var/www/html/orbit/orbit-system/invoice_project
-EnvironmentFile=/var/www/html/orbit/.env.erp
-ExecStart=/var/www/html/orbit/orbit-system/myenv/bin/gunicorn \
+ExecStart=/var/www/html/orbit/venv_erp/bin/gunicorn \
     --workers 3 \
-    --bind 127.0.0.1:8001 \
+    --bind 0.0.0.0:8001 \
     invoice_project.wsgi:application
 Restart=always
 
@@ -167,267 +129,146 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-### 4.3 Flask CRM — Gunicorn Service
-
-**File:** `/etc/systemd/system/orbit-crm.service`
-
-```ini
-[Unit]
-Description=Orbit CRM Flask Application
-After=network.target
-
-[Service]
-User=www-data
-Group=www-data
-WorkingDirectory=/var/www/html/orbit/leads-management
-EnvironmentFile=/var/www/html/orbit/.env.crm
-ExecStart=/var/www/html/orbit/leads-management/venv/bin/gunicorn \
-    --workers 2 \
-    --bind 127.0.0.1:5001 \
-    app:app
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### 4.4 Enable and Start Services
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable orbit-erp orbit-crm
-sudo systemctl start orbit-erp orbit-crm
-
-# Verify
-sudo systemctl status orbit-erp
-sudo systemctl status orbit-crm
-```
-
 ---
 
-## 5. Environment Files (VPS)
-
-### 5.1 `/var/www/html/orbit/.env.erp`
-
-```ini
-DJANGO_SECRET_KEY=<strong-random-key-50-chars-min>
-DJANGO_DEBUG=False
-DB_NAME=orbit_invoice
-DB_USER=orbit_app
-DB_PASSWORD=<db-password>
-DB_HOST=localhost
-DB_PORT=3306
-CRM_SSO_SECRET=orbit-erp-crm-sso-bridge-2024-x9q3mz
-CRM_URL=http://127.0.0.1:5001
-ERP_URL=https://orbittraining.online
-CSRF_TRUSTED_ORIGINS=https://orbittraining.online,https://www.orbittraining.online
-ALLOWED_HOSTS=orbittraining.online,www.orbittraining.online,127.0.0.1
-CRM_DB_HOST=localhost
-CRM_DB_NAME=leads
-CRM_DB_USER=orbit_app
-CRM_DB_PASSWORD=<db-password>
-```
-
-### 5.2 `/var/www/html/orbit/.env.crm`
-
-```ini
-FLASK_SECRET_KEY=<strong-random-key>
-CRM_SSO_SECRET=orbit-erp-crm-sso-bridge-2024-x9q3mz
-ERP_URL=https://orbittraining.online
-DATABASE_URL=mysql+pymysql://orbit_app:<password>@localhost/leads
-```
-
-> **Note:** `CRM_SSO_SECRET` must be identical in both files. If it is changed in one, it must be updated in the other and both services must be restarted.
-
----
-
-## 6. Apache Configuration (VPS)
-
-**File:** `/etc/apache2/sites-available/orbittraining.conf`
-
-```apache
-<VirtualHost *:443>
-    ServerName orbittraining.online
-    ServerAlias www.orbittraining.online
-
-    SSLEngine on
-    SSLCertificateFile /etc/letsencrypt/live/orbittraining.online/fullchain.pem
-    SSLCertificateKeyFile /etc/letsencrypt/live/orbittraining.online/privkey.pem
-
-    # Forward real IP to Django/Flask
-    RequestHeader set X-Forwarded-Proto "https"
-
-    # Serve media files directly
-    Alias /media/ /var/www/html/orbit/orbit-system/invoice_project/media/
-    <Directory /var/www/html/orbit/orbit-system/invoice_project/media/>
-        Options -Indexes
-        Require all granted
-    </Directory>
-
-    # Serve static files directly
-    Alias /static/ /var/www/html/orbit/orbit-system/invoice_project/static/
-    <Directory /var/www/html/orbit/orbit-system/invoice_project/static/>
-        Options -Indexes
-        Require all granted
-    </Directory>
-
-    # Flask CRM at /crm/
-    ProxyPreserveHost On
-    ProxyPass /crm/ http://127.0.0.1:5001/crm/
-    ProxyPassReverse /crm/ http://127.0.0.1:5001/crm/
-
-    # Django ERP — everything else
-    ProxyPass / http://127.0.0.1:8001/
-    ProxyPassReverse / http://127.0.0.1:8001/
-</VirtualHost>
-
-<VirtualHost *:80>
-    ServerName orbittraining.online
-    ServerAlias www.orbittraining.online
-    Redirect permanent / https://orbittraining.online/
-</VirtualHost>
-```
-
-Enable and reload:
+## 4. VPS Deployment — Flask CRM
 
 ```bash
-sudo a2enmod proxy proxy_http ssl headers
-sudo a2ensite orbittraining
-sudo systemctl reload apache2
-```
-
----
-
-## 7. Database Setup (VPS — MySQL 8)
-
-```sql
--- Create DB
-CREATE DATABASE orbit_invoice
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_0900_ai_ci;
-
--- Create CRM DB
-CREATE DATABASE leads
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_0900_ai_ci;
-
--- Create dedicated app user
-CREATE USER 'orbit_app'@'localhost' IDENTIFIED BY 'StrongPassword!';
-GRANT SELECT, INSERT, UPDATE, DELETE ON orbit_invoice.* TO 'orbit_app'@'localhost';
-GRANT SELECT, INSERT, UPDATE, DELETE ON leads.* TO 'orbit_app'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-Import existing data:
-
-```bash
-mysql -u orbit_app -p orbit_invoice < orbit_invoice_backup.sql
-```
-
-> **Collation note:** Local MariaDB uses `utf8mb4_general_ci`; VPS MySQL 8 uses `utf8mb4_0900_ai_ci`. Both are functional. Do not convert collation in production without a maintenance window.
-
----
-
-## 8. Static Files (Production)
-
-```bash
-cd /var/www/html/orbit/orbit-system/invoice_project
-source /var/www/html/orbit/orbit-system/myenv/bin/activate
-python manage.py collectstatic --noinput
-```
-
-Static files are collected to `STATIC_ROOT` and served directly by Apache (see Section 6).
-
----
-
-## 9. Deployment: Updating Code on VPS
-
-```bash
-# SSH into VPS
-cd /var/www/html/orbit
-
-# Pull latest code
+cd /var/www/html/orbit/leads-management
 git pull origin main
+sudo systemctl restart crm.service
+sudo systemctl status crm.service
+```
 
-# Activate venv
-source orbit-system/myenv/bin/activate
-cd orbit-system/invoice_project
+---
 
-# Install any new dependencies
-pip install -r server_requirements.txt
+## 5. Running Migrations
 
-# Apply new migrations (review first!)
+### 5.1 Standard
+
+```bash
+source /var/www/html/orbit/venv_erp/bin/activate
+cd /var/www/html/orbit/orbit-system/invoice_project
 python manage.py migrate
+```
 
-# Collect static
+### 5.2 Writing Manual Migrations (Required for New Fields)
+
+Because `InstituteSetting` uses a closure-based upload function that Django cannot serialize, **do not run `makemigrations`**. Write migrations by hand:
+
+1. Create `invoices/migrations/0070_<description>.py`
+2. Set correct `dependencies` pointing to the prior migration
+3. Include only `migrations.AddField` operations
+4. Run `python manage.py migrate invoices`
+
+**Template:**
+```python
+from django.db import migrations, models
+
+class Migration(migrations.Migration):
+    dependencies = [('invoices', '0069_certificationrequest_class_feedback')]
+    operations = [
+        migrations.AddField(
+            model_name='yourmodel',
+            name='your_field',
+            field=models.TextField(blank=True),
+        ),
+    ]
+```
+
+---
+
+## 6. Nginx Configuration
+
+```nginx
+server {
+    listen 80;
+    server_name orbittraining.online;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name orbittraining.online;
+
+    ssl_certificate /etc/letsencrypt/live/orbittraining.online/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/orbittraining.online/privkey.pem;
+
+    location /static/ {
+        alias /var/www/html/orbit/orbit-system/invoice_project/staticfiles/;
+    }
+
+    location /media/ {
+        alias /var/www/html/orbit/orbit-system/invoice_project/media/;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+---
+
+## 7. Database Backup & Restore
+
+```bash
+# Backup (VPS)
+mysqldump -u root orbit_invoice > /backups/orbit_invoice_$(date +%Y%m%d).sql
+
+# Backup (local Windows)
+mysqldump -u root orbit_invoice > orbit_invoice_backup.sql
+
+# Restore
+mysql -u root orbit_invoice < orbit_invoice_backup.sql
+```
+
+---
+
+## 8. Secrets Checklist
+
+Never commit these to git — set them directly in `settings.py` on each environment:
+
+| Variable | Purpose |
+|----------|---------|
+| `SECRET_KEY` | Django cryptographic key |
+| `CRM_SSO_SECRET` | HMAC secret shared between ERP and CRM |
+| `EMAIL_HOST_PASSWORD` | Gmail app password |
+| `CRM_DB_PASSWORD` | CRM database password |
+| `DEBUG` | Must be `False` on VPS |
+| `ALLOWED_HOSTS` | Must include VPS domain |
+
+---
+
+## 9. Post-v3 Deployment Sequence
+
+To deploy all changes from this release cycle (commits since 2026-07-06):
+
+```bash
+# === ERP ===
+cd /var/www/html/orbit/orbit-system
+git pull origin main
+source /var/www/html/orbit/venv_erp/bin/activate
+cd invoice_project
+python manage.py migrate          # applies migration 0069 (class_feedback)
 python manage.py collectstatic --noinput
+sudo systemctl restart orbit-erp.service
 
-# Restart services
-sudo systemctl restart orbit-erp orbit-crm
+# === CRM ===
+cd /var/www/html/orbit/leads-management
+git pull origin main
+sudo systemctl restart crm.service
+
+# === Verify ===
+sudo systemctl status orbit-erp.service
+sudo systemctl status crm.service
 ```
 
 ---
 
-## 10. Service Management Commands
-
-```bash
-# Restart
-sudo systemctl restart orbit-erp
-sudo systemctl restart orbit-crm
-
-# Stop
-sudo systemctl stop orbit-erp
-
-# View logs (last 50 lines)
-sudo journalctl -u orbit-erp -n 50
-sudo journalctl -u orbit-crm -n 50
-
-# Follow live logs
-sudo journalctl -u orbit-erp -f
-```
-
----
-
-## 11. Database Backup
-
-```bash
-# Daily backup script (run via cron)
-mysqldump -u orbit_app -p orbit_invoice > /backups/orbit_invoice_$(date +%Y%m%d).sql
-mysqldump -u orbit_app -p leads > /backups/leads_$(date +%Y%m%d).sql
-
-# Compress and remove files older than 30 days
-gzip /backups/*.sql
-find /backups/ -name "*.sql.gz" -mtime +30 -delete
-```
-
----
-
-## 12. SSL Certificate Renewal
-
-```bash
-# Certbot auto-renewal (should already be set up via cron/systemd timer)
-sudo certbot renew --dry-run
-
-# Manual renewal
-sudo certbot renew
-sudo systemctl reload apache2
-```
-
----
-
-## 13. Troubleshooting
-
-| Problem | Check |
-|---------|-------|
-| 502 Bad Gateway | `systemctl status orbit-erp` — service may be down |
-| Static files not loading | `python manage.py collectstatic` + Apache alias configured |
-| Media files 403 | Apache media directory has `Require all granted` |
-| CRM SSO failing | Both `.env.erp` and `.env.crm` have same `CRM_SSO_SECRET` |
-| Database errors | Check `DB_USER`/`DB_PASSWORD` env vars; user has correct GRANTS |
-| Session cookie issues | `CSRF_TRUSTED_ORIGINS` includes `https://orbittraining.online` |
-| Login IP shows 127.0.0.1 | Apache not sending `X-Forwarded-For` — add `RequestHeader set X-Forwarded-Proto` |
-
----
-
-*Document updated: 2026-07-06*
-*Reflects production system at orbittraining.online*
+*Document updated: 2026-07-13*
+*Version 3.0 — adds v3 migration notes, manual migration warning, post-v3 deploy sequence, CRM safe delete*
