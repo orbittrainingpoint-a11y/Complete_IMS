@@ -844,6 +844,64 @@ def reassign_lead(id):
     return jsonify({'success': True, 'message': f'Lead "{lead.name}" reassigned to {to_user.username}.'})
 
 
+@main.route('/leads/bulk-reassign', methods=['POST'])
+@login_required
+def bulk_reassign_leads():
+    if not _can_reassign_leads():
+        return jsonify({'success': False, 'message': 'Access denied.'}), 403
+
+    lead_ids   = request.form.getlist('lead_ids[]', type=int)
+    to_user_id = request.form.get('to_user_id', type=int)
+    note       = request.form.get('note', '').strip()
+
+    if not lead_ids:
+        return jsonify({'success': False, 'message': 'No leads selected.'}), 400
+    if not to_user_id:
+        return jsonify({'success': False, 'message': 'Please select a consultant.'}), 400
+
+    to_user = User.query.get(to_user_id)
+    if not to_user:
+        return jsonify({'success': False, 'message': 'User not found.'}), 400
+
+    leads = Lead.query.filter(Lead.id.in_(lead_ids)).all()
+    skipped = 0
+    reassigned = 0
+
+    for lead in leads:
+        if lead.assigned_to == to_user_id:
+            skipped += 1
+            continue
+
+        from_user_id = lead.assigned_to
+        db.session.add(LeadReassignment(
+            lead_id=lead.id,
+            from_user_id=from_user_id,
+            to_user_id=to_user_id,
+            assigned_by_id=current_user.id,
+            note=note or None,
+        ))
+
+        if from_user_id and from_user_id != current_user.id:
+            msg = (f"Lead \"{lead.name}\" (L-{lead.id}) has been reassigned from you to "
+                   f"{to_user.username} by {current_user.username}.")
+            db.session.add(CRMNotification(
+                user_id=from_user_id,
+                message=msg,
+                lead_id=lead.id,
+                notif_type='reassignment',
+            ))
+
+        lead.assigned_to = to_user_id
+        reassigned += 1
+
+    db.session.commit()
+
+    msg = f'{reassigned} lead{"s" if reassigned != 1 else ""} reassigned to {to_user.username}.'
+    if skipped:
+        msg += f' ({skipped} already assigned — skipped.)'
+    return jsonify({'success': True, 'message': msg, 'reassigned': reassigned})
+
+
 @main.route('/leads/new-assignments')
 @login_required
 def new_assignments():

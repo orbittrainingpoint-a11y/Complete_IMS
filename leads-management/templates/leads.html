@@ -318,11 +318,16 @@
 
 <!-- Bulk Actions -->
 <div class="mt-3">
-    <div class="d-flex align-items-center gap-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
         <span class="text-muted">Bulk Actions:</span>
         <button class="btn btn-sm btn-outline-primary" onclick="bulkAction('status', 'Contacted')" disabled id="bulkStatusBtn">
             Mark as Contacted
         </button>
+        {% if current_user.is_admin() or current_user.is_sales_manager() or current_user.can_view_all_leads %}
+        <button class="btn btn-sm btn-outline-secondary" onclick="openBulkReassignModal()" disabled id="bulkReassignBtn">
+            <i class="fas fa-user-tag me-1"></i>Reassign Selected
+        </button>
+        {% endif %}
         <button class="btn btn-sm btn-outline-danger" onclick="bulkAction('delete')" disabled id="bulkDeleteBtn">
             Delete Selected
         </button>
@@ -611,6 +616,49 @@
     </div>
 </div>
 {% endif %}
+
+{% if current_user.is_admin() or current_user.is_sales_manager() or current_user.can_view_all_leads %}
+<!-- Bulk Reassign Modal -->
+<div class="modal fade" id="bulkReassignModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#4f46e5);padding:1.25rem 1.5rem;">
+                <div>
+                    <h5 class="modal-title text-white mb-0"><i class="fas fa-users me-2 opacity-75"></i>Bulk Reassign Leads</h5>
+                    <small class="text-white opacity-75" id="bulkReassignSubtitle">Reassign all selected leads to one consultant</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="bulkReassignInfo" class="mb-3 p-3 rounded-3" style="background:rgba(79,70,229,.07);border:1px solid rgba(79,70,229,.18);font-size:13px;color:#4f46e5;">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <span id="bulkReassignCount">0</span> leads will be reassigned. Leads already assigned to the selected person will be skipped.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" style="font-size:13px;">Assign All To <span class="text-danger">*</span></label>
+                    <select class="form-select" id="bulkReassignToUser" style="border-radius:8px;">
+                        <option value="">— Select Consultant / Manager —</option>
+                        {% for u in all_users %}
+                        <option value="{{ u.id }}">{{ u.username }} ({{ u.role }})</option>
+                        {% endfor %}
+                    </select>
+                    <div id="bulkReassignUserErr" class="text-danger mt-1" style="font-size:12px;display:none;">Please select a consultant.</div>
+                </div>
+                <div class="mb-1">
+                    <label class="form-label" style="font-size:13px;">Reason / Note <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+                    <textarea class="form-control" id="bulkReassignNote" rows="2" placeholder="Reason for bulk reassignment…" style="border-radius:8px;resize:none;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;">
+                <button class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+                <button class="btn btn-primary px-4" id="bulkReassignSubmitBtn" onclick="submitBulkReassign()" style="border-radius:8px;background:linear-gradient(135deg,#4f46e5,#3730a3);border:0;">
+                    <i class="fas fa-users me-1"></i>Reassign All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -710,10 +758,10 @@ document.querySelectorAll('.lead-select').forEach(checkbox => {
 function updateSelectedLeads() {
     selectedLeads = Array.from(document.querySelectorAll('.lead-select:checked')).map(cb => cb.value);
     document.getElementById('selectedCount').textContent = selectedLeads.length;
-    
-    const bulkButtons = document.querySelectorAll('#bulkStatusBtn, #bulkDeleteBtn');
-    bulkButtons.forEach(btn => {
-        btn.disabled = selectedLeads.length === 0;
+
+    const hasSelection = selectedLeads.length > 0;
+    document.querySelectorAll('#bulkStatusBtn, #bulkDeleteBtn, #bulkReassignBtn').forEach(btn => {
+        if (btn) btn.disabled = !hasSelection;
     });
 }
 
@@ -1121,6 +1169,53 @@ function submitReassign() {
         .catch(() => {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-user-tag me-1"></i>Reassign';
+            alert('Network error. Please try again.');
+        });
+}
+
+// ── Bulk Reassignment ──────────────────────────────────────────────────────
+function openBulkReassignModal() {
+    if (selectedLeads.length === 0) return;
+    document.getElementById('bulkReassignCount').textContent = selectedLeads.length;
+    document.getElementById('bulkReassignSubtitle').textContent =
+        selectedLeads.length + ' lead' + (selectedLeads.length !== 1 ? 's' : '') + ' selected';
+    document.getElementById('bulkReassignToUser').value = '';
+    document.getElementById('bulkReassignNote').value = '';
+    document.getElementById('bulkReassignUserErr').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('bulkReassignModal')).show();
+}
+
+function submitBulkReassign() {
+    const toUser = document.getElementById('bulkReassignToUser').value;
+    const note   = document.getElementById('bulkReassignNote').value;
+    const errEl  = document.getElementById('bulkReassignUserErr');
+    if (!toUser) { errEl.style.display = 'block'; return; }
+    errEl.style.display = 'none';
+
+    const btn = document.getElementById('bulkReassignSubmitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Reassigning…';
+
+    const fd = new FormData();
+    fd.append('to_user_id', toUser);
+    fd.append('note', note);
+    selectedLeads.forEach(id => fd.append('lead_ids[]', id));
+
+    fetch('/leads/bulk-reassign', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-users me-1"></i>Reassign All';
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('bulkReassignModal')).hide();
+                location.reload();
+            } else {
+                alert(data.message || 'Bulk reassignment failed.');
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-users me-1"></i>Reassign All';
             alert('Network error. Please try again.');
         });
 }
