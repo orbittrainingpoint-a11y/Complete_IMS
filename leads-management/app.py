@@ -53,7 +53,12 @@ def create_app():
         app.register_blueprint(routes.main)
 
         # Auto-create any new tables (additive only — never drops existing tables)
-        db.create_all()
+        # Wrapped in try/except: VPS root uses socket auth so TCP create_all fails gracefully;
+        # create tables manually on the server when adding new models.
+        try:
+            db.create_all()
+        except Exception:
+            pass
     
     return app
 
