@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}New Assignments{% endblock %}
+
+{% block breadcrumb %}<span style="color:var(--text-muted);">Leads</span> <span style="color:var(--border);margin:0 6px;">/</span> <span class="current">New Assignments</span>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex align-items-center justify-content-between">
+        <div>
+            <h1 class="page-title"><i class="fas fa-inbox me-2" style="color:#4f46e5;"></i>New Assignments</h1>
+            <p class="page-subtitle">Leads that have been assigned to you — contact them to get started</p>
+        </div>
+        <a href="{{ url_for('main.leads') }}" class="btn btn-outline-secondary" style="border-radius:8px;">
+            <i class="fas fa-arrow-left me-1"></i> Back to All Leads
+        </a>
+    </div>
+</div>
+
+{% if new_assign_leads %}
+
+<!-- Summary banner -->
+{% set uncontacted = new_assign_leads | selectattr('contacted', 'equalto', false) | list %}
+{% if uncontacted %}
+<div style="background:rgba(79,70,229,.06);border:1px solid rgba(79,70,229,.2);border-radius:12px;padding:14px 18px;margin-bottom:24px;display:flex;align-items:center;gap:14px;">
+    <div style="width:42px;height:42px;border-radius:12px;background:rgba(79,70,229,.12);color:#4f46e5;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="fas fa-exclamation-circle" style="font-size:18px;"></i>
+    </div>
+    <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">
+            {{ uncontacted | length }} lead{{ 's' if uncontacted | length != 1 }} waiting for your first contact
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+            These leads disappear from this section once you log your first activity on each one.
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" style="border-bottom:1px solid var(--border);">
+    <li class="nav-item">
+        <a class="nav-link active" data-bs-toggle="tab" href="#tab-uncontacted" style="border-radius:8px 8px 0 0;font-weight:600;font-size:13px;">
+            <i class="fas fa-clock me-1 text-warning"></i>Not Contacted Yet
+            <span style="background:#4f46e5;color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:10px;margin-left:6px;">{{ uncontacted | length }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#tab-contacted" style="border-radius:8px 8px 0 0;font-weight:600;font-size:13px;">
+            <i class="fas fa-check-circle me-1 text-success"></i>Already Contacted
+            <span style="background:#6b7280;color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:10px;margin-left:6px;">{{ new_assign_leads | selectattr('contacted') | list | length }}</span>
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Not Contacted Yet -->
+    <div class="tab-pane fade show active" id="tab-uncontacted">
+        {% set unc = new_assign_leads | selectattr('contacted', 'equalto', false) | list %}
+        {% if unc %}
+        <div class="custom-table">
+            <div class="table-responsive">
+                <table class="table table-hover" style="font-size:13px;">
+                    <thead>
+                        <tr>
+                            <th>Lead</th>
+                            <th>Contact</th>
+                            <th>Course Interest</th>
+                            <th>Current Status</th>
+                            <th>Assigned By</th>
+                            <th>Assigned On</th>
+                            <th>Note</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in unc %}
+                        {% set lead = item.lead %}
+                        {% set ra = item.reassignment %}
+                        <tr style="background:rgba(79,70,229,.025);">
+                            <td>
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0;">
+                                        {{ lead.name[0].upper() }}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">
+                                            <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" class="text-decoration-none" style="color:inherit;">{{ lead.name }}</a>
+                                        </div>
+                                        <span style="font-family:monospace;font-size:11px;background:rgba(79,70,229,.1);color:#4f46e5;padding:1px 6px;border-radius:4px;">L-{{ lead.id }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div><i class="fas fa-phone text-primary me-1" style="font-size:11px;"></i>{{ lead.phone }}</div>
+                                {% if lead.email %}<div style="font-size:12px;color:var(--text-muted);"><i class="fas fa-envelope me-1" style="font-size:10px;"></i>{{ lead.email }}</div>{% endif %}
+                                {% if lead.whatsapp %}<div style="font-size:12px;color:#25d366;"><i class="fab fa-whatsapp me-1" style="font-size:10px;"></i>{{ lead.whatsapp }}</div>{% endif %}
+                            </td>
+                            <td>
+                                {% if lead.course_interest %}
+                                <span class="badge bg-info" style="font-size:11px;">{{ lead.course_interest.name }}</span>
+                                {% else %}
+                                <span class="text-muted" style="font-size:12px;">Not specified</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span style="display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;
+                                    {% if lead.status == 'New' %}background:rgba(37,99,235,.12);color:#1d4ed8;
+                                    {% elif lead.status == 'Contacted' %}background:rgba(139,92,246,.12);color:#6d28d9;
+                                    {% elif lead.status == 'Interested' %}background:rgba(245,158,11,.12);color:#b45309;
+                                    {% elif lead.status == 'Quoted' %}background:rgba(16,185,129,.12);color:#065f46;
+                                    {% elif lead.status == 'Converted' %}background:rgba(16,185,129,.2);color:#064e3b;
+                                    {% else %}background:rgba(239,68,68,.1);color:#991b1b;{% endif %}">
+                                    {{ lead.status }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if ra.assigned_by %}
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px;">
+                                        {{ ra.assigned_by.username[0].upper() }}
+                                    </div>
+                                    <span style="font-size:12px;font-weight:600;">{{ ra.assigned_by.username }}</span>
+                                </div>
+                                {% else %}—{% endif %}
+                            </td>
+                            <td>
+                                <div style="font-size:12px;">{{ ra.assigned_at.strftime('%d %b %Y') }}</div>
+                                <div style="font-size:11px;color:var(--text-muted);">{{ ra.assigned_at.strftime('%H:%M') }}</div>
+                            </td>
+                            <td>
+                                {% if ra.note %}
+                                <span style="font-size:12px;color:var(--text-muted);font-style:italic;">"{{ ra.note }}"</span>
+                                {% else %}
+                                <span class="text-muted" style="font-size:12px;">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" class="btn btn-sm btn-primary" title="Open Lead" style="border-radius:6px;">
+                                        <i class="fas fa-eye me-1"></i>Open
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-success" title="Call" onclick="window.location='tel:{{ lead.phone }}'"><i class="fas fa-phone"></i></button>
+                                    {% if lead.whatsapp %}
+                                    <button class="btn btn-sm btn-outline-success" title="WhatsApp" onclick="window.open('https://wa.me/{{ lead.whatsapp|replace('+','') }}','_blank')"><i class="fab fa-whatsapp"></i></button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <div style="width:80px;height:80px;border-radius:50%;background:rgba(16,185,129,.1);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                <i class="fas fa-check-circle" style="font-size:36px;color:#10b981;"></i>
+            </div>
+            <h5 style="color:var(--text);font-weight:700;">All caught up!</h5>
+            <p class="text-muted" style="font-size:13px;">You've contacted all your newly assigned leads. Great work!</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Already Contacted -->
+    <div class="tab-pane fade" id="tab-contacted">
+        {% set contacted_list = new_assign_leads | selectattr('contacted') | list %}
+        {% if contacted_list %}
+        <div class="custom-table">
+            <div class="table-responsive">
+                <table class="table table-hover" style="font-size:13px;">
+                    <thead>
+                        <tr>
+                            <th>Lead</th>
+                            <th>Contact</th>
+                            <th>Course Interest</th>
+                            <th>Current Status</th>
+                            <th>Assigned By</th>
+                            <th>Assigned On</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in contacted_list %}
+                        {% set lead = item.lead %}
+                        {% set ra = item.reassignment %}
+                        <tr>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0;">
+                                        {{ lead.name[0].upper() }}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">
+                                            <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" class="text-decoration-none" style="color:inherit;">{{ lead.name }}</a>
+                                        </div>
+                                        <span style="font-family:monospace;font-size:11px;background:rgba(16,185,129,.1);color:#059669;padding:1px 6px;border-radius:4px;">L-{{ lead.id }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div><i class="fas fa-phone text-primary me-1" style="font-size:11px;"></i>{{ lead.phone }}</div>
+                                {% if lead.email %}<div style="font-size:12px;color:var(--text-muted);"><i class="fas fa-envelope me-1" style="font-size:10px;"></i>{{ lead.email }}</div>{% endif %}
+                            </td>
+                            <td>
+                                {% if lead.course_interest %}
+                                <span class="badge bg-info" style="font-size:11px;">{{ lead.course_interest.name }}</span>
+                                {% else %}<span class="text-muted" style="font-size:12px;">—</span>{% endif %}
+                            </td>
+                            <td>
+                                <span style="display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;
+                                    {% if lead.status == 'New' %}background:rgba(37,99,235,.12);color:#1d4ed8;
+                                    {% elif lead.status == 'Contacted' %}background:rgba(139,92,246,.12);color:#6d28d9;
+                                    {% elif lead.status == 'Interested' %}background:rgba(245,158,11,.12);color:#b45309;
+                                    {% elif lead.status == 'Quoted' %}background:rgba(16,185,129,.12);color:#065f46;
+                                    {% elif lead.status == 'Converted' %}background:rgba(16,185,129,.2);color:#064e3b;
+                                    {% else %}background:rgba(239,68,68,.1);color:#991b1b;{% endif %}">
+                                    {{ lead.status }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if ra.assigned_by %}
+                                <span style="font-size:12px;font-weight:600;">{{ ra.assigned_by.username }}</span>
+                                {% else %}—{% endif %}
+                            </td>
+                            <td>
+                                <div style="font-size:12px;">{{ ra.assigned_at.strftime('%d %b %Y') }}</div>
+                                <div style="font-size:11px;color:var(--text-muted);">{{ ra.assigned_at.strftime('%H:%M') }}</div>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}" class="btn btn-sm btn-outline-primary" style="border-radius:6px;">
+                                    <i class="fas fa-eye me-1"></i>View
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <div class="notif-empty">
+                <i class="fas fa-inbox fa-3x mb-3 d-block text-muted"></i>
+                <p class="text-muted" style="font-size:13px;">No contacted assigned leads yet.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% else %}
+<div class="text-center py-5 mt-4">
+    <div style="width:80px;height:80px;border-radius:50%;background:rgba(79,70,229,.08);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+        <i class="fas fa-inbox" style="font-size:36px;color:#4f46e5;"></i>
+    </div>
+    <h4 style="color:var(--text);font-weight:700;">No Assigned Leads</h4>
+    <p class="text-muted" style="font-size:13px;max-width:380px;margin:0 auto;">
+        When an admin or sales manager assigns a lead to you, it will appear here until you make your first contact.
+    </p>
+    <a href="{{ url_for('main.leads') }}" class="btn btn-primary mt-3" style="border-radius:8px;">
+        <i class="fas fa-user-friends me-1"></i>View All Leads
+    </a>
+</div>
+{% endif %}
+{% endblock %}

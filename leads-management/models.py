@@ -497,6 +497,36 @@ class Setting(db.Model):
         return f'<Setting {self.key}: {self.value}>'
 
 
+class LeadReassignment(db.Model):
+    __tablename__ = 'lead_reassignment'
+    id             = db.Column(db.Integer, primary_key=True)
+    lead_id        = db.Column(db.Integer, db.ForeignKey('lead.id'), nullable=False)
+    from_user_id   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    to_user_id     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    assigned_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    assigned_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    note           = db.Column(db.String(500))
+
+    lead        = db.relationship('Lead', backref='reassignments')
+    from_user   = db.relationship('User', foreign_keys=[from_user_id],   backref='leads_taken_from')
+    to_user     = db.relationship('User', foreign_keys=[to_user_id],     backref='leads_received')
+    assigned_by = db.relationship('User', foreign_keys=[assigned_by_id], backref='reassignments_made')
+
+
+class CRMNotification(db.Model):
+    __tablename__ = 'crm_notification'
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message    = db.Column(db.String(500), nullable=False)
+    lead_id    = db.Column(db.Integer, db.ForeignKey('lead.id'), nullable=True)
+    notif_type = db.Column(db.String(30), default='reassignment')
+    is_read    = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id], backref='crm_notifications')
+    lead = db.relationship('Lead', backref='crm_notifications')
+
+
 class ImsStudent(db.Model):
     """Synced from Orbit ERP (orbit_invoice.invoices_registration) — never edited directly in CRM."""
     __tablename__ = 'ims_student'

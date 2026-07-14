@@ -458,6 +458,8 @@ def leads():
     statuses = ['New', 'Contacted', 'Interested', 'Quoted', 'Converted', 'Lost']
     consultants = User.query.filter_by(active=True, role='consultant').order_by(User.username).all() \
                   if (current_user.is_admin() or current_user.can_view_all_leads) else []
+    all_users = User.query.filter_by(active=True).order_by(User.username).all() \
+                if _can_reassign_leads() else []
 
     # Leads needing follow-up: created > 1h ago by this user, no follow-up set, no interactions
     followup_reminder_leads = []
@@ -485,6 +487,7 @@ def leads():
                          course_filter=course_filter,
                          consultant_filter=consultant_filter,
                          consultants=consultants,
+                         all_users=all_users,
                          lead_form=lead_form,
                          meeting_form=meeting_form,
                          lead=None,
@@ -787,6 +790,159 @@ def bulk_assign_leads():
         flash('Invalid form data. Please try again.', 'error')
     
     return redirect(url_for('main.leads'))
+
+
+def _can_reassign_leads():
+    return current_user.is_admin() or current_user.is_sales_manager() or current_user.can_view_all_leads
+
+
+@main.route('/leads/<int:id>/reassign', methods=['POST'])
+@login_required
+def reassign_lead(id):
+    if not _can_reassign_leads():
+        return jsonify({'success': False, 'message': 'Access denied.'}), 403
+
+    lead = Lead.query.get_or_404(id)
+    to_user_id = request.form.get('to_user_id', type=int)
+    note = request.form.get('note', '').strip()
+
+    if not to_user_id:
+        return jsonify({'success': False, 'message': 'Please select a consultant.'}), 400
+
+    to_user = User.query.get(to_user_id)
+    if not to_user:
+        return jsonify({'success': False, 'message': 'User not found.'}), 400
+
+    from_user_id = lead.assigned_to
+    if from_user_id == to_user_id:
+        return jsonify({'success': False, 'message': 'Lead is already assigned to this person.'}), 400
+
+    reassignment = LeadReassignment(
+        lead_id=lead.id,
+        from_user_id=from_user_id,
+        to_user_id=to_user_id,
+        assigned_by_id=current_user.id,
+        note=note or None,
+    )
+    db.session.add(reassignment)
+
+    # Notify the previous owner (if there was one and it wasn't the reassigner)
+    if from_user_id and from_user_id != current_user.id:
+        msg = (f"Lead \"{lead.name}\" (L-{lead.id}) has been reassigned from you to "
+               f"{to_user.username} by {current_user.username}. "
+               f"You no longer need to contact this person.")
+        db.session.add(CRMNotification(
+            user_id=from_user_id,
+            message=msg,
+            lead_id=lead.id,
+            notif_type='reassignment',
+        ))
+
+    lead.assigned_to = to_user_id
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': f'Lead "{lead.name}" reassigned to {to_user.username}.'})
+
+
+@main.route('/leads/new-assignments')
+@login_required
+def new_assignments():
+    """Leads recently reassigned to current user that they haven't contacted yet."""
+    reassigned_ids_q = db.session.query(LeadReassignment.lead_id).filter_by(
+        to_user_id=current_user.id
+    ).subquery()
+
+    candidates = Lead.query.filter(
+        Lead.assigned_to == current_user.id,
+        Lead.id.in_(reassigned_ids_q),
+    ).order_by(desc(Lead.created_at)).all()
+
+    new_assign_leads = []
+    for lead in candidates:
+        last_ra = LeadReassignment.query.filter_by(
+            lead_id=lead.id, to_user_id=current_user.id
+        ).order_by(LeadReassignment.assigned_at.desc()).first()
+        if not last_ra:
+            continue
+        contacted = LeadInteraction.query.filter(
+            LeadInteraction.lead_id == lead.id,
+            LeadInteraction.created_by_id == current_user.id,
+            LeadInteraction.interaction_date >= last_ra.assigned_at,
+        ).count()
+        new_assign_leads.append({
+            'lead': lead,
+            'reassignment': last_ra,
+            'contacted': contacted > 0,
+        })
+
+    return render_template('new_assignments.html', new_assign_leads=new_assign_leads)
+
+
+@main.route('/api/notifications/')
+@login_required
+def get_notifications():
+    notifs = CRMNotification.query.filter_by(
+        user_id=current_user.id
+    ).order_by(CRMNotification.created_at.desc()).limit(20).all()
+    unread = CRMNotification.query.filter_by(user_id=current_user.id, is_read=False).count()
+    return jsonify({
+        'unread_count': unread,
+        'notifications': [{
+            'id': n.id,
+            'message': n.message,
+            'lead_id': n.lead_id,
+            'type': n.notif_type,
+            'is_read': n.is_read,
+            'created_at': n.created_at.strftime('%b %d %H:%M'),
+        } for n in notifs]
+    })
+
+
+@main.route('/api/notifications/<int:nid>/read', methods=['POST'])
+@login_required
+def mark_notification_read(nid):
+    n = CRMNotification.query.get_or_404(nid)
+    if n.user_id != current_user.id:
+        return jsonify({'success': False}), 403
+    n.is_read = True
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@main.route('/api/notifications/read-all', methods=['POST'])
+@login_required
+def mark_all_notifications_read():
+    CRMNotification.query.filter_by(user_id=current_user.id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@main.route('/api/new-assignments-count')
+@login_required
+def new_assignments_count():
+    """Count leads reassigned to current user that they haven't contacted yet."""
+    reassigned_ids_q = db.session.query(LeadReassignment.lead_id).filter_by(
+        to_user_id=current_user.id
+    ).subquery()
+    candidates = Lead.query.filter(
+        Lead.assigned_to == current_user.id,
+        Lead.id.in_(reassigned_ids_q),
+    ).all()
+    count = 0
+    for lead in candidates:
+        last_ra = LeadReassignment.query.filter_by(
+            lead_id=lead.id, to_user_id=current_user.id
+        ).order_by(LeadReassignment.assigned_at.desc()).first()
+        if last_ra:
+            contacted = LeadInteraction.query.filter(
+                LeadInteraction.lead_id == lead.id,
+                LeadInteraction.created_by_id == current_user.id,
+                LeadInteraction.interaction_date >= last_ra.assigned_at,
+            ).count()
+            if contacted == 0:
+                count += 1
+    return jsonify({'count': count})
+
 
 @main.route('/leads/<int:id>/convert', methods=['POST'])
 @login_required

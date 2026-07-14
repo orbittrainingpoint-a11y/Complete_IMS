@@ -249,6 +249,9 @@
                             <a href="{{ url_for('main.erp_jump') }}?crm_lead={{ lead.id }}" class="btn btn-sm btn-outline-success" title="Register in ERP (Lead L-{{ lead.id }})"><i class="fas fa-user-plus"></i></a>
                             {% endif %}
                             <button class="btn btn-sm btn-outline-warning" title="Edit" onclick="editLead({{ lead.id }})"><i class="fas fa-edit"></i></button>
+                            {% if current_user.is_admin() or current_user.is_sales_manager() or current_user.can_view_all_leads %}
+                            <button class="btn btn-sm btn-outline-secondary" title="Reassign Lead" onclick="openReassignModal({{ lead.id }}, '{{ lead.name|e }}')"><i class="fas fa-user-tag"></i></button>
+                            {% endif %}
                             <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="deleteLead({{ lead.id }})"><i class="fas fa-trash"></i></button>
                         </div>
                     </td>
@@ -569,6 +572,45 @@
 </div>
 
 {% include 'modals/meeting_modal.html' %}
+
+<!-- Reassign Lead Modal -->
+{% if current_user.is_admin() or current_user.is_sales_manager() or current_user.can_view_all_leads %}
+<div class="modal fade" id="reassignModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="border:0;border-radius:16px;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#4f46e5);padding:1.25rem 1.5rem;">
+                <div>
+                    <h5 class="modal-title text-white mb-0"><i class="fas fa-user-tag me-2 opacity-75"></i>Reassign Lead</h5>
+                    <small class="text-white opacity-75" id="reassignLeadName">Select a new consultant</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label fw-bold" style="font-size:13px;">Assign To <span class="text-danger">*</span></label>
+                    <select class="form-select" id="reassignToUser" style="border-radius:8px;">
+                        <option value="">— Select Consultant / Manager —</option>
+                        {% for u in all_users %}
+                        <option value="{{ u.id }}">{{ u.username }} ({{ u.role }})</option>
+                        {% endfor %}
+                    </select>
+                    <div id="reassignUserErr" class="text-danger mt-1" style="font-size:12px;display:none;">Please select a consultant.</div>
+                </div>
+                <div class="mb-1">
+                    <label class="form-label" style="font-size:13px;">Reason / Note <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+                    <textarea class="form-control" id="reassignNote" rows="2" placeholder="Why is this lead being reassigned?" style="border-radius:8px;resize:none;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;">
+                <button class="btn btn-light px-4" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+                <button class="btn btn-primary px-4" id="reassignSubmitBtn" onclick="submitReassign()" style="border-radius:8px;background:linear-gradient(135deg,#4f46e5,#3730a3);border:0;">
+                    <i class="fas fa-user-tag me-1"></i>Reassign
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -1036,6 +1078,52 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// ── Lead Reassignment ──────────────────────────────────────────────────────
+let _reassignLeadId = null;
+
+function openReassignModal(leadId, leadName) {
+    _reassignLeadId = leadId;
+    document.getElementById('reassignLeadName').textContent = 'Lead: ' + leadName;
+    document.getElementById('reassignToUser').value = '';
+    document.getElementById('reassignNote').value = '';
+    document.getElementById('reassignUserErr').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('reassignModal')).show();
+}
+
+function submitReassign() {
+    const toUser = document.getElementById('reassignToUser').value;
+    const note   = document.getElementById('reassignNote').value;
+    const errEl  = document.getElementById('reassignUserErr');
+    if (!toUser) { errEl.style.display = 'block'; return; }
+    errEl.style.display = 'none';
+
+    const btn = document.getElementById('reassignSubmitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Reassigning…';
+
+    const fd = new FormData();
+    fd.append('to_user_id', toUser);
+    fd.append('note', note);
+
+    fetch('/leads/' + _reassignLeadId + '/reassign', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-user-tag me-1"></i>Reassign';
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('reassignModal')).hide();
+                location.reload();
+            } else {
+                alert(data.message || 'Reassignment failed.');
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-user-tag me-1"></i>Reassign';
+            alert('Network error. Please try again.');
+        });
+}
 </script>
 
 {# ── Follow-up Reminder Popup ─────────────────────────────────────────── #}

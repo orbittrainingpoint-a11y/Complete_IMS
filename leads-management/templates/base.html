@@ -214,6 +214,8 @@
         .notif-dropdown.open { display: block; }
         .notif-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 14px; }
         .notif-empty { padding: 32px; text-align: center; color: var(--text-muted); font-size: 13px; }
+        .notif-item:hover { background: var(--bg) !important; }
+        #notifList { max-height: 340px; overflow-y: auto; }
 
         /* page content */
         .page-content { padding: 24px; flex: 1; }
@@ -422,6 +424,14 @@
                 </a>
             </div>
             <div class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'main.new_assignments' %}active{% endif %}"
+                   href="{{ url_for('main.new_assignments') }}">
+                    <span class="nav-icon"><i class="fas fa-inbox"></i></span>
+                    New Assignments
+                    <span id="newAssignBadge" style="display:none;margin-left:auto;background:#4f46e5;color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:10px;"></span>
+                </a>
+            </div>
+            <div class="nav-item">
                 <a class="nav-link {% if request.endpoint == 'main.overdue_followups' %}active{% endif %}"
                    href="{{ url_for('main.overdue_followups') }}">
                     <span class="nav-icon"><i class="fas fa-bell"></i></span>
@@ -594,18 +604,22 @@
                 <i class="fas fa-moon" id="darkIcon"></i>
             </button>
 
-            <!-- Notifications placeholder -->
+            <!-- Notifications -->
             <div class="notif-wrapper">
-                <button class="topbar-btn" id="notifBtn">
+                <button class="topbar-btn" id="notifBtn" style="position:relative;">
                     <i class="fas fa-bell"></i>
+                    <span class="notif-count" id="notifBadge" style="display:none;"></span>
                 </button>
                 <div class="notif-dropdown" id="notifDropdown">
                     <div class="notif-header">
                         <span>Notifications</span>
+                        <button id="notifReadAllBtn" onclick="markAllRead()" style="background:none;border:none;font-size:11px;color:var(--primary);cursor:pointer;font-weight:600;padding:0;">Mark all read</button>
                     </div>
-                    <div class="notif-empty">
-                        <i class="fas fa-bell-slash fa-2x mb-2 d-block"></i>
-                        No new notifications
+                    <div id="notifList">
+                        <div class="notif-empty">
+                            <i class="fas fa-bell-slash fa-2x mb-2 d-block"></i>
+                            No new notifications
+                        </div>
                     </div>
                 </div>
             </div>
@@ -711,6 +725,7 @@
         notifBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             notifDrop.classList.toggle('open');
+            if (notifDrop.classList.contains('open')) loadNotifications();
         });
         document.addEventListener('click', () => notifDrop.classList.remove('open'));
     }
@@ -727,6 +742,80 @@
             if (badge) { badge.textContent = d.count; badge.style.display = 'inline-block'; }
         }
     }).catch(() => {});
+
+    // ── Notification system ──
+    function loadNotifications() {
+        fetch('/api/notifications/')
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.getElementById('notifBadge');
+                const list  = document.getElementById('notifList');
+                if (!list) return;
+
+                // Update badge
+                if (badge) {
+                    if (data.unread_count > 0) {
+                        badge.textContent = data.unread_count > 9 ? '9+' : data.unread_count;
+                        badge.style.display = 'flex';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+
+                // Update new-assignments sidebar badge
+                fetch('/api/new-assignments-count')
+                    .then(r => r.json())
+                    .then(d => {
+                        const ab = document.getElementById('newAssignBadge');
+                        if (ab) {
+                            if (d.count > 0) { ab.textContent = d.count; ab.style.display = 'inline-block'; }
+                            else ab.style.display = 'none';
+                        }
+                    }).catch(() => {});
+
+                if (!data.notifications || data.notifications.length === 0) {
+                    list.innerHTML = '<div class="notif-empty"><i class="fas fa-bell-slash fa-2x mb-2 d-block"></i>No notifications</div>';
+                    return;
+                }
+                list.innerHTML = data.notifications.map(n => `
+                    <div class="notif-item" data-id="${n.id}" onclick="readNotif(${n.id}, ${n.lead_id})"
+                         style="padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;
+                                background:${n.is_read ? 'transparent' : 'rgba(79,70,229,.04)'};
+                                transition:background .15s;">
+                        <div style="display:flex;gap:10px;align-items:flex-start;">
+                            <div style="width:32px;height:32px;border-radius:50%;background:rgba(79,70,229,.12);color:#4f46e5;
+                                        display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
+                                <i class="fas fa-user-tag" style="font-size:13px;"></i>
+                            </div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:12.5px;color:var(--text);line-height:1.4;${n.is_read ? '' : 'font-weight:600;'}">${n.message}</div>
+                                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${n.created_at}</div>
+                            </div>
+                            ${!n.is_read ? '<div style="width:7px;height:7px;border-radius:50%;background:#4f46e5;flex-shrink:0;margin-top:6px;"></div>' : ''}
+                        </div>
+                    </div>`).join('');
+            })
+            .catch(() => {});
+    }
+
+    function readNotif(id, leadId) {
+        fetch('/api/notifications/' + id + '/read', { method: 'POST' })
+            .then(() => {
+                const el = document.querySelector(`.notif-item[data-id="${id}"]`);
+                if (el) el.style.background = 'transparent';
+                loadNotifications();
+            });
+    }
+
+    function markAllRead() {
+        fetch('/api/notifications/read-all', { method: 'POST' })
+            .then(() => loadNotifications());
+    }
+    window.markAllRead = markAllRead;
+
+    // Poll unread count every 60 seconds
+    loadNotifications();
+    setInterval(loadNotifications, 60000);
 })();
 </script>
 

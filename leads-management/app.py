@@ -48,9 +48,12 @@ def create_app():
         # Import models and routes
         import models
         import routes
-        
+
         # Register blueprints
         app.register_blueprint(routes.main)
+
+        # Auto-create any new tables (additive only — never drops existing tables)
+        db.create_all()
     
     return app
 
