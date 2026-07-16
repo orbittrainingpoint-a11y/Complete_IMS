@@ -451,6 +451,20 @@ def create_invoice(request):
                 try:
                     registration = Registration.objects.get(registration_number=registration_number)
                     invoice.registration = registration
+                    # Attribute revenue to the consultant who registered the student,
+                    # not necessarily the admin/manager who is creating this invoice.
+                    if registration.consultant_name:
+                        from django.contrib.auth.models import User as _AuthUser
+                        _consultant = _AuthUser.objects.filter(
+                            username__iexact=registration.consultant_name
+                        ).first()
+                        if not _consultant and ' ' in registration.consultant_name:
+                            _parts = registration.consultant_name.split(None, 1)
+                            _consultant = _AuthUser.objects.filter(
+                                first_name__iexact=_parts[0], last_name__iexact=_parts[1]
+                            ).first()
+                        if _consultant:
+                            invoice.user = _consultant
                     invoice.class_type = registration.class_type  # Set the class_type from registration
                     if registration.registration_type == 'OC':
                         corporate_details = CorporateRegistration.objects.get(registration=registration)
