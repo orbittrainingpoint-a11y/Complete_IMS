@@ -546,9 +546,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const fmt = v => 'AED ' + v.toLocaleString('en-AE', {minimumFractionDigits:2, maximumFractionDigits:2});
   const el  = id => document.getElementById(id);
 
-  // Base total = registration course fee (not sum of invoice totals —
-  // installment invoices each store the full total_amount and would double-count)
-  const tot = parseFloat('{{ total_course_amount|floatformat:2 }}') || 0;
+  // Base total = first invoice's total_amount (VAT-inclusive, server-computed).
+  // Installment invoices all carry the same total_amount — summing them would double-count.
+  const tot = parseFloat('{{ total_amount|floatformat:2 }}') || 0;
   let paid = 0, vatSum = 0;
 
   document.querySelectorAll('.inv-row').forEach(r => {

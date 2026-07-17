@@ -1496,11 +1496,12 @@ def registration_invoice_detail(request, registration_id):
     registration_courses = registration.registration_courses.all()
     invoices = Invoice.objects.filter(registration_id=registration.id).order_by('date')
     
-    total_amount_paid = sum(invoice.amount_paid for invoice in invoices)
     total_course_amount = sum(rc.course.rate * (1 - rc.discount / 100) for rc in registration_courses)
-    # Use registration course fee as the authoritative total, not sum of invoice totals
-    # (installment invoices each carry the full total_amount which would double/triple-count)
-    total_amount = total_course_amount
+    _invoice_list = list(invoices)
+    total_amount_paid = sum(inv.amount_paid for inv in _invoice_list)
+    # First invoice's total_amount is the authoritative fee (VAT-inclusive, matches what was invoiced).
+    # Installment invoices all carry the same total_amount — summing them would multiply the total.
+    total_amount = _invoice_list[0].total_amount if _invoice_list else total_course_amount
     total_due_amount = total_amount - total_amount_paid
     
     unique_courses = set(rc.course for rc in registration_courses)
