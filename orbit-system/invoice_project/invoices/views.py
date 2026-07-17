@@ -451,20 +451,6 @@ def create_invoice(request):
                 try:
                     registration = Registration.objects.get(registration_number=registration_number)
                     invoice.registration = registration
-                    # Attribute revenue to the consultant who registered the student,
-                    # not necessarily the admin/manager who is creating this invoice.
-                    if registration.consultant_name:
-                        from django.contrib.auth.models import User as _AuthUser
-                        _consultant = _AuthUser.objects.filter(
-                            username__iexact=registration.consultant_name
-                        ).first()
-                        if not _consultant and ' ' in registration.consultant_name:
-                            _parts = registration.consultant_name.split(None, 1)
-                            _consultant = _AuthUser.objects.filter(
-                                first_name__iexact=_parts[0], last_name__iexact=_parts[1]
-                            ).first()
-                        if _consultant:
-                            invoice.user = _consultant
                     invoice.class_type = registration.class_type  # Set the class_type from registration
                     if registration.registration_type == 'OC':
                         corporate_details = CorporateRegistration.objects.get(registration=registration)
@@ -2766,11 +2752,29 @@ def _admin_dashboard(request):
 # ─── SALES EXECUTIVE DASHBOARD ──────────────────────────────────────────────
 
 def _sales_executive_dashboard(request):
+    from django.db.models import Q
     user  = request.user
     today = timezone.now().date()
     first, last = _month_range(today)
 
-    my_revenue = float(_revenue_for_user(user, first, last))
+    # Revenue is attributed by who REGISTERED the student (consultant_name),
+    # not by who happened to create the invoice (Invoice.user).
+    full_name = user.get_full_name() or user.username
+
+    # Registration-linked invoices: match by registration's consultant_name
+    reg_revenue = Invoice.objects.filter(
+        registration__consultant_name__iexact=full_name,
+        date__gte=first, date__lte=last,
+    ).exclude(registration__is_refunded=True).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
+
+    # Standalone invoices (no registration, e.g. corporate tax): match by Invoice.user
+    standalone_revenue = Invoice.objects.filter(
+        user=user, registration__isnull=True,
+        date__gte=first, date__lte=last,
+    ).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
+
+    my_revenue = float(reg_revenue + standalone_revenue)
+
     my_target_amt, my_target_reg = _exec_target(user, first)
     my_target_f = float(my_target_amt)
 
@@ -2788,26 +2792,33 @@ def _sales_executive_dashboard(request):
     run_rate_pct  = min(round((run_rate / needed_daily * 100) if needed_daily else 100), 100)
     gap           = max(my_target_f - projected_rev, 0)
 
-    full_name = user.get_full_name() or user.username
     my_regs_qs = Registration.objects.filter(
         date__gte=first, date__lte=last,
         consultant_name__iexact=full_name
     ).prefetch_related('registration_courses__course', 'invoice_set')
     my_regs_count = my_regs_qs.count()
 
-    my_quotations  = Quotation.objects.filter(user=user).count()
+    my_quotations = Quotation.objects.filter(user=user).count()
 
-    all_invs = Invoice.objects.filter(user=user, date__gte=first, date__lte=last)
-    avg_deal = float(all_invs.aggregate(t=Sum('total_amount'))['t'] or 0) / max(all_invs.count(), 1)
+    # All invoices attributable to this consultant this month (for avg deal size)
+    all_invs = Invoice.objects.filter(
+        Q(registration__consultant_name__iexact=full_name) |
+        Q(user=user, registration__isnull=True),
+        date__gte=first, date__lte=last,
+    ).exclude(registration__is_refunded=True)
+    avg_deal = float(all_invs.aggregate(t=Sum('amount_paid'))['t'] or 0) / max(all_invs.count(), 1)
 
-    # weekly revenue (last 7 weeks)
+    # weekly revenue (last 7 weeks) — same attribution logic
     weekly_labels = []
     weekly_data   = []
     for i in range(6, -1, -1):
         wstart = today - datetime.timedelta(days=today.weekday() + 7*i)
         wend   = wstart + datetime.timedelta(days=6)
-        v = Invoice.objects.filter(user=user, date__gte=wstart, date__lte=wend)\
-              .aggregate(t=Sum('amount_paid'))['t'] or 0
+        v = Invoice.objects.filter(
+            Q(registration__consultant_name__iexact=full_name) |
+            Q(user=user, registration__isnull=True),
+            date__gte=wstart, date__lte=wend,
+        ).exclude(registration__is_refunded=True).aggregate(t=Sum('amount_paid'))['t'] or 0
         weekly_labels.append(wstart.strftime('%b %d'))
         weekly_data.append(float(v))
 
