@@ -546,7 +546,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const fmt = v => 'AED ' + v.toLocaleString('en-AE', {minimumFractionDigits:2, maximumFractionDigits:2});
   const el  = id => document.getElementById(id);
 
-  let tot = 0, paid = 0;
+  // Base total = registration course fee (not sum of invoice totals —
+  // installment invoices each store the full total_amount and would double-count)
+  const tot = parseFloat('{{ total_course_amount|floatformat:2 }}') || 0;
+  let paid = 0, vatSum = 0;
+
   document.querySelectorAll('.inv-row').forEach(r => {
     const rowTotal = parseFloat(r.dataset.total) || 0;
     const rowPaid  = parseFloat(r.dataset.paid)  || 0;
@@ -568,19 +572,17 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
-    tot  += rowTotal;
-    paid += rowPaid;
+    paid   += rowPaid;
+    vatSum += rowVat;
   });
 
-  const totalVat = tot - (tot / 1.05);
-  const due      = Math.max(0, tot - paid);
+  const due = Math.max(0, tot - paid);
 
   if (el('sumTotal')) el('sumTotal').textContent = fmt(tot);
   if (el('sumPaid'))  el('sumPaid').textContent  = fmt(paid);
-  if (el('sumVat'))   el('sumVat').textContent   = fmt(totalVat);
+  if (el('sumVat'))   el('sumVat').textContent   = fmt(vatSum);
   if (el('sumDue'))   {
     el('sumDue').textContent = fmt(due);
-    // Highlight the pending box if there's an outstanding balance
     if (due > 0.005) {
       const box = document.getElementById('sumDueBox');
       if (box) box.style.cssText += ';background:#fff1f2;border-color:#fecdd3;';
