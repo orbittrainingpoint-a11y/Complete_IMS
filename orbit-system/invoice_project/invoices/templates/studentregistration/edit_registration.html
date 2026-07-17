@@ -435,6 +435,7 @@
                                     <i class="fas fa-tag"></i>
                                 </button>
                             </div>
+                            <input type="hidden" name="{{ course_form.coupon_code.html_name }}" class="coupon-code-hidden" value="">
                             <div class="coupon-msg mt-1"></div>
                             <div class="disc-cap-hint mt-1" style="font-size:11px;color:var(--text-muted);"></div>
                         </div>
@@ -722,7 +723,11 @@ document.getElementById('id_level')?.addEventListener('change', updatePrices);
 function attachEntry(e) {
     e.querySelector('.course-select')?.addEventListener('change', updatePrices);
     const di = e.querySelector('.discount-input');
-    di?.addEventListener('input', () => { di.dataset.couponApplied = 'false'; updatePrices(); });
+    di?.addEventListener('input', () => {
+        di.dataset.couponApplied = 'false';
+        const ch = e.querySelector('.coupon-code-hidden'); if (ch) ch.value = '';
+        updatePrices();
+    });
     di?.addEventListener('blur', () => {
         if (!di || di.dataset.couponApplied === 'true' || isNaN(di.value)) return;
         const v = parseFloat(di.value) || 0;
@@ -735,6 +740,7 @@ function attachEntry(e) {
 
 function validateCoupon(e) {
     const di = e.querySelector('.discount-input'), msg = e.querySelector('.coupon-msg');
+    const ch = e.querySelector('.coupon-code-hidden');
     const code = di.value.trim();
     if (!code || !isNaN(code)) { msg.innerHTML = ''; return; }
     msg.innerHTML = '<span style="font-size:12px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Checking…</span>';
@@ -742,10 +748,12 @@ function validateCoupon(e) {
         .then(r => r.json()).then(d => {
             if (d.valid) {
                 di.value = d.discount; di.dataset.couponApplied = 'true';
+                if (ch) ch.value = d.code || code;
                 msg.innerHTML = `<span style="color:#10b981;font-size:12px;"><i class="fas fa-check me-1"></i>${d.discount}% applied</span>`;
             } else {
                 msg.innerHTML = '<span style="color:var(--danger);font-size:12px;"><i class="fas fa-times me-1"></i>Invalid code</span>';
                 di.dataset.couponApplied = 'false';
+                if (ch) ch.value = '';
             }
             updatePrices();
         }).catch(() => msg.innerHTML = '<span style="color:var(--danger);font-size:12px;">Error checking code</span>');

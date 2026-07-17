@@ -326,6 +326,7 @@ class RegistrationCourseForm(forms.ModelForm):
     )
     price = forms.DecimalField(max_digits=10, decimal_places=2, required=False)
     discount = forms.DecimalField(max_digits=5, decimal_places=2, required=False, initial=0)
+    coupon_code = forms.CharField(required=False, widget=forms.HiddenInput())
     class Meta:
         model = RegistrationCourse
         fields = ['course', 'discount']

@@ -838,6 +838,19 @@ def _resolve_coupon(code):
         return None, Decimal('0.00')
 
 
+def _course_discount_cap(base_cap, coupon_code):
+    """Return (max_allowed_discount, coupon_obj) — extends base_cap by a valid coupon's percentage."""
+    coupon_obj, coupon_extra = _resolve_coupon(coupon_code)
+    max_allowed = min(base_cap + coupon_extra, Decimal('100.00'))
+    return max_allowed, coupon_obj
+
+
+def _mark_coupon_used(coupon_obj):
+    if coupon_obj:
+        coupon_obj.used_count += 1
+        coupon_obj.save(update_fields=['used_count'])
+
+
 def _can_custom_quote(user):
     try:
         role = user.profile.role
@@ -1199,7 +1212,8 @@ def registration_form(request):
             base_cap = Decimal('30') if len(valid_course_forms) >= 2 else Decimal('20')
             for course_form in valid_course_forms:
                 course = course_form.cleaned_data['course']
-                discount = min(course_form.cleaned_data.get('discount') or Decimal('0'), base_cap)
+                max_allowed, coupon_obj = _course_discount_cap(base_cap, course_form.cleaned_data.get('coupon_code', ''))
+                discount = min(course_form.cleaned_data.get('discount') or Decimal('0'), max_allowed)
                 price = course_form.cleaned_data.get('price', 0)
                 RegistrationCourse.objects.create(
                     registration=registration,
@@ -1207,6 +1221,7 @@ def registration_form(request):
                     discount=discount,
                     price=price,
                 )
+                _mark_coupon_used(coupon_obj)
             # Save CRM lead link if provided
             crm_lead_id = request.POST.get('crm_lead_id', '').strip()
             if crm_lead_id and crm_lead_id.isdigit():
@@ -1373,12 +1388,14 @@ def edit_registration(request, pk):
             valid_course_forms = [f for f in formset if f.cleaned_data and f.cleaned_data.get('course')]
             base_cap = Decimal('30') if len(valid_course_forms) >= 2 else Decimal('20')
             for course_form in valid_course_forms:
+                max_allowed, coupon_obj = _course_discount_cap(base_cap, course_form.cleaned_data.get('coupon_code', ''))
                 RegistrationCourse.objects.create(
                     registration=registration,
                     course=course_form.cleaned_data['course'],
-                    discount=min(course_form.cleaned_data.get('discount') or Decimal('0'), base_cap),
+                    discount=min(course_form.cleaned_data.get('discount') or Decimal('0'), max_allowed),
                     price=course_form.cleaned_data.get('price', 0),
                 )
+                _mark_coupon_used(coupon_obj)
 
             # Update CRM lead link if provided
             crm_lead_id = request.POST.get('crm_lead_id', '').strip()
@@ -1733,11 +1750,13 @@ def corporate_registration(request):
                     base_cap = Decimal('30') if len(valid_forms) >= 2 else Decimal('20')
                     for cf in valid_forms:
                         course   = cf.cleaned_data['course']
-                        discount = min(cf.cleaned_data.get('discount') or Decimal('0'), base_cap)
+                        max_allowed, coupon_obj = _course_discount_cap(base_cap, cf.cleaned_data.get('coupon_code', ''))
+                        discount = min(cf.cleaned_data.get('discount') or Decimal('0'), max_allowed)
                         price    = cf.cleaned_data.get('price', Decimal('0')) or Decimal('0')
                         RegistrationCourse.objects.create(
                             registration=reg, course=course, discount=discount, price=price,
                         )
+                        _mark_coupon_used(coupon_obj)
 
                     try:
                         admin_users = User.objects.filter(
@@ -1907,13 +1926,15 @@ def edit_corporate_registration(request, pk):
                     seen = set()
                     for cf in valid_forms:
                         course   = cf.cleaned_data['course']
-                        discount = min(cf.cleaned_data.get('discount') or Decimal('0'), base_cap)
+                        max_allowed, coupon_obj = _course_discount_cap(base_cap, cf.cleaned_data.get('coupon_code', ''))
+                        discount = min(cf.cleaned_data.get('discount') or Decimal('0'), max_allowed)
                         price    = cf.cleaned_data.get('price', Decimal('0')) or Decimal('0')
                         RegistrationCourse.objects.update_or_create(
                             registration=reg, course=course,
                             defaults={'discount': discount, 'price': price},
                         )
                         seen.add(course.pk)
+                        _mark_coupon_used(coupon_obj)
                     # Remove courses that were deleted
                     for cf in formset:
                         if cf.cleaned_data.get('DELETE') and cf.cleaned_data.get('course'):
@@ -2277,11 +2298,13 @@ def corporate_add_candidate(request, pk):
                     base_cap = Decimal('30') if len(valid_forms) >= 2 else Decimal('20')
                     for cf in valid_forms:
                         course   = cf.cleaned_data['course']
-                        discount = min(cf.cleaned_data.get('discount') or Decimal('0'), base_cap)
+                        max_allowed, coupon_obj = _course_discount_cap(base_cap, cf.cleaned_data.get('coupon_code', ''))
+                        discount = min(cf.cleaned_data.get('discount') or Decimal('0'), max_allowed)
                         price    = cf.cleaned_data.get('price', Decimal('0')) or Decimal('0')
                         RegistrationCourse.objects.create(
                             registration=reg, course=course, discount=discount, price=price,
                         )
+                        _mark_coupon_used(coupon_obj)
 
                     CorporateCandidateLink.objects.create(company=company, registration=reg)
 

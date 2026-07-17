@@ -242,6 +242,7 @@
                 <input type="text" name="{{ course_form.discount.html_name }}" class="form-control discount-input" placeholder="0%" value="0">
                 <button type="button" class="btn btn-outline-secondary validate-coupon" title="Validate Coupon"><i class="fas fa-tag"></i></button>
               </div>
+              <input type="hidden" name="{{ course_form.coupon_code.html_name }}" class="coupon-code-hidden" value="">
               <div class="coupon-msg mt-1"></div>
               <div class="disc-cap-hint mt-1" style="font-size:11px;color:var(--text-muted);"></div>
             </div>
@@ -358,7 +359,11 @@ function attachEntry(entry) {
   const vb  = entry.querySelector('.validate-coupon');
   const del = entry.querySelector('.btn-del-course');
   if (sel) sel.addEventListener('change', updatePrices);
-  if (di)  di.addEventListener('input', () => { di.dataset.couponApplied = 'false'; updatePrices(); });
+  if (di)  di.addEventListener('input', () => {
+    di.dataset.couponApplied = 'false';
+    const ch = entry.querySelector('.coupon-code-hidden'); if (ch) ch.value = '';
+    updatePrices();
+  });
   if (di)  di.addEventListener('blur', () => {
     if (di.dataset.couponApplied === 'true' || isNaN(di.value)) return;
     const v = parseFloat(di.value) || 0;
@@ -369,11 +374,12 @@ function attachEntry(entry) {
     const code = (di?.value||'').trim();
     if (!code || !isNaN(code)) return;
     const msg = entry.querySelector('.coupon-msg');
+    const ch  = entry.querySelector('.coupon-code-hidden');
     fetch(`/validate-coupon/?code=${encodeURIComponent(code)}`)
       .then(r=>r.json())
       .then(d=>{
-        if (d.valid) { di.value=d.discount; di.dataset.couponApplied='true'; msg.innerHTML=`<span class="text-success" style="font-size:11px;">✓ ${d.discount}% applied</span>`; updatePrices(); }
-        else { msg.innerHTML=`<span class="text-danger" style="font-size:11px;">✗ Invalid code</span>`; }
+        if (d.valid) { di.value=d.discount; di.dataset.couponApplied='true'; if (ch) ch.value = d.code || code; msg.innerHTML=`<span class="text-success" style="font-size:11px;">✓ ${d.discount}% applied</span>`; updatePrices(); }
+        else { msg.innerHTML=`<span class="text-danger" style="font-size:11px;">✗ Invalid code</span>`; di.dataset.couponApplied='false'; if (ch) ch.value=''; }
       });
   });
   if (del) del.addEventListener('click', () => { entry.remove(); reindexEntries(); updatePrices(); });
