@@ -94,19 +94,24 @@ class InvoiceForm(forms.ModelForm):
             registration = Registration.objects.get(registration_number=registration_number)
             if registration.registration_type == 'OC':
                 corporate_registration = CorporateRegistration.objects.get(registration=registration)
-                client, created = Client.objects.get_or_create(
-                name=corporate_registration.company_name,
-                emirates=registration.country,
-                country=registration.country,
-                user=self.user
-            )
+                _qs = Client.objects.filter(name=corporate_registration.company_name, user=self.user)
+                client = _qs.first() if _qs.exists() else Client.objects.create(
+                    name=corporate_registration.company_name,
+                    emirates=registration.country or '',
+                    country=registration.country or '',
+                    email='', phone='', address='',
+                    user=self.user,
+                )
             else:
-                client, created = Client.objects.get_or_create(
-                name=registration.first_name + " " + registration.last_name,
-                emirates=registration.country,  # Assuming country field is used for emirates
-                country=registration.country,
-                user=self.user
-            )
+                _name = registration.first_name + " " + registration.last_name
+                _qs = Client.objects.filter(name=_name, user=self.user)
+                client = _qs.first() if _qs.exists() else Client.objects.create(
+                    name=_name,
+                    emirates=registration.country or '',
+                    country=registration.country or '',
+                    email='', phone='', address='',
+                    user=self.user,
+                )
         else:
             client_name = self.cleaned_data['client_name']
             client_emirates = self.cleaned_data['client_emirates']

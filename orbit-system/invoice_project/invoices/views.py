@@ -468,29 +468,40 @@ def create_invoice(request):
                     invoice.class_type = registration.class_type  # Set the class_type from registration
                     if registration.registration_type == 'OC':
                         corporate_details = CorporateRegistration.objects.get(registration=registration)
-                        invoice.client, _ = Client.objects.get_or_create(
+                        _client_qs = Client.objects.filter(
                             name=corporate_details.company_name,
                             user=request.user,
-                            defaults={
-                                'email': corporate_details.company_email or registration.email,
-                                'phone': corporate_details.company_phone or registration.phone_no,
-                                'address': corporate_details.company_address or '',
-                                'emirates': corporate_details.company_location or '',
-                                'country': registration.country or '',
-                            }
                         )
+                        if _client_qs.exists():
+                            invoice.client = _client_qs.first()
+                        else:
+                            invoice.client = Client.objects.create(
+                                name=corporate_details.company_name,
+                                user=request.user,
+                                email=corporate_details.company_email or registration.email or '',
+                                phone=corporate_details.company_phone or registration.phone_no or '',
+                                address=corporate_details.company_address or '',
+                                emirates=corporate_details.company_location or '',
+                                country=registration.country or '',
+                            )
                     else:
-                        invoice.client, _ = Client.objects.get_or_create(
-                            name=f"{registration.first_name} {registration.last_name}",
+                        _client_name = f"{registration.first_name} {registration.last_name}"
+                        _client_qs = Client.objects.filter(
+                            name=_client_name,
                             user=request.user,
-                            defaults={
-                                'email': registration.email or '',
-                                'phone': registration.phone_no or '',
-                                'address': '',
-                                'emirates': registration.country or '',
-                                'country': registration.country or '',
-                            }
                         )
+                        if _client_qs.exists():
+                            invoice.client = _client_qs.first()
+                        else:
+                            invoice.client = Client.objects.create(
+                                name=_client_name,
+                                user=request.user,
+                                email=registration.email or '',
+                                phone=registration.phone_no or '',
+                                address='',
+                                emirates=registration.country or '',
+                                country=registration.country or '',
+                            )
                 except Registration.DoesNotExist:
                     form.add_error('registration_number', 'Invalid registration number')
                     return render(request, 'invoices/create_invoice.html', {'form': form})
