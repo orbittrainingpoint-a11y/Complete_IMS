@@ -24,6 +24,25 @@ body {
   overflow: hidden; /* Prevents text from spilling outside the borders */
 }
 
+/* Printing: drop the dark on-screen backdrop/card-shadow so the page prints white, not black */
+@media print {
+  html, body {
+    background: #fff !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  .orbit-certificate {
+    box-shadow: none !important;
+    margin: 0;
+  }
+
+  @page {
+    size: landscape;
+    margin: 0;
+  }
+}
+
 /* Base styles for all overlay text */
 .dynamic-data {
   position: absolute;
