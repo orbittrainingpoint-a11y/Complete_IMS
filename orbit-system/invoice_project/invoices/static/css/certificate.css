@@ -54,28 +54,28 @@ body {
 
 /* 1. Student Name */
 .student-name {
-  top: 41%;
-  font-family: 'Playfair Display', serif;
+  top: 43%;
+  font-family: 'Times New Roman', Times, serif;
   font-size: 42px;
-  font-weight: 700;
-  font-style: italic;
+  font-weight: 400;
+  
 }
 
 /* 2. Course Name */
 .course-name {
-  top: 53.5%;
-  font-family: 'Cinzel', serif;
+  top: 54.5%;
+  font-family: 'Times New Roman', Times, serif;
   font-size: 34px;
-  font-weight: 700;
-  letter-spacing: 2px;
+  font-weight: 400;
+  
 }
 
 /* 3. Inline Elements (Grade and Date) */
 .inline-text {
-  font-family: 'Cinzel', serif;
+  font-family: 'Times New Roman', Times, serif;
   font-size: 20px;
-  font-weight: 500;
-  letter-spacing: 1px;
+  font-weight: 400;
+  
 }
 
 .grade {
@@ -83,23 +83,29 @@ body {
 }
 
 .date-from {
-  top: 71.5%;
+  top: 72%;
   left: 0;
-  width: 46%;
+  width: 48%;
   text-align: right;
 }
 
 .date-to {
-  top: 71.5%;
-  left: 54%;
-  width: 46%;
+  top: 72%;
+  left: 52%;
+  width: 48%;
   text-align: left;
 }
 
 .cert-number {
-  top: 84%;
+  top: 75%;
   left: 70%;
   width: 26%;
   text-align: center;
-  font-size: 15px;
+  font-size: 18px;
+}
+#signature-svg {
+  top: 68%;
+  left: 10%;
+  width: 10%;
+  text-align: center;
 }
