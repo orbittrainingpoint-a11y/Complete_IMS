@@ -24,7 +24,7 @@ body {
   overflow: hidden; /* Prevents text from spilling outside the borders */
 }
 
-/* Printing: drop the dark on-screen backdrop/card-shadow so the page prints white, not black */
+/* Printing */
 @media print {
   html, body {
     background: #fff !important;
@@ -35,10 +35,14 @@ body {
   .orbit-certificate {
     box-shadow: none !important;
     margin: 0;
+    width: 1122px;
+    height: 793px;
+    transform: scale(0.96);
+    transform-origin: center;
   }
 
   @page {
-    size: landscape;
+    size: A4 landscape;
     margin: 0;
   }
 }
