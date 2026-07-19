@@ -2567,32 +2567,21 @@ def _month_label(date):
     return date.strftime('%B %Y')
 
 def _revenue_for_user(user, first, last):
-    """CRM-linked individual invoices + corporate tax invoices (registration=None) for the user.
-    Excludes invoices belonging to refunded registrations."""
-    corp_inv_revenue = Invoice.objects.filter(
-        user=user, date__gte=first, date__lte=last, registration__isnull=True
+    """All invoices attributed to this user by consultant_name on the registration,
+    plus standalone invoices (no registration) created by this user.
+    Excludes refunded registrations."""
+    full_name = user.get_full_name() or user.username
+    # Registration-linked: match by consultant_name (who registered the student)
+    reg_revenue = Invoice.objects.filter(
+        registration__consultant_name__iexact=full_name,
+        date__gte=first, date__lte=last,
+    ).exclude(registration__is_refunded=True).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
+    # Standalone (corporate tax invoices, no registration): match by invoice creator
+    standalone_revenue = Invoice.objects.filter(
+        user=user, registration__isnull=True,
+        date__gte=first, date__lte=last,
     ).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
-    try:
-        import pymysql as _pm
-        _cn = _pm.connect(host='localhost', user='root', password='', database='orbit_invoice', charset='utf8mb4')
-        with _cn.cursor() as _cu:
-            _cu.execute(
-                """SELECT COALESCE(SUM(i.amount_paid), 0)
-                   FROM invoices_invoice i
-                   INNER JOIN invoices_registrationcrmlink l ON l.registration_id = i.registration_id
-                   INNER JOIN invoices_registration r ON r.id = i.registration_id
-                   WHERE i.user_id = %s AND i.date >= %s AND i.date <= %s
-                     AND r.is_refunded = 0""",
-                (user.id, first.strftime('%Y-%m-%d'), last.strftime('%Y-%m-%d'))
-            )
-            _row = _cu.fetchone()
-        _cn.close()
-        crm_revenue = Decimal(str(_row[0] or 0)) if _row else Decimal('0')
-    except Exception:
-        crm_revenue = Invoice.objects.filter(
-            user=user, date__gte=first, date__lte=last, registration__isnull=False
-        ).exclude(registration__is_refunded=True).aggregate(t=Sum('amount_paid'))['t'] or Decimal('0')
-    return crm_revenue + Decimal(str(corp_inv_revenue))
+    return reg_revenue + standalone_revenue
 
 def _last_6_months():
     today = timezone.now().date()
@@ -2664,13 +2653,13 @@ def _admin_dashboard(request):
     top_courses = Course.objects.annotate(count=Cnt('registrationcourse'))\
                     .order_by('-count')[:5]
 
-    # exec performance
+    # exec performance — sales executives
     from django.contrib.auth.models import User
     executives = User.objects.filter(profile__role='sales_executive', is_active=True)
     exec_perf  = []
     for i, ex in enumerate(executives):
         rev   = float(_revenue_for_user(ex, first, last))
-        regs  = Registration.objects.filter(date__gte=first, date__lte=last, consultant_name=ex.get_full_name() or ex.username).count()
+        regs  = Registration.objects.filter(date__gte=first, date__lte=last, consultant_name__iexact=ex.get_full_name() or ex.username).count()
         tamt, treg = _exec_target(ex, first)
         pct = min(round((rev / float(tamt) * 100) if tamt else 0), 100)
         days_elapsed = (today - first).days + 1
@@ -2685,42 +2674,39 @@ def _admin_dashboard(request):
         })
     exec_perf.sort(key=lambda x: x['month_revenue'], reverse=True)
 
-    recent_invoices = Invoice.objects.select_related('client').order_by('-id')[:8]
+    # sales managers — always show in the table
+    managers = User.objects.filter(profile__role='sales_manager', is_active=True)
+    for mgr in managers:
+        rev  = float(_revenue_for_user(mgr, first, last))
+        regs = Registration.objects.filter(date__gte=first, date__lte=last, consultant_name__iexact=mgr.get_full_name() or mgr.username).count()
+        exec_perf.append({
+            'username': mgr.username, 'full_name': (mgr.get_full_name() or mgr.username) + ' (Manager)',
+            'month_revenue': rev, 'month_registrations': regs,
+            'target_pct': 0, 'target_amount': 0, 'projected': 0,
+            'is_manager': True,
+        })
 
-    # Institute Direct Sales — invoices with no CRM lead link (paid amount)
-    unattributed_count = 0
-    unattributed_revenue = 0.0
-    try:
-        import pymysql
-        conn = pymysql.connect(host='localhost', user='root', password='', database='orbit_invoice', charset='utf8mb4')
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT COUNT(DISTINCT i.id), COALESCE(SUM(i.amount_paid), 0)
-                FROM invoices_invoice i
-                LEFT JOIN invoices_registrationcrmlink l ON l.registration_id = i.registration_id
-                WHERE l.id IS NULL AND i.date >= %s AND i.date <= %s
-            """, (first.strftime('%Y-%m-%d'), last.strftime('%Y-%m-%d')))
-            row = cur.fetchone()
-            if row:
-                unattributed_count = int(row[0] or 0)
-                unattributed_revenue = float(row[1] or 0)
-        conn.close()
-    except Exception:
-        pass
+    # admin / institute direct — invoices with no consultant_name on registration, or registration=None created by admin
+    all_exec_names = [ex.get_full_name() or ex.username for ex in executives] + \
+                     [mgr.get_full_name() or mgr.username for mgr in managers]
+    institute_rev_qs = Invoice.objects.filter(date__gte=first, date__lte=last)\
+        .exclude(registration__is_refunded=True)
+    # exclude invoices already attributed to any exec or manager by consultant_name
+    for name in all_exec_names:
+        institute_rev_qs = institute_rev_qs.exclude(registration__consultant_name__iexact=name)
+    institute_revenue = float(institute_rev_qs.aggregate(t=Sum('amount_paid'))['t'] or 0)
+    institute_count   = institute_rev_qs.count()
 
-    # Add Institute Direct Sales as a special entry in exec performance
-    if unattributed_count > 0 or unattributed_revenue > 0:
+    if institute_revenue > 0 or institute_count > 0:
         exec_perf.append({
             'username': '__institute__',
-            'full_name': 'Institute Direct Sales',
-            'month_revenue': unattributed_revenue,
-            'month_registrations': unattributed_count,
-            'target_pct': 0,
-            'target_amount': 0,
-            'projected': 0,
+            'full_name': 'Institute / Admin Sales',
+            'month_revenue': institute_revenue,
+            'month_registrations': institute_count,
+            'target_pct': 0, 'target_amount': 0, 'projected': 0,
             'is_institute': True,
         })
-        exec_perf.sort(key=lambda x: x['month_revenue'], reverse=True)
+    exec_perf.sort(key=lambda x: x['month_revenue'], reverse=True)
 
     # ── Tabby / Tamara payment gateway breakdown (this month) ──
     from .models import InvoicePayment as _IP
@@ -2760,9 +2746,9 @@ def _admin_dashboard(request):
         'class_type_data': json.dumps(ct_data),
         'top_courses': top_courses,
         'exec_performance': exec_perf,
-        'recent_invoices': recent_invoices,
-        'unattributed_count': unattributed_count,
-        'unattributed_revenue': unattributed_revenue,
+        'recent_invoices': Invoice.objects.select_related('client').order_by('-id')[:8],
+        'unattributed_count': institute_count,
+        'unattributed_revenue': institute_revenue,
         # gateway stats
         'tabby_sales': float(tabby_sales), 'tabby_count': tabby_count,
         'tabby_comm': float(tabby_comm), 'tabby_vat': float(tabby_vat),
@@ -2877,10 +2863,15 @@ def _sales_manager_dashboard(request):
 
     executives = User.objects.filter(profile__role='sales_executive', is_active=True)
 
-    team_revenue  = Invoice.objects.filter(user__in=executives, date__gte=first, date__lte=last)\
-                      .aggregate(t=Sum('amount_paid'))['t'] or 0
-    prev_team_rev = Invoice.objects.filter(user__in=executives, date__gte=prev_first, date__lte=prev_last)\
-                      .aggregate(t=Sum('amount_paid'))['t'] or 0
+    exec_names = [ex.get_full_name() or ex.username for ex in executives]
+    team_revenue = Invoice.objects.filter(
+        registration__consultant_name__in=exec_names,
+        date__gte=first, date__lte=last
+    ).exclude(registration__is_refunded=True).aggregate(t=Sum('amount_paid'))['t'] or 0
+    prev_team_rev = Invoice.objects.filter(
+        registration__consultant_name__in=exec_names,
+        date__gte=prev_first, date__lte=prev_last
+    ).exclude(registration__is_refunded=True).aggregate(t=Sum('amount_paid'))['t'] or 0
     rev_pct, rev_dir = _pct_change(team_revenue, prev_team_rev)
 
     team_regs     = Registration.objects.filter(date__gte=first, date__lte=last).count()
@@ -2925,8 +2916,10 @@ def _sales_manager_dashboard(request):
     trend_data   = []
     for m in months:
         mf = m; ml = m.replace(day=calendar.monthrange(m.year, m.month)[1])
-        v = Invoice.objects.filter(user__in=executives, date__gte=mf, date__lte=ml)\
-              .aggregate(t=Sum('amount_paid'))['t'] or 0
+        v = Invoice.objects.filter(
+                registration__consultant_name__in=exec_names,
+                date__gte=mf, date__lte=ml
+            ).exclude(registration__is_refunded=True).aggregate(t=Sum('amount_paid'))['t'] or 0
         trend_data.append(float(v))
     trend_data = json.dumps(trend_data)
 
