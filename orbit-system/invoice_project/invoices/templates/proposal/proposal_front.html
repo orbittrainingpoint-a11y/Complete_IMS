@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -63,28 +64,10 @@
     .page { margin: 14px auto; box-shadow: 0 12px 44px rgba(0,0,0,.35); }
   }
 
-  /* ---------- INLINE LOGO (self-contained, no external image) ---------- */
-  .logo { display: inline-flex; align-items: center; gap: 9px; }
-  .logo .mark {
-    width: 30px; height: 30px; border-radius: 50%;
-    border: 6px solid currentColor; position: relative; flex: none;
-  }
-  .logo .mark::after {
-    content: ""; position: absolute; width: 12px; height: 12px;
-    border-radius: 50%; background: var(--cyan);
-    top: -3px; right: -3px; border: 3px solid #fff;
-  }
-  .logo.on-dark .mark::after { border-color: transparent; }
-  .logo .wordmark { line-height: 1; }
-  .logo .wm-main {
-    font-family: var(--display); font-weight: 800; font-size: 20pt;
-    letter-spacing: 2px;
-  }
-  .logo .wm-sub {
-    font-family: var(--display); font-weight: 600; font-size: 8.2pt;
-    letter-spacing: 4.5px; text-transform: uppercase; margin-top: 2px;
-    opacity: .85;
-  }
+  /* ---------- LOGO (real Orbit wordmark image; white variant on dark pages) ---------- */
+  .logo { display: inline-flex; align-items: center; }
+  .logo img { height: 30px; width: auto; display: block; }
+  .cover .logo img, .contact .logo img { height: 40px; }
 
   /* ---------- SHARED HEADER FOR LIGHT PAGES ---------- */
   .eyebrow-line { display: flex; align-items: center; gap: 12px; }
@@ -106,13 +89,11 @@
     margin-top: 5mm; letter-spacing: -.4px; line-height: 1.05;
   }
   .head-row .subt { color: var(--muted); font-size: 12pt; margin-top: 3mm; }
-  .head-row .logo { color: var(--navy-deep); }
 
   /* ============================================================
      PAGE 1 — COVER
      ============================================================ */
   .cover { background: var(--hero-bg); color: #fff; padding: 8mm 8mm; }
-  .cover .logo { color: #fff; }
   .cover .cover-body { margin-top: auto; margin-bottom: auto; }
   .cover .pill {
     display: inline-block;
@@ -246,11 +227,7 @@
 <!-- ==================== PAGE 1 — COVER ==================== -->
 <section class="page cover">
   <div class="logo on-dark">
-    <span class="mark"></span>
-    <span class="wordmark">
-      <span class="wm-main">ORBIT</span>
-      <span class="wm-sub">Training Center</span>
-    </span>
+    <img src="{% static 'orbit-logo-white.png' %}" alt="Orbit Training Center" />
   </div>
 
   <div class="cover-body">
@@ -284,7 +261,7 @@
       <h2>About Orbit Training Center</h2>
       <div class="subt">Your gateway to professional excellence in Dubai</div>
     </div>
-    <div class="logo"><span class="mark"></span><span class="wordmark"><span class="wm-main">ORBIT</span><span class="wm-sub">Training Center</span></span></div>
+    <div class="logo"><img src="{% static 'Orbit-Logo-1.png' %}" alt="Orbit Training Center" /></div>
   </div>
 
   <div class="about-grid">
@@ -336,7 +313,7 @@
       <h2>{{ proposal.course.name }}</h2>
       <div class="subt">A hands-on, instructor-led program built for professional, real-world application.</div>
     </div>
-    <div class="logo"><span class="mark"></span><span class="wordmark"><span class="wm-main">ORBIT</span><span class="wm-sub">Training Center</span></span></div>
+    <div class="logo"><img src="{% static 'Orbit-Logo-1.png' %}" alt="Orbit Training Center" /></div>
   </div>
 
   <div class="course-body">

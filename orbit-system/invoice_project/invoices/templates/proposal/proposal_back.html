@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -61,27 +62,9 @@
     .page { margin: 14px auto; box-shadow: 0 12px 44px rgba(0,0,0,.35); }
   }
 
-  .logo { display: inline-flex; align-items: center; gap: 9px; }
-  .logo .mark {
-    width: 30px; height: 30px; border-radius: 50%;
-    border: 6px solid currentColor; position: relative; flex: none;
-  }
-  .logo .mark::after {
-    content: ""; position: absolute; width: 12px; height: 12px;
-    border-radius: 50%; background: var(--cyan);
-    top: -3px; right: -3px; border: 3px solid #fff;
-  }
-  .logo.on-dark .mark::after { border-color: transparent; }
-  .logo .wordmark { line-height: 1; }
-  .logo .wm-main {
-    font-family: var(--display); font-weight: 800; font-size: 20pt;
-    letter-spacing: 2px;
-  }
-  .logo .wm-sub {
-    font-family: var(--display); font-weight: 600; font-size: 8.2pt;
-    letter-spacing: 4.5px; text-transform: uppercase; margin-top: 2px;
-    opacity: .85;
-  }
+  .logo { display: inline-flex; align-items: center; }
+  .logo img { height: 30px; width: auto; display: block; }
+  .contact .logo img { height: 40px; }
 
   .eyebrow-line { display: flex; align-items: center; gap: 12px; }
   .eyebrow {
@@ -102,7 +85,6 @@
     margin-top: 5mm; letter-spacing: -.4px; line-height: 1.05;
   }
   .head-row .subt { color: var(--muted); font-size: 12pt; margin-top: 3mm; }
-  .head-row .logo { color: var(--navy-deep); }
 
   /* ============================================================
      PAGE 4 & 5 — REVIEWS
@@ -148,7 +130,6 @@
      PAGE 6 — CONTACT  (mirrors cover gradient — bookend)
      ============================================================ */
   .contact { background: var(--hero-bg); color: #fff; padding: 8mm 8mm; }
-  .contact .logo { color: #fff; }
   .contact-top { display: grid; grid-template-columns: 1.15fr 1fr; gap: 12mm; margin-top: auto; margin-bottom: auto; }
   .contact .pill {
     display: inline-block; background: linear-gradient(90deg, #2563eb, #3b82f6);
@@ -206,7 +187,7 @@
       <h2>Student Google Reviews</h2>
       <div class="subt">Hear what our graduates say about their experience.</div>
     </div>
-    <div class="logo"><span class="mark"></span><span class="wordmark"><span class="wm-main">ORBIT</span><span class="wm-sub">Training Center</span></span></div>
+    <div class="logo"><img src="{% static 'Orbit-Logo-1.png' %}" alt="Orbit Training Center" /></div>
   </div>
 
   <div class="reviews">
@@ -227,7 +208,7 @@
       <h2>Student Google Reviews</h2>
       <div class="subt">Trusted by professionals across engineering, design, and IT.</div>
     </div>
-    <div class="logo"><span class="mark"></span><span class="wordmark"><span class="wm-main">ORBIT</span><span class="wm-sub">Training Center</span></span></div>
+    <div class="logo"><img src="{% static 'Orbit-Logo-1.png' %}" alt="Orbit Training Center" /></div>
   </div>
 
   <div class="reviews two">
@@ -251,8 +232,7 @@
 <!-- ==================== PAGE 6 — CONTACT ==================== -->
 <section class="page contact">
   <div class="logo on-dark">
-    <span class="mark"></span>
-    <span class="wordmark"><span class="wm-main">ORBIT</span><span class="wm-sub">Training Center</span></span>
+    <img src="{% static 'orbit-logo-white.png' %}" alt="Orbit Training Center" />
   </div>
 
   <div class="contact-top">
