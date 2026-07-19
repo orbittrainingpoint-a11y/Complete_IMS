@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ proposal.client_name }} — Corporate Training Proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --navy-deep: #0f1b2d;
+    --navy: #16233a;
+    --brand: #2563eb;
+    --royal: #2563eb;
+    --blue: #2563eb;
+    --cyan: #3b82f6;
+    --sky: #60a5fa;
+    --ink: #1e2a3d;
+    --muted: #64748b;
+    --line: #e4e9f2;
+    --light: #f6f8fc;
+    --card: #f8f9fb;
+    --gold: #f59e0b;
+
+    --display: "Montserrat", "Segoe UI", system-ui, sans-serif;
+    --body: "Open Sans", "Segoe UI", system-ui, sans-serif;
+
+    --hero-bg:
+      radial-gradient(120% 90% at 86% 6%, rgba(96,165,250,.55) 0%, rgba(96,165,250,0) 46%),
+      linear-gradient(128deg, #0f1b2d 0%, #16233a 40%, #2563eb 74%, #60a5fa 100%);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #59636f; }
+  body {
+    font-family: var(--body);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  h1, h2, h3, h4, .disp { font-family: var(--display); }
+
+  @page { size: A4 landscape; margin: 0; }
+
+  .page {
+    position: relative;
+    width: 297mm;
+    height: 210mm;
+    overflow: hidden;
+    background: #fff;
+    page-break-after: always;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    display: flex;
+    flex-direction: column;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  @media screen {
+    .page { margin: 14px auto; box-shadow: 0 12px 44px rgba(0,0,0,.35); }
+  }
+
+  .logo { display: inline-flex; align-items: center; gap: 9px; }
+  .logo .mark {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 6px solid currentColor; position: relative; flex: none;
+  }
+  .logo .mark::after {
+    content: ""; position: absolute; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--cyan);
+    top: -3px; right: -3px; border: 3px solid #fff;
+  }
+  .logo.on-dark .mark::after { border-color: transparent; }
+  .logo .wordmark { line-height: 1; }
+  .logo .wm-main {
+    font-family: var(--display); font-weight: 800; font-size: 20pt;
+    letter-spacing: 2px;
+  }
+  .logo .wm-sub {
+    font-family: var(--display); font-weight: 600; font-size: 8.2pt;
+    letter-spacing: 4.5px; text-transform: uppercase; margin-top: 2px;
+    opacity: .85;
+  }
+
+  .eyebrow-line { display: flex; align-items: center; gap: 12px; }
+  .eyebrow {
+    display: inline-flex; align-items: center;
+    background: #e7f0fd; color: var(--blue);
+    font-family: var(--display); font-weight: 700;
+    font-size: 9.5pt; letter-spacing: .14em;
+    padding: 3px 8px; border-radius: 20px; text-transform: uppercase;
+  }
+  .rule { height: 2px; flex: 1; background: linear-gradient(90deg, var(--line), transparent); }
+
+  .head-row {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 7mm 7mm 0 7mm;
+  }
+  .head-row h2 {
+    font-weight: 800; font-size: 27pt; color: var(--navy-deep);
+    margin-top: 5mm; letter-spacing: -.4px; line-height: 1.05;
+  }
+  .head-row .subt { color: var(--muted); font-size: 12pt; margin-top: 3mm; }
+  .head-row .logo { color: var(--navy-deep); }
+
+  /* ============================================================
+     PAGE 4 & 5 — REVIEWS
+     ============================================================ */
+  .reviews {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6mm;
+    padding: 4mm 8mm 6mm 8mm; flex: 1; align-content: start;
+  }
+  .reviews.two { grid-template-columns: 1fr 1fr; }
+  .rv {
+    background: var(--light); border: 1px solid var(--line);
+    border-radius: 14px; padding: 3mm 3mm; position: relative;
+    display: flex; flex-direction: column;
+  }
+  .rv .quote {
+    font-family: var(--display); font-weight: 800; font-size: 30pt;
+    color: var(--sky); line-height: .5; height: 14px; opacity: .5;
+  }
+  .rv p { font-size: 9.4pt; line-height: 1.5; color: var(--ink); margin: 3mm 0 4mm; }
+  .rv .who { display: flex; align-items: center; gap: 9px; margin-top: auto; }
+  .rv .av {
+    width: 10mm; height: 10mm; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    color: #fff; font-family: var(--display); font-weight: 800; font-size: 12pt;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .rv .name { font-family: var(--display); font-weight: 700; font-size: 10.5pt; color: var(--navy-deep); }
+  .rv .stars { color: var(--gold); font-size: 9pt; letter-spacing: 1px; }
+
+  .stats-bar {
+    margin: 2mm 16mm 12mm 16mm;
+    background: linear-gradient(135deg, var(--navy-deep), var(--brand));
+    border-radius: 16px; padding: 4mm 5mm; color: #fff;
+    display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 8mm; align-items: center;
+  }
+  .stats-bar .headline .big { font-family: var(--display); font-weight: 800; font-size: 20pt; line-height: 1.1; }
+  .stats-bar .headline .small { font-size: 10pt; color: #cdd9f5; margin-top: 2mm; }
+  .stat { text-align: center; border-left: 1px solid rgba(255,255,255,.22); }
+  .stat .n { font-family: var(--display); font-weight: 800; font-size: 22pt; }
+  .stat .l { font-size: 9.5pt; color: #cdd9f5; margin-top: 2px; }
+
+  /* ============================================================
+     PAGE 6 — CONTACT  (mirrors cover gradient — bookend)
+     ============================================================ */
+  .contact { background: var(--hero-bg); color: #fff; padding: 8mm 8mm; }
+  .contact .logo { color: #fff; }
+  .contact-top { display: grid; grid-template-columns: 1.15fr 1fr; gap: 12mm; margin-top: auto; margin-bottom: auto; }
+  .contact .pill {
+    display: inline-block; background: linear-gradient(90deg, #2563eb, #3b82f6);
+    color: #fff; font-family: var(--display); font-weight: 700; font-size: 10pt;
+    letter-spacing: .12em; text-transform: uppercase; padding: 4px 11px;
+    border-radius: 24px; margin-bottom: 7mm;
+  }
+  .contact h2 { font-weight: 800; font-size: 34pt; line-height: 1.06; letter-spacing: -.5px; }
+  .contact .lead { font-size: 11pt; line-height: 1.6; color: #e9f1ff; margin-top: 6mm; }
+  .offers { display: flex; gap: 6mm; margin-top: 8mm; }
+  .offer {
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+    border-radius: 12px; padding: 3mm 3mm;
+  }
+  .offer .b1 { font-family: var(--display); font-weight: 800; font-size: 16pt; }
+  .offer .b2 { font-size: 10pt; color: #dbe6ff; margin-top: 3px; }
+  .call { display: flex; align-items: center; gap: 12px; margin-top: 8mm; }
+  .call .cc {
+    width: 14mm; height: 14mm; border-radius: 11px; flex: none;
+    background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .call .cl1 { font-size: 10.5pt; color: #dbe6ff; }
+  .call .cl2 { font-family: var(--display); font-weight: 800; font-size: 17pt; }
+
+  .contact-panel {
+    background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.2);
+    border-radius: 16px; padding: 4mm 4mm; backdrop-filter: blur(3px);
+  }
+  .contact-panel h3 {
+    font-weight: 700; font-size: 17pt; padding-bottom: 4mm; margin-bottom: 5mm;
+    border-bottom: 2px solid rgba(255,255,255,.32); display: inline-block;
+  }
+  .crow { display: flex; gap: 12px; margin-bottom: 5mm; align-items: flex-start; }
+  .crow .ci {
+    width: 11mm; height: 11mm; border-radius: 9px; flex: none;
+    background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.2);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .crow .cl { font-size: 9.5pt; color: #bccbf0; }
+  .crow .cv { font-size: 11pt; font-weight: 700; line-height: 1.35; margin-top: 2px; }
+  .contact-foot {
+    margin-top: auto; border-top: 1px solid rgba(255,255,255,.24);
+    padding-top: 3mm; text-align: right; font-size: 10pt; color: #cdd8f2;
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== PAGE 4 — REVIEWS (1) ==================== -->
+<section class="page">
+  <div class="head-row">
+    <div>
+      <div class="eyebrow-line"><span class="eyebrow">Success Stories</span><span class="rule"></span></div>
+      <h2>Student Google Reviews</h2>
+      <div class="subt">Hear what our graduates say about their experience.</div>
+    </div>
+    <div class="logo"><span class="mark"></span><span class="wordmark"><span class="wm-main">ORBIT</span><span class="wm-sub">Training Center</span></span></div>
+  </div>
+
+  <div class="reviews">
+    <div class="rv"><div class="quote">"</div><p>One of the great institutes for the Revit BIM course. I completed my training with Mr Ahmed — a great trainer with very good knowledge of BIM training. It was a very nice learning journey, and the center is very flexible for classes.</p><div class="who"><div class="av">M</div><div><div class="name">Muppuli Raja</div><div class="stars">★★★★★</div></div></div></div>
+    <div class="rv"><div class="quote">"</div><p>I just finished my course in 3ds Max and learned a lot about creating 3D models. Thank you for the experience and the teaching method — it helped me understand easily and grow my knowledge. Highly recommended!</p><div class="who"><div class="av">R</div><div><div class="name">Ranjan Axalan</div><div class="stars">★★★★★</div></div></div></div>
+    <div class="rv"><div class="quote">"</div><p>Best SolidWorks training in Dubai! The instructor made 3D modeling and assembly design easy to understand. The course covered all essential tools I need for product design and engineering work.</p><div class="who"><div class="av">A</div><div><div class="name">Arun</div><div class="stars">★★★★★</div></div></div></div>
+    <div class="rv"><div class="quote">"</div><p>I had good support from trainer Mr Ahmed and the staff. They scheduled my BIM classes at my convenience and retook classes when needed. The trainer went a mile ahead helping me with work-related issues like a true mentor.</p><div class="who"><div class="av">N</div><div><div class="name">Numan</div><div class="stars">★★★★★</div></div></div></div>
+    <div class="rv"><div class="quote">"</div><p>My experience at Orbit Training Center has been the best. In every step I learn very clearly, and I've almost completed my course — it's very interesting. The trainer is professional and friendly, and the team keep it up.</p><div class="who"><div class="av">H</div><div><div class="name">Harshu CH</div><div class="stars">★★★★★</div></div></div></div>
+    <div class="rv"><div class="quote">"</div><p>Overall, I highly recommend the Fusion 360 training at Orbit Center, especially with Ahmad as the instructor. This course has exceeded my expectations, and I am learning a lot. I would rate it 5 out of 5 stars!</p><div class="who"><div class="av">L</div><div><div class="name">Lelanie Fernandez</div><div class="stars">★★★★★</div></div></div></div>
+  </div>
+</section>
+
+<!-- ==================== PAGE 5 — REVIEWS (2) + STATS ==================== -->
+<section class="page">
+  <div class="head-row">
+    <div>
+      <div class="eyebrow-line"><span class="eyebrow">Success Stories</span><span class="rule"></span></div>
+      <h2>Student Google Reviews</h2>
+      <div class="subt">Trusted by professionals across engineering, design, and IT.</div>
+    </div>
+    <div class="logo"><span class="mark"></span><span class="wordmark"><span class="wm-main">ORBIT</span><span class="wm-sub">Training Center</span></span></div>
+  </div>
+
+  <div class="reviews two">
+    <div class="rv"><div class="quote">"</div><p>I had a great learning experience at Orbit Training Center. The trainers are knowledgeable, supportive, and always ready to help. The clear, practical teaching methods really improved my skills and confidence. I highly recommend Orbit for AutoCAD, Revit, and other professional skills.</p><div class="who"><div class="av">A</div><div><div class="name">Aman Bakhtiyar</div><div class="stars">★★★★★</div></div></div></div>
+    <div class="rv"><div class="quote">"</div><p>I recently completed the online Digital Marketing course with Orbit — a great experience! The lessons were clear, practical, and easy to follow, and the trainers were knowledgeable and supportive. I've learned a lot that I can apply to my work here in Belgium. Highly recommend!</p><div class="who"><div class="av">S</div><div><div class="name">Sana Zahid</div><div class="stars">★★★★★</div></div></div></div>
+    <div class="rv"><div class="quote">"</div><p>Orbit Training Center offers outstanding CAD classes that are easy to understand, even as a first-year mechanical engineering student. The instructors simplify complex concepts with practical examples, making the process engaging and effective. Highly recommended!</p><div class="who"><div class="av">C</div><div><div class="name">Cleavon Henderson</div><div class="stars">★★★★★</div></div></div></div>
+    <div class="rv"><div class="quote">"</div><p>Just finished Primavera P6 training at Orbit and it was fantastic! The trainer made complex scheduling concepts easy with real-world examples. I got hands-on experience with planning, resource allocation, and progress tracking — well-structured and great value. Would recommend to any project manager!</p><div class="who"><div class="av">D</div><div><div class="name">Danish Khan</div><div class="stars">★★★★★</div></div></div></div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="headline">
+      <div class="big">500+ Students Trained</div>
+      <div class="small">Join our growing community of professionals.</div>
+    </div>
+    <div class="stat"><div class="n">95%</div><div class="l">Satisfaction rate</div></div>
+    <div class="stat"><div class="n">60+</div><div class="l">Courses offered</div></div>
+    <div class="stat"><div class="n">4.6</div><div class="l">Average rating</div></div>
+  </div>
+</section>
+
+<!-- ==================== PAGE 6 — CONTACT ==================== -->
+<section class="page contact">
+  <div class="logo on-dark">
+    <span class="mark"></span>
+    <span class="wordmark"><span class="wm-main">ORBIT</span><span class="wm-sub">Training Center</span></span>
+  </div>
+
+  <div class="contact-top">
+    <div>
+      <span class="pill">Get Started Today</span>
+      <h2>Get in Touch<br />with Us</h2>
+      <p class="lead">At Orbit Training Center, we offer a diverse range of professional courses covering in-demand fields such as Interior Design, Computer Science, Graphic Design, Digital Marketing, Solar Energy, and specialized software including STAAD Pro, Revit Architecture, and Tekla Structures — each crafted by industry experts for hands-on learning and certification preparation.</p>
+      <div class="offers">
+        <div class="offer"><div class="b1">Up to 30%</div><div class="b2">Early-bird discount</div></div>
+        <div class="offer"><div class="b1">Free</div><div class="b2">Demo session</div></div>
+      </div>
+      <div class="call">
+        <div class="cc"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5c0 8 7 15 15 15l2.5-.5-.5-4-4-1-1.5 2c-3-1.5-5.5-4-7-7l2-1.5-1-4-4-.5z"/></svg></div>
+        <div><div class="cl1">Call us now</div><div class="cl2">+971-58 545 0455</div></div>
+      </div>
+    </div>
+
+    <div class="contact-panel">
+      <h3>Contact Information</h3>
+      <div class="crow">
+        <div class="ci"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.5 7-11a7 7 0 0 0-14 0c0 5.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
+        <div><div class="cl">Visit us</div><div class="cv">211, Pinnacle Building, Sheikh Zayed Road,<br />Al Barsha, Dubai, United Arab Emirates</div></div>
+      </div>
+      <div class="crow">
+        <div class="ci"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5c0 8 7 15 15 15l2.5-.5-.5-4-4-1-1.5 2c-3-1.5-5.5-4-7-7l2-1.5-1-4-4-.5z"/></svg></div>
+        <div><div class="cl">Phone</div><div class="cv">+971-4 885 7590</div></div>
+      </div>
+      <div class="crow">
+        <div class="ci"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></div>
+        <div><div class="cl">Email</div><div class="cv">training@orbittraining.ae</div></div>
+      </div>
+      <div class="crow">
+        <div class="ci"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18"/></svg></div>
+        <div><div class="cl">Website · Hours</div><div class="cv">www.orbittraining.ae<br />9:00 AM – 9:00 PM · Mon – Sun</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="contact-foot">© {{ proposal.date|date:"Y" }} Orbit Training Center. All Rights Reserved.</div>
+</section>
+
+</body>
+</html>

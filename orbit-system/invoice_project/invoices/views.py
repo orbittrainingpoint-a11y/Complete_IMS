@@ -3421,34 +3421,16 @@ def delete_proposal(request, pk):
 def print_proposal(request, pk):
     try:
         proposal = get_object_or_404(Proposal, pk=pk)
-        
-        # Render your HTML to a string
-        html_string = render_to_string('proposal/proposal_template.html', {'proposal': proposal})
-        
-        # Convert HTML to PDF
-        html_pdf = WeasyHTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
-        
-        # Create a PDF merger object
-        merger = PdfMerger()
-        
-        # Add the HTML-generated PDF
-        merger.append(io.BytesIO(html_pdf))
 
-                # Use the first directory in STATICFILES_DIRS
-        static_dir = settings.STATICFILES_DIRS[0] if settings.STATICFILES_DIRS else ''
-        static_file_path = staticfiles_storage.path('aboutus.pdf')
-        try:
-            with staticfiles_storage.open('aboutus.pdf', 'rb') as f:
-                merger.append(f)
-        except FileNotFoundError:
-            print(f"Static PDF not found: aboutus.pdf")
-        except Exception as e:
-            print(f"Error appending static PDF: {str(e)}")
-        
-        # Get all course contents for the proposal's course
+        merger = PdfMerger()
+
+        # Pages 1-3: cover, about, course overview (dynamic, theme-matched)
+        front_html = render_to_string('proposal/proposal_front.html', {'proposal': proposal})
+        front_pdf = WeasyHTML(string=front_html, base_url=request.build_absolute_uri()).write_pdf()
+        merger.append(io.BytesIO(front_pdf))
+
+        # Course syllabus PDFs for the selected course
         course_contents = CourseContent.objects.filter(course=proposal.course)
-        
-        # Append each course content PDF
         for content in course_contents:
             if content.file and content.file.name.lower().endswith('.pdf'):
                 try:
@@ -3456,39 +3438,17 @@ def print_proposal(request, pk):
                         merger.append(PdfReader(file))
                 except Exception as e:
                     print(f"Error appending course content PDF: {str(e)}")
-        
-        # Append the trainer's profile PDF if available
+
+        # Trainer's profile PDF, if this proposal has one assigned
         if proposal.trainer and proposal.trainer.profile_pdf:
             try:
                 with default_storage.open(proposal.trainer.profile_pdf.name, 'rb') as file:
                     merger.append(PdfReader(file))
             except Exception as e:
                 print(f"Error appending trainer profile PDF: {str(e)}")
-        
-                        # Use the first directory in STATICFILES_DIRS
-        static_dir = settings.STATICFILES_DIRS[0] if settings.STATICFILES_DIRS else ''
-        static_file_path = staticfiles_storage.path('corporatedetail.pdf')
-        try:
-            with staticfiles_storage.open('corporatedetail.pdf', 'rb') as f:
-                merger.append(f)
-        except FileNotFoundError:
-            print(f"Static PDF not found: corporatedetail.pdf")
-        except Exception as e:
-            print(f"Error appending static PDF: {str(e)}")
 
-                        # Use the first directory in STATICFILES_DIRS
-        static_dir = settings.STATICFILES_DIRS[0] if settings.STATICFILES_DIRS else ''
-        static_file_path = staticfiles_storage.path('contactinfo.pdf')
-        try:
-            with staticfiles_storage.open('contactinfo.pdf', 'rb') as f:
-                merger.append(f)
-        except FileNotFoundError:
-            print(f"Static PDF not found: contactinfo.pdf")
-        except Exception as e:
-            print(f"Error appending static PDF: {str(e)}")
-
-         # **Append all company profile PDFs**
-        company_profiles = CompanyProfile.objects.exclude(company_pdf='')  # Exclude profiles without a PDF
+        # Company profile PDFs
+        company_profiles = CompanyProfile.objects.exclude(company_pdf='')
         for profile in company_profiles:
             if profile.company_pdf and profile.company_pdf.name.lower().endswith('.pdf'):
                 try:
@@ -3496,18 +3456,22 @@ def print_proposal(request, pk):
                         merger.append(PdfReader(file))
                 except Exception as e:
                     print(f"Error appending company profile PDF for {profile.name}: {str(e)}")
-        
-        
+
+        # Pages 4-6: reviews, stats, contact (closes out the document)
+        back_html = render_to_string('proposal/proposal_back.html', {'proposal': proposal})
+        back_pdf = WeasyHTML(string=back_html, base_url=request.build_absolute_uri()).write_pdf()
+        merger.append(io.BytesIO(back_pdf))
+
         # Write the merged PDF to a buffer
         buffer = io.BytesIO()
         merger.write(buffer)
         buffer.seek(0)
-        
+
         # Return the PDF as a response
         response = HttpResponse(buffer, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="{proposal.proposal_number}.pdf"'
         return response
-    
+
     except Exception as e:
         print(f"Error generating PDF: {str(e)}")
         return HttpResponseServerError("Failed to generate PDF")

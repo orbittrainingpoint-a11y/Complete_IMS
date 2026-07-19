@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ proposal.client_name }} — Corporate Training Proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --navy-deep: #0f1b2d;
+    --navy: #16233a;
+    --brand: #2563eb;
+    --royal: #2563eb;
+    --blue: #2563eb;
+    --cyan: #3b82f6;
+    --sky: #60a5fa;
+    --ink: #1e2a3d;
+    --muted: #64748b;
+    --line: #e4e9f2;
+    --light: #f6f8fc;
+    --card: #f8f9fb;
+    --gold: #f59e0b;
+
+    --display: "Montserrat", "Segoe UI", system-ui, sans-serif;
+    --body: "Open Sans", "Segoe UI", system-ui, sans-serif;
+
+    /* shared hero gradient — used by cover + contact so they bookend cohesively */
+    --hero-bg:
+      radial-gradient(120% 90% at 86% 6%, rgba(96,165,250,.55) 0%, rgba(96,165,250,0) 46%),
+      linear-gradient(128deg, #0f1b2d 0%, #16233a 40%, #2563eb 74%, #60a5fa 100%);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #59636f; }
+  body {
+    font-family: var(--body);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  h1, h2, h3, h4, .disp { font-family: var(--display); }
+
+  /* ---------- A4 LANDSCAPE PAGE MODEL ---------- */
+  @page { size: A4 landscape; margin: 0; }
+
+  .page {
+    position: relative;
+    width: 297mm;
+    height: 210mm;
+    overflow: hidden;
+    background: #fff;
+    page-break-after: always;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    display: flex;
+    flex-direction: column;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  @media screen {
+    .page { margin: 14px auto; box-shadow: 0 12px 44px rgba(0,0,0,.35); }
+  }
+
+  /* ---------- INLINE LOGO (self-contained, no external image) ---------- */
+  .logo { display: inline-flex; align-items: center; gap: 9px; }
+  .logo .mark {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 6px solid currentColor; position: relative; flex: none;
+  }
+  .logo .mark::after {
+    content: ""; position: absolute; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--cyan);
+    top: -3px; right: -3px; border: 3px solid #fff;
+  }
+  .logo.on-dark .mark::after { border-color: transparent; }
+  .logo .wordmark { line-height: 1; }
+  .logo .wm-main {
+    font-family: var(--display); font-weight: 800; font-size: 20pt;
+    letter-spacing: 2px;
+  }
+  .logo .wm-sub {
+    font-family: var(--display); font-weight: 600; font-size: 8.2pt;
+    letter-spacing: 4.5px; text-transform: uppercase; margin-top: 2px;
+    opacity: .85;
+  }
+
+  /* ---------- SHARED HEADER FOR LIGHT PAGES ---------- */
+  .eyebrow-line { display: flex; align-items: center; gap: 12px; }
+  .eyebrow {
+    display: inline-flex; align-items: center;
+    background: #e7f0fd; color: var(--blue);
+    font-family: var(--display); font-weight: 700;
+    font-size: 9.5pt; letter-spacing: .14em;
+    padding: 3px 8px; border-radius: 20px; text-transform: uppercase;
+  }
+  .rule { height: 2px; flex: 1; background: linear-gradient(90deg, var(--line), transparent); }
+
+  .head-row {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 7mm 7mm 0 7mm;
+  }
+  .head-row h2 {
+    font-weight: 800; font-size: 27pt; color: var(--navy-deep);
+    margin-top: 5mm; letter-spacing: -.4px; line-height: 1.05;
+  }
+  .head-row .subt { color: var(--muted); font-size: 12pt; margin-top: 3mm; }
+  .head-row .logo { color: var(--navy-deep); }
+
+  /* ============================================================
+     PAGE 1 — COVER
+     ============================================================ */
+  .cover { background: var(--hero-bg); color: #fff; padding: 8mm 8mm; }
+  .cover .logo { color: #fff; }
+  .cover .cover-body { margin-top: auto; margin-bottom: auto; }
+  .cover .pill {
+    display: inline-block;
+    background: linear-gradient(90deg, #2563eb, #3b82f6);
+    color: #fff; font-family: var(--display); font-weight: 700;
+    font-size: 10pt; letter-spacing: .12em; text-transform: uppercase;
+    padding: 4px 11px; border-radius: 24px; margin-bottom: 8mm;
+  }
+  .cover h1 {
+    font-weight: 800; font-size: 44pt; line-height: 1.04;
+    letter-spacing: -.5px; max-width: 210mm;
+  }
+  .cover h1 .accent { color: #bcd6ff; }
+  .cover .lead {
+    font-size: 12.5pt; line-height: 1.6; color: #e9f1ff;
+    max-width: 150mm; margin-top: 6mm; font-weight: 400;
+  }
+  .presented {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10mm;
+    max-width: 175mm; margin-top: 11mm;
+  }
+  .panel {
+    background: rgba(255,255,255,.09);
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 14px; padding: 4mm 5mm; backdrop-filter: blur(3px);
+  }
+  .panel h4 {
+    font-weight: 700; font-size: 10.5pt; letter-spacing: .1em;
+    text-transform: uppercase; color: #bcd0f5;
+    padding-bottom: 4mm; margin-bottom: 4mm;
+    border-bottom: 1px solid rgba(255,255,255,.22);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel h4 img { max-height: 22px; max-width: 70px; object-fit: contain; }
+  .panel p { font-size: 11.5pt; line-height: 1.6; color: #fff; }
+  .panel p strong { font-family: var(--display); font-weight: 700; }
+  .cover-foot {
+    margin-top: auto; border-top: 1px solid rgba(255,255,255,.28);
+    display: flex; justify-content: space-between; align-items: center;
+    padding-top: 3mm; font-size: 10.5pt; color: #e7eeff;
+  }
+
+  /* ============================================================
+     PAGE 2 — ABOUT
+     ============================================================ */
+  .about-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 7mm;
+    padding: 4mm 8mm 7mm 8mm; flex: 1;
+  }
+  .card { border-radius: 16px; padding: 4mm 4mm; }
+  .card-h { display: flex; align-items: center; gap: 11px; margin-bottom: 5mm; }
+  .card-h .ct {
+    width: 13mm; height: 13mm; border-radius: 11px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card-h h3 { font-weight: 700; font-size: 16pt; }
+  .card p { font-size: 11pt; line-height: 1.62; }
+
+  .card-dark { background: linear-gradient(135deg, var(--navy-deep), var(--brand)); color: #fff; }
+  .card-dark .ct { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25); }
+  .card-dark p { color: #e6edff; }
+
+  .card-soft { background: var(--light); border: 1px solid var(--line); color: var(--ink); }
+  .card-soft .ct { background: #e7f0fd; }
+  .card-soft h3 { color: var(--navy-deep); }
+
+  .card-cyan { background: linear-gradient(135deg, var(--blue), var(--cyan)); color: #fff; }
+  .card-cyan .ct { background: rgba(255,255,255,.18); }
+
+  .li {
+    display: flex; align-items: flex-start; gap: 10px;
+    font-size: 10.6pt; line-height: 1.4; margin-bottom: 3.6mm; color: var(--ink);
+  }
+  .li .dot { flex: none; margin-top: 1px; }
+
+  /* ============================================================
+     PAGE 3 — COURSE OVERVIEW
+     ============================================================ */
+  .course-body { padding: 4mm 9mm 7mm 9mm; flex: 1; display: flex; flex-direction: column; }
+  .course-top { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8mm; }
+
+  .desc-card {
+    background: linear-gradient(135deg, var(--navy-deep), var(--brand));
+    color: #fff; border-radius: 16px; padding: 4mm 5mm;
+  }
+  .desc-card h3 {
+    font-weight: 700; font-size: 15pt; margin-bottom: 4mm;
+    border-bottom: 2px solid rgba(255,255,255,.3); padding-bottom: 3mm; display: inline-block;
+  }
+  .desc-card p { font-size: 10.6pt; line-height: 1.6; color: #e6edff; }
+
+  .outcomes {
+    margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 7mm;
+  }
+  .outcomes .oc {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10pt; color: #eaf1ff;
+  }
+  .outcomes .oc svg { flex: none; }
+
+  .meta-col { display: flex; flex-direction: column; gap: 6mm; }
+  .meta-badge {
+    background: var(--light); border: 1px solid var(--line);
+    border-radius: 14px; padding: 3mm 4mm; display: flex; align-items: center; gap: 12px;
+  }
+  .meta-badge .mi {
+    width: 13mm; height: 13mm; border-radius: 11px; flex: none;
+    background: #e7f0fd; display: flex; align-items: center; justify-content: center;
+  }
+  .meta-badge .ml { font-size: 9.5pt; color: var(--muted); }
+  .meta-badge .mv { font-family: var(--display); font-weight: 800; font-size: 15pt; color: var(--navy-deep); }
+  .meta-badge .mv small { font-family: var(--body); font-weight: 400; font-size: 9pt; color: var(--muted); display: block; margin-top: 1px; }
+
+  .info-cols {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7mm; margin-top: 7mm;
+  }
+  .info-card { background: var(--light); border: 1px solid var(--line); border-radius: 14px; padding: 6mm 7mm; }
+  .info-card h4 {
+    font-weight: 700; font-size: 12.5pt; color: var(--navy-deep); margin-bottom: 4mm;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .info-card .row {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 10pt; line-height: 1.4; color: var(--ink); margin-bottom: 3mm;
+  }
+  .info-card .row .chev { color: var(--cyan); font-weight: 800; flex: none; }
+</style>
+</head>
+<body>
+
+<!-- ==================== PAGE 1 — COVER ==================== -->
+<section class="page cover">
+  <div class="logo on-dark">
+    <span class="mark"></span>
+    <span class="wordmark">
+      <span class="wm-main">ORBIT</span>
+      <span class="wm-sub">Training Center</span>
+    </span>
+  </div>
+
+  <div class="cover-body">
+    <span class="pill">Corporate Training Proposal</span>
+    <h1>{{ proposal.client_name }}<br /><span class="accent">Corporate Training Program</span></h1>
+    <p class="lead">A structured {{ proposal.course.name }} training engagement designed to build advanced professional capability across your team.</p>
+
+    <div class="presented">
+      <div class="panel">
+        <h4>Presented By</h4>
+        <p><strong>{{ proposal.presenter_title }}</strong><br />Corporate Course Consultant<br />Orbit Training Center<br />Al Barsha, Dubai</p>
+      </div>
+      <div class="panel">
+        <h4>Presented To{% if proposal.logo %} <img src="{{ proposal.logo.url }}" alt="{{ proposal.client_name }} logo" />{% endif %}</h4>
+        <p><strong>{{ proposal.client_name }}</strong><br />{{ proposal.location }}<br />Ref: {{ proposal.proposal_number }}<br />{{ proposal.date|date:"d F Y" }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-foot">
+    <span>Proposal No. {{ proposal.proposal_number }}</span>
+    <span>www.orbittraining.ae</span>
+  </div>
+</section>
+
+<!-- ==================== PAGE 2 — ABOUT ==================== -->
+<section class="page">
+  <div class="head-row">
+    <div>
+      <div class="eyebrow-line"><span class="eyebrow">About Us</span><span class="rule"></span></div>
+      <h2>About Orbit Training Center</h2>
+      <div class="subt">Your gateway to professional excellence in Dubai</div>
+    </div>
+    <div class="logo"><span class="mark"></span><span class="wordmark"><span class="wm-main">ORBIT</span><span class="wm-sub">Training Center</span></span></div>
+  </div>
+
+  <div class="about-grid">
+    <div class="card card-dark">
+      <div class="card-h">
+        <div class="ct"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-4 9 4-9 4-9-4z"/><path d="M7 11v4c0 1.5 2.5 3 5 3s5-1.5 5-3v-4"/><path d="M21 9v5"/></svg></div>
+        <h3>Who We Are</h3>
+      </div>
+      <p>Established in 2023, Orbit Training Center is a leading professional training provider in Dubai, offering 60+ professional certification courses across diverse fields, including engineering, IT, design, and languages.</p>
+    </div>
+
+    <div class="card card-soft">
+      <div class="card-h">
+        <div class="ct"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/><path d="M9 15h6M12 15v3M8 21h8"/></svg></div>
+        <h3>Our Benefits</h3>
+      </div>
+      <div class="li"><span class="dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l2.4 5 5.6.6-4 3.8 1 5.6-5-2.9-5 2.9 1-5.6-4-3.8 5.6-.6z"/></svg></span>Industry-recognized certifications</div>
+      <div class="li"><span class="dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.5 7-11a7 7 0 0 0-14 0c0 5.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></span>Convenient location in the heart of Dubai</div>
+      <div class="li"><span class="dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M14.5 9.3c-.6-.8-1.6-1.1-2.6-1.1-1.4 0-2.6.8-2.6 2s1.2 1.8 2.6 1.8 2.6.6 2.6 1.9-1.2 2-2.6 2c-1.1 0-2.1-.4-2.7-1.2"/></svg></span>Affordable fees with multiple payment plans</div>
+      <div class="li"><span class="dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="3" y="13" width="4" height="6" rx="1.5"/><rect x="17" y="13" width="4" height="6" rx="1.5"/><path d="M20 19a4 4 0 0 1-4 3h-2"/></svg></span>Lifetime post-training support</div>
+    </div>
+
+    <div class="card card-soft">
+      <div class="card-h">
+        <div class="ct"><svg width="22" height="22" viewBox="0 0 24 24" fill="#2563eb"><path d="M12 3l2.6 5.6 6 .6-4.4 4.2 1.2 6-5.4-3.2-5.4 3.2 1.2-6L3 9.2l6-.6z"/></svg></div>
+        <h3>Our Features</h3>
+      </div>
+      <div class="li"><span class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="#e7f0fd"/><path d="M8 12.2l2.6 2.6L16 9" stroke="#2563eb" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Hands-on learning with real-world projects</div>
+      <div class="li"><span class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="#e7f0fd"/><path d="M8 12.2l2.6 2.6L16 9" stroke="#2563eb" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Expert trainers with industry experience</div>
+      <div class="li"><span class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="#e7f0fd"/><path d="M8 12.2l2.6 2.6L16 9" stroke="#2563eb" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Flexible learning options to fit your schedule</div>
+      <div class="li"><span class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="#e7f0fd"/><path d="M8 12.2l2.6 2.6L16 9" stroke="#2563eb" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>State-of-the-art infrastructure &amp; facilities</div>
+    </div>
+
+    <div class="card card-cyan">
+      <div class="card-h">
+        <div class="ct"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="#fff"/></svg></div>
+        <h3>Our Mission</h3>
+      </div>
+      <p>We deliver outstanding courses, expert teaching, strong career guidance, and placement support to help every student achieve their best results. We stay connected with alumni through networking events, lifelong learning, and ongoing mentorship — running our operations with smart systems and data-driven decisions to create a smooth, exceptional experience for all.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== PAGE 3 — COURSE OVERVIEW ==================== -->
+<section class="page">
+  <div class="head-row">
+    <div>
+      <div class="eyebrow-line"><span class="eyebrow">Course Overview</span><span class="rule"></span></div>
+      <h2>{{ proposal.course.name }}</h2>
+      <div class="subt">A hands-on, instructor-led program built for professional, real-world application.</div>
+    </div>
+    <div class="logo"><span class="mark"></span><span class="wordmark"><span class="wm-main">ORBIT</span><span class="wm-sub">Training Center</span></span></div>
+  </div>
+
+  <div class="course-body">
+    <div class="course-top">
+      <div class="desc-card">
+        <h3>Course Description</h3>
+        <p>This program is delivered by industry-experienced trainers and combines structured theory with hands-on, project-based practice — giving your team the practical, job-ready skills to apply {{ proposal.course.name }} confidently in real work.</p>
+        <div class="outcomes">
+          <div class="oc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="rgba(255,255,255,.18)"/><path d="M8 12.2l2.6 2.6L16 9" stroke="#fff" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Master the core toolset</div>
+          <div class="oc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="rgba(255,255,255,.18)"/><path d="M8 12.2l2.6 2.6L16 9" stroke="#fff" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Apply industry best practices</div>
+          <div class="oc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="rgba(255,255,255,.18)"/><path d="M8 12.2l2.6 2.6L16 9" stroke="#fff" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Build real, portfolio-ready projects</div>
+          <div class="oc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="rgba(255,255,255,.18)"/><path d="M8 12.2l2.6 2.6L16 9" stroke="#fff" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Work through practical case studies</div>
+          <div class="oc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="rgba(255,255,255,.18)"/><path d="M8 12.2l2.6 2.6L16 9" stroke="#fff" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Get 1:1 trainer feedback</div>
+          <div class="oc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="rgba(255,255,255,.18)"/><path d="M8 12.2l2.6 2.6L16 9" stroke="#fff" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Graduate certification-ready</div>
+        </div>
+      </div>
+
+      <div class="meta-col">
+        <div class="meta-badge">
+          <div class="mi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <div><div class="ml">Format</div><div class="mv" style="font-size:13pt">Classroom / Online <small>Private batches available</small></div></div>
+        </div>
+        <div class="meta-badge">
+          <div class="mi"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.5 7-11a7 7 0 0 0-14 0c0 5.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></div>
+          <div><div class="ml">Venue</div><div class="mv" style="font-size:13pt">{{ proposal.location|default:"Al Barsha, Dubai" }}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-cols">
+      <div class="info-card">
+        <h4><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><path d="M16 6a3 3 0 0 1 0 5M18 20c0-2.4-1-4-3-4.6"/></svg>Target Audience</h4>
+        <div class="row"><span class="chev">›</span>Working professionals upskilling in their field</div>
+        <div class="row"><span class="chev">›</span>Teams standardizing on a shared toolset</div>
+        <div class="row"><span class="chev">›</span>Career switchers building job-ready skills</div>
+      </div>
+      <div class="info-card">
+        <h4><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5"/><path d="M9 13.5L8 21l4-2 4 2-1-7.5"/></svg>Certification</h4>
+        <div class="row"><span class="chev">›</span>Certificate of course completion</div>
+        <div class="row"><span class="chev">›</span>Industry-recognized certification</div>
+        <div class="row"><span class="chev">›</span>Trained by certified professionals</div>
+      </div>
+      <div class="info-card">
+        <h4><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M16 4v3h3M8 12h8M8 16h6"/></svg>Prerequisites</h4>
+        <div class="row"><span class="chev">›</span>Basic computer literacy</div>
+        <div class="row"><span class="chev">›</span>No prior software experience required</div>
+        <div class="row"><span class="chev">›</span>Interest in the subject area</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
