@@ -5429,8 +5429,17 @@ def cert_request_form(request, token):
                 'post_data': request.POST,
             })
 
+        class_starting_date = request.POST.get('class_starting_date', '').strip()
+        parsed_start = None
+        if class_starting_date:
+            try:
+                parsed_start = _dt.date.fromisoformat(class_starting_date)
+            except ValueError:
+                pass
+
         cert_req.course_completed = True
         cert_req.completion_date = parsed_date
+        cert_req.class_starting_date = parsed_start
         cert_req.class_rating = class_rating
         cert_req.class_feedback = class_feedback
         cert_req.client_notes = client_notes
@@ -5527,8 +5536,8 @@ def cert_request_generate(request, pk):
     certificate = Certificate.objects.create(
         register_number=reg.registration_number,
         student_name=f"{reg.first_name} {reg.last_name}",
-        course_name=cert_req.course_name,
-        from_date=parsed_from,
+        course_name=cert_req.course_name.title(),
+        from_date=parsed_from or cert_req.class_starting_date,
         end_date=parsed_end,
         grade=grade,
     )

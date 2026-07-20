@@ -616,6 +616,7 @@ class CertificationRequest(models.Model):
     sent_at = models.DateTimeField(auto_now_add=True)
     sent_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     # Filled by client on form submission
+    class_starting_date = models.DateField(null=True, blank=True)
     completion_date = models.DateField(null=True, blank=True)
     course_completed = models.BooleanField(null=True, blank=True)
     class_rating = models.CharField(max_length=20, blank=True,

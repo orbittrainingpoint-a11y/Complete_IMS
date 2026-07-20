@@ -100,6 +100,11 @@
               You have indicated that the course has not been completed. A certificate can only be issued after successful completion of the course. Please contact Orbit Training Centre for further assistance.
             </div>
 
+            <div id="startingDateGroup" class="mb-3" style="display:none;">
+              <label class="form-label">Class Starting Date <span class="text-danger">*</span></label>
+              <input type="date" name="class_starting_date" id="classStartingDate" class="form-control" value="{{ cert_req.registration.created_at|date:'Y-m-d' }}">
+            </div>
+
             <div id="completionDateGroup" class="mb-3" style="display:none;">
               <label class="form-label">Course Completion Date <span class="text-danger">*</span></label>
               <input type="date" name="completion_date" id="completionDate" class="form-control">
@@ -162,15 +167,18 @@ const dateInput    = document.getElementById('completionDate');
 const feedbackInput = document.getElementById('classFeedback');
 
 function checkReady() {
+  const startOk    = !!document.getElementById('classStartingDate').value;
   const dateOk     = !!dateInput.value;
   const ratingOk   = !!document.querySelector('input[name="class_rating"]:checked');
   const feedbackOk = feedbackInput.value.trim().length > 0;
-  submitBtn.disabled = !(dateOk && ratingOk && feedbackOk);
+  submitBtn.disabled = !(startOk && dateOk && ratingOk && feedbackOk);
 }
 
 sel.addEventListener('change', function() {
+  const startGrp = document.getElementById('startingDateGroup');
   if (this.value === 'yes') {
     notMsg.style.display      = 'none';
+    startGrp.style.display    = '';
     dateGrp.style.display     = '';
     ratingGrp.style.display   = '';
     feedbackGrp.style.display = '';
@@ -178,6 +186,7 @@ sel.addEventListener('change', function() {
     checkReady();
   } else if (this.value === 'no') {
     notMsg.style.display      = '';
+    startGrp.style.display    = 'none';
     dateGrp.style.display     = 'none';
     ratingGrp.style.display   = 'none';
     feedbackGrp.style.display = 'none';
@@ -185,6 +194,7 @@ sel.addEventListener('change', function() {
     submitBtn.disabled = true;
   } else {
     notMsg.style.display      = 'none';
+    startGrp.style.display    = 'none';
     dateGrp.style.display     = 'none';
     ratingGrp.style.display   = 'none';
     feedbackGrp.style.display = 'none';
@@ -193,6 +203,7 @@ sel.addEventListener('change', function() {
   }
 });
 
+document.getElementById('classStartingDate').addEventListener('change', checkReady);
 dateInput.addEventListener('change', checkReady);
 feedbackInput.addEventListener('input', checkReady);
 document.querySelectorAll('input[name="class_rating"]').forEach(r => r.addEventListener('change', checkReady));
