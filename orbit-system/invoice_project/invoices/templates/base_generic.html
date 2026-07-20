@@ -643,7 +643,7 @@
             </a>
         </div>
         <div class="nav-item">
-            <a href="{% url 'corporate_dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'corporate_dashboard' %}active{% endif %}">
+            <a href="{% url 'corporate_dashboard' %}" class="nav-link {% if request.resolver_match.url_name in 'corporate_dashboard,corporate_registration,corporate_tax_invoice_search,create_tax_invoice_from_pi,corporate_invoice_detail,print_corporate_registration,edit_corporate_registration,corporate_company_list,corporate_company_create,corporate_company_detail,corporate_company_edit,corporate_company_delete,corporate_add_candidate,corporate_company_generate_portal,corporate_legacy_registrations' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-building"></i></span> Corporate
             </a>
         </div>
