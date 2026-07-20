@@ -24,7 +24,7 @@
         </div>
 
         <div class="dynamic-data course-name">
-            {{ certificate.course_name|default:"Course Title"|lower|capfirst }}
+            {{ certificate.course_name|default:"Course Title"|title }}
         </div>
 
         <div class="dynamic-data inline-text grade">
