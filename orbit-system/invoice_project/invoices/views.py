@@ -5536,7 +5536,7 @@ def cert_request_generate(request, pk):
     certificate = Certificate.objects.create(
         register_number=reg.registration_number,
         student_name=f"{reg.first_name} {reg.last_name}",
-        course_name=cert_req.course_name.title(),
+        course_name=cert_req.course_name,
         from_date=parsed_from or cert_req.class_starting_date,
         end_date=parsed_end,
         grade=grade,
