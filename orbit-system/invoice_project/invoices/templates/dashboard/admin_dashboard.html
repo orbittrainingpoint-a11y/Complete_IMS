@@ -105,6 +105,31 @@
     </div>
 </div>
 
+<!-- ── SALES & TAX BREAKDOWN (admin only — this dashboard is only ever rendered for admins) ── -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-4 col-sm-6">
+        <div class="kpi-card" style="border-color:var(--primary);background:rgba(37,99,235,.03);">
+            <div class="kpi-icon icon-blue"><i class="fas fa-sigma"></i></div>
+            <div class="kpi-value" style="font-size:20px;color:var(--primary);">AED {{ month_sales_gross|floatformat:2 }}</div>
+            <div class="kpi-label">Total Sales This Month (incl. VAT)</div>
+        </div>
+    </div>
+    <div class="col-xl-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-green"><i class="fas fa-dollar-sign"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ month_sales_net|floatformat:2 }}</div>
+            <div class="kpi-label">Net Sales This Month (excl. VAT)</div>
+        </div>
+    </div>
+    <div class="col-xl-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-icon icon-cyan"><i class="fas fa-percent"></i></div>
+            <div class="kpi-value" style="font-size:20px;">AED {{ month_sales_vat|floatformat:2 }}</div>
+            <div class="kpi-label">Total VAT This Month (5%)</div>
+        </div>
+    </div>
+</div>
+
 <!-- ── CHARTS ROW ─────────────────────────────────────────────── -->
 <div class="row g-3 mb-4">
     <!-- monthly revenue line chart -->

@@ -2614,6 +2614,12 @@ def _admin_dashboard(request):
                         .aggregate(t=Sum('amount_paid'))['t'] or 0
     rev_pct, rev_dir = _pct_change(month_revenue, prev_revenue)
 
+    # Sales & tax breakdown (this month) — amount_paid is stored excl. VAT, matching vat_report's convention
+    VAT_RATE = Decimal('0.05')
+    month_sales_net   = Decimal(str(month_revenue))
+    month_sales_vat   = (month_sales_net * VAT_RATE).quantize(Decimal('0.01'))
+    month_sales_gross = (month_sales_net + month_sales_vat).quantize(Decimal('0.01'))
+
     month_regs = Registration.objects.filter(date__gte=first, date__lte=last).count()
     prev_regs  = Registration.objects.filter(date__gte=prev_first, date__lte=prev_last).count()
     reg_pct, reg_dir = _pct_change(month_regs, prev_regs)
@@ -2733,6 +2739,9 @@ def _admin_dashboard(request):
         'current_month_label': _month_label(today),
         'month_revenue': float(month_revenue),
         'revenue_trend_pct': rev_pct, 'revenue_trend_dir': rev_dir,
+        'month_sales_net': float(month_sales_net),
+        'month_sales_vat': float(month_sales_vat),
+        'month_sales_gross': float(month_sales_gross),
         'month_registrations': month_regs,
         'reg_trend_pct': reg_pct, 'reg_trend_dir': reg_dir,
         'outstanding_amount': float(outstanding),
@@ -3288,9 +3297,36 @@ def orbit_dashboard_legacy(request):
 
 def certificate_dashboard(request):
     all_certs = Certificate.objects.all().order_by('-created_at')
+
+    register_number  = request.GET.get('register_number', '').strip()
+    student_name     = request.GET.get('student_name', '').strip()
+    course_name      = request.GET.get('course_name', '').strip()
+    certificate_type = request.GET.get('certificate_type', '').strip()
+
+    if register_number:
+        all_certs = all_certs.filter(register_number__icontains=register_number)
+    if student_name:
+        all_certs = all_certs.filter(student_name__icontains=student_name)
+    if course_name:
+        all_certs = all_certs.filter(course_name__icontains=course_name)
+    if certificate_type:
+        all_certs = all_certs.filter(certificate_type__iexact=certificate_type)
+
+    khda_count     = all_certs.filter(certificate_type__iexact='khda').count()
+    internal_count = all_certs.exclude(certificate_type__iexact='khda').count()
+
     paginator = Paginator(all_certs, 30)
     certificates = paginator.get_page(request.GET.get('page', 1))
-    return render(request, 'certificates/dashboard.html', {'certificates': certificates})
+
+    return render(request, 'certificates/dashboard.html', {
+        'certificates': certificates,
+        'register_number': register_number,
+        'student_name': student_name,
+        'course_name': course_name,
+        'certificate_type': certificate_type,
+        'khda_count': khda_count,
+        'internal_count': internal_count,
+    })
 
 @require_POST
 def create_certificate(request):
