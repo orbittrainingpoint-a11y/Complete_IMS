@@ -123,6 +123,21 @@
                 </div>
                 <div id="corpResult" class="mt-3"></div>
                 <div id="corpCourseFields" class="mt-3"></div>
+                <div id="corpCustomItems" class="mt-2"></div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="addCustomItemBtn">
+                        <i class="fas fa-plus me-1"></i>Add Custom Item
+                    </button>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">
+                        Add a course, a custom price, and a pax count directly — no registered student required.
+                        If a course already has a row above, edit that row instead of adding it again here.
+                    </div>
+                </div>
+                <select id="allCoursesData" style="display:none;">
+                    {% for c in courses %}
+                    <option value="{{ c.id }}" data-rate="{{ c.rate }}">{{ c.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
         </div>
 
@@ -277,9 +292,10 @@ function setMode(mode) {
 
 function calcTotals() {
     let subtotal = 0;
-    const activeFields = _currentMode === 'corporate' ? '#corpCourseFields .course-pill' : '#courseFields .course-pill';
+    const activeFields = _currentMode === 'corporate' ? '#corpCourseFields .course-pill, #corpCustomItems .course-pill' : '#courseFields .course-pill';
     $(activeFields).each(function() {
-        const rate    = parseFloat($(this).data('rate') || 0);
+        const priceInp = $(this).find('.price-inp');
+        const rate    = parseFloat(priceInp.length ? priceInp.val() : $(this).data('rate') || 0);
         const qty     = parseInt($(this).find('.qty-inp').val() || 1);
         const persons = _currentMode === 'corporate' ? 1 : parseInt($('#id_number_of_person').val() || 1);
         subtotal += rate * qty * persons;
@@ -426,6 +442,7 @@ function loadCorpPiData(companyId, companyName) {
     const params = companyId ? `company_id=${companyId}` : `company_name=${encodeURIComponent(companyName)}`;
     $('#corpResult').html('<div style="font-size:13px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin me-2"></i>Loading company data…</div>');
     $('#corpCourseFields').empty();
+    $('#corpCustomItems').empty();
     $.ajax({
         url: `/api/corporate-pi-data/?${params}`,
         dataType: 'json',
@@ -448,31 +465,33 @@ function loadCorpPiData(companyId, companyName) {
 
             $('#corpCourseFields').empty();
             if (!data.courses.length) {
-                $('#corpCourseFields').html('<div class="alert alert-warning" style="font-size:13px;"><i class="fas fa-exclamation-triangle me-2"></i>No courses found for candidates under this company. Please add courses to candidates first.</div>');
+                $('#corpCourseFields').html('<div class="alert alert-warning" style="font-size:13px;"><i class="fas fa-exclamation-triangle me-2"></i>No candidates registered under this company yet. Use "Add Custom Item" below to generate a PI on pax count and a custom price.</div>');
+                calcTotals();
                 return;
             }
             data.courses.forEach(c => {
                 const names = c.candidates.join(', ');
-                const lineTotal = (c.unit_price * c.candidate_count).toFixed(2);
                 $('#corpCourseFields').append(`
-                    <div class="course-pill" data-rate="${c.unit_price}" data-id="${c.course_id}">
+                    <div class="course-pill" data-id="${c.course_id}">
                         <input type="hidden" name="course_${c.course_id}" value="${c.course_id}">
-                        <input type="hidden" name="unit_price_${c.course_id}" value="${c.unit_price}">
                         <input type="hidden" name="description_${c.course_id}" value="Candidates: ${names}">
                         <div style="flex:1;min-width:0;">
                             <div class="course-pill-name">${c.course_name}</div>
                             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" title="${names}">
                                 <i class="fas fa-users me-1"></i>${c.candidate_count} candidate${c.candidate_count>1?'s':''}: ${names.length > 60 ? names.substring(0,60)+'…' : names}
                             </div>
-                            <div style="font-size:12px;color:var(--text-muted);">AED ${parseFloat(c.unit_price).toFixed(2)} / person</div>
                         </div>
                         <div class="d-flex align-items-center gap-2 ms-3">
+                            <label style="font-size:12px;color:var(--text-muted);white-space:nowrap;">Price/person</label>
+                            <input type="number" name="unit_price_${c.course_id}" value="${parseFloat(c.unit_price).toFixed(2)}" min="0" step="0.01" class="form-control price-inp" style="width:100px;" title="Custom price — defaults to the price set at registration, editable here">
+                        </div>
+                        <div class="d-flex align-items-center gap-2 ms-2">
                             <label style="font-size:12px;color:var(--text-muted);white-space:nowrap;">Qty (persons)</label>
                             <input type="number" name="quantity_${c.course_id}" value="${c.candidate_count}" min="1" class="form-control qty-inp" style="width:80px;">
                         </div>
                     </div>`);
             });
-            $('#corpCourseFields .qty-inp').on('input', calcTotals);
+            $('#corpCourseFields .qty-inp, #corpCourseFields .price-inp').on('input', calcTotals);
             calcTotals();
         },
         error: function() {
@@ -480,6 +499,74 @@ function loadCorpPiData(companyId, companyName) {
         }
     });
 }
+
+// ── Custom item (course + custom price + pax, no registered student needed) ──
+let _customItemSeq = 0;
+function addCustomCorpItem() {
+    // If this course is already listed above (auto row or a previous custom row), just point the user at it
+    // instead of creating a duplicate — same course_id would silently overwrite the earlier row on submit.
+    function courseAlreadyListed(courseId) {
+        return $('#corpCourseFields .course-pill[data-id="' + courseId + '"], #corpCustomItems .course-pill[data-id="' + courseId + '"]').length > 0;
+    }
+
+    const firstOption = $('#allCoursesData option').first();
+    if (!firstOption.length) return;
+
+    _customItemSeq += 1;
+    const rowId = 'custom_' + _customItemSeq;
+    const row = $(`
+        <div class="course-pill" data-id="" data-custom-row="${rowId}">
+            <input type="hidden" class="custom-course-input" name="" value="">
+            <input type="hidden" class="custom-desc-input" name="" value="Custom item">
+            <div style="flex:1;min-width:0;">
+                <select class="form-select custom-course-select" style="max-width:260px;"></select>
+            </div>
+            <div class="d-flex align-items-center gap-2 ms-3">
+                <label style="font-size:12px;color:var(--text-muted);white-space:nowrap;">Price/person</label>
+                <input type="number" class="form-control price-inp custom-price-input" name="" value="0" min="0" step="0.01" style="width:100px;">
+            </div>
+            <div class="d-flex align-items-center gap-2 ms-2">
+                <label style="font-size:12px;color:var(--text-muted);white-space:nowrap;">Qty (persons)</label>
+                <input type="number" class="form-control qty-inp custom-qty-input" name="" value="1" min="1" style="width:80px;">
+            </div>
+            <button type="button" class="btn btn-outline-danger btn-sm ms-2 custom-remove-btn" title="Remove"><i class="fas fa-times"></i></button>
+        </div>`);
+
+    const select = row.find('.custom-course-select');
+    $('#allCoursesData option').each(function() {
+        select.append(`<option value="${$(this).val()}" data-rate="${$(this).data('rate')}">${$(this).text()}</option>`);
+    });
+
+    function applyCourseSelection() {
+        const courseId = select.val();
+        const rate = select.find('option:selected').data('rate') || 0;
+        row.attr('data-id', courseId);
+        row.find('.custom-course-input').attr('name', 'course_' + courseId).val(courseId);
+        row.find('.custom-desc-input').attr('name', 'description_' + courseId);
+        row.find('.custom-price-input').attr('name', 'unit_price_' + courseId).val(parseFloat(rate).toFixed(2));
+        row.find('.custom-qty-input').attr('name', 'quantity_' + courseId);
+    }
+
+    select.on('change', function() {
+        if (courseAlreadyListed($(this).val())) {
+            alert('This course already has a row above — edit that row\'s price/pax instead of adding it again here.');
+        }
+        applyCourseSelection();
+        calcTotals();
+    });
+    applyCourseSelection();
+
+    row.find('.custom-remove-btn').on('click', function() {
+        row.remove();
+        calcTotals();
+    });
+
+    row.find('.price-inp, .qty-inp').on('input', calcTotals);
+
+    $('#corpCustomItems').append(row);
+    calcTotals();
+}
+$('#addCustomItemBtn').on('click', addCustomCorpItem);
 
 // Corporate company autocomplete
 let _corpTimer = null;

@@ -586,7 +586,7 @@ def create_purchase_invoice(request):
                         invoice.client.save()
                 except Registration.DoesNotExist:
                     form.add_error('registration_number', 'Invalid registration number')
-                    return render(request, 'invoices/create_purchase_invoice.html', {'form': form})
+                    return render(request, 'invoices/create_purchase_invoice.html', {'form': form, 'courses': Course.objects.all()})
             else:
                 # Corporate mode or manual entry — create/get client from form fields
                 invoice.client, created = Client.objects.get_or_create(
@@ -634,7 +634,7 @@ def create_purchase_invoice(request):
     else:
         form = PurchaseInvoiceForm(user=request.user)
         
-    return render(request, 'invoices/create_purchase_invoice.html', {'form': form})
+    return render(request, 'invoices/create_purchase_invoice.html', {'form': form, 'courses': Course.objects.all()})
 
 @login_required
 def add_invoice_items(request, invoice_id):
