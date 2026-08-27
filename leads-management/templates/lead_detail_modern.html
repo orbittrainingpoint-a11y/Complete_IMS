@@ -183,6 +183,26 @@
 .btn-primary-custom { background: linear-gradient(135deg, #2563eb, #3b82f6); border: none; border-radius: 8px; padding: 8px 20px; font-weight: 600; color: #fff; }
 .btn-primary-custom:hover { background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #fff; }
 .edit-btn { background: #2563eb; color: white; border: none; border-radius: 8px; padding: 8px 20px; font-weight: 600; }
+
+/* Quote course picker: type-to-search dropdown + selected chips (with optional per-course price) */
+.qcp-wrap { position:relative; }
+.qcp-dropdown {
+    display:none; position:absolute; z-index:20; top:calc(100% + 4px); left:0; right:0;
+    max-height:200px; overflow-y:auto; background:var(--card-bg,#fff); border:1px solid var(--border,#e2e8f0);
+    border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.12);
+}
+.qcp-dropdown.show { display:block; }
+.qcp-dropdown-item { padding:8px 12px; font-size:13px; cursor:pointer; color:var(--text,#374151); }
+.qcp-dropdown-item:hover { background:rgba(37,99,235,.08); }
+.qcp-dropdown-empty { padding:8px 12px; font-size:12px; color:#94a3b8; }
+.qcp-chip {
+    display:flex; align-items:center; gap:8px; background:rgba(37,99,235,.06);
+    border:1px solid rgba(37,99,235,.2); border-radius:8px; padding:6px 8px;
+}
+.qcp-chip .qcp-chip-name { flex:1; font-size:13px; color:var(--text,#1e293b); }
+.qcp-chip .qcp-chip-amount { width:100px; }
+.qcp-chip .qcp-chip-remove { cursor:pointer; color:#94a3b8; font-size:12px; }
+.qcp-chip .qcp-chip-remove:hover { color:#ef4444; }
 </style>
 {% endblock %}
 
@@ -218,7 +238,7 @@
           {% if lead.phone %}<a class="hcontact" href="tel:{{ lead.phone }}"><i class="fas fa-phone"></i>{{ lead.phone }}</a>{% endif %}
           {% if lead.email %}<a class="hcontact" href="mailto:{{ lead.email }}"><i class="fas fa-envelope"></i>{{ lead.email }}</a>{% endif %}
           {% if lead.whatsapp %}<a class="hcontact" href="https://wa.me/{{ lead.whatsapp|replace('+','') }}" target="_blank"><i class="fab fa-whatsapp"></i>{{ lead.whatsapp }}</a>{% endif %}
-          {% if lead.course_interest %}<span class="hcontact"><i class="fas fa-book"></i>{{ lead.course_interest.name }}</span>{% endif %}
+          {% if interested_courses %}<span class="hcontact"><i class="fas fa-book"></i>{{ interested_courses|map(attribute='name')|join(', ') }}</span>{% endif %}
         </div>
       </div>
 
@@ -249,8 +269,8 @@
     <!-- stats strip -->
     <div class="hero-stats">
       <div class="hstat">
-        <div class="hstat-val">{{ 'AED {:,.0f}'.format(lead.quoted_amount) if lead.quoted_amount and lead.quoted_amount > 0 else '—' }}</div>
-        <div class="hstat-label">Quoted</div>
+        <div class="hstat-val">{{ 'AED {:,.0f}'.format(total_quoted_amount) if total_quoted_amount and total_quoted_amount > 0 else '—' }}</div>
+        <div class="hstat-label">Quoted{% if quote_entries|length > 1 %} ({{ quote_entries|length }} quotes){% endif %}</div>
       </div>
       <div class="hstat">
         <div class="hstat-val">{{ lead.lead_source or '—' }}</div>
@@ -307,13 +327,15 @@
                 <span class="status-badge status-{{ lead.status.lower() }}">{{ lead.status }}</span>
               </span>
             </div>
-            {% if lead.course_interest %}
+            {% if interested_courses %}
             <div class="info-item">
               <div class="info-icon">
                 <i class="fas fa-graduation-cap"></i>
               </div>
-              <span class="info-label">Course Interest</span>
-              <span class="info-value">{{ lead.course_interest.name }}</span>
+              <span class="info-label">Course{{ 's' if interested_courses|length > 1 else '' }} Interested In</span>
+              <span class="info-value">
+                {% for c in interested_courses %}<span class="badge bg-info me-1" style="font-size:11px;">{{ c.name }}</span>{% endfor %}
+              </span>
             </div>
             {% endif %}
             <div class="info-item">
@@ -378,7 +400,8 @@
                 <p class="text-muted mb-0">Est. revenue</p>
               </div>
               <div class="text-end">
-                <h5 class="mb-0">AED {{ lead.quoted_amount or 0 }}</h5>
+                <h5 class="mb-0">AED {{ '{:,.0f}'.format(total_quoted_amount) if total_quoted_amount else 0 }}</h5>
+                {% if quote_entries|length > 1 %}<p class="text-muted mb-0" style="font-size:11px;">across {{ quote_entries|length }} quotes</p>{% endif %}
                 {% if lead.next_followup_date %}
                 <p class="text-muted mb-0">Next meeting: {{ lead.next_followup_date.strftime('%b %d, %Y') }}</p>
                 {% endif %}
@@ -394,29 +417,29 @@
               </div>
               <h6 class="mb-0" style="font-weight:700;">New Quotation</h6>
             </div>
-            <form method="POST" action="{{ url_for('main.add_lead_quote', id=lead.id) }}">
+            <div class="btn-group w-100 mb-3" role="group" style="border-radius:8px;overflow:hidden;">
+              <input type="radio" class="btn-check" name="quoteModeToggle" id="quoteModeIndividual" checked onchange="setQuoteMode('individual')">
+              <label class="btn btn-outline-primary btn-sm" for="quoteModeIndividual">Price per Course</label>
+              <input type="radio" class="btn-check" name="quoteModeToggle" id="quoteModeTotal" onchange="setQuoteMode('total')">
+              <label class="btn btn-outline-primary btn-sm" for="quoteModeTotal">One Total Price</label>
+            </div>
+            <form method="POST" action="{{ url_for('main.add_lead_quote', id=lead.id) }}" id="quoteFormEl">
+              <input type="hidden" name="mode" id="quoteModeField" value="individual">
               <div class="mb-3">
-                <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">Course</label>
-                <select name="course_id" class="form-select form-select-sm" required style="border-radius:8px;">
-                  {% if lead.course_interest %}
-                  <option value="{{ lead.course_interest.id }}" selected>{{ lead.course_interest.name }}</option>
-                  {% endif %}
-                  {% for c in courses %}
-                  {% if not lead.course_interest or c.id != lead.course_interest.id %}
-                  <option value="{{ c.id }}">{{ c.name }}</option>
-                  {% endif %}
-                  {% endfor %}
-                </select>
+                <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">Courses</label>
+                <div class="qcp-wrap">
+                  <input type="text" class="form-control form-control-sm" id="quoteCourseSearch" placeholder="Type to search a course…" autocomplete="off" style="border-radius:8px;">
+                  <div class="qcp-dropdown" id="quoteCourseDropdown"></div>
+                </div>
+                <div class="mt-2 d-flex flex-column gap-1" id="quoteCourseSelected"></div>
               </div>
-              <div class="row g-2 mb-3">
-                <div class="col-7">
-                  <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">Amount (AED)</label>
-                  <input type="number" class="form-control form-control-sm" name="quoted_amount" placeholder="0.00" step="0.01" min="0" required style="border-radius:8px;">
-                </div>
-                <div class="col-5">
-                  <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">Valid Until</label>
-                  <input type="date" class="form-control form-control-sm" name="valid_until" required style="border-radius:8px;">
-                </div>
+              <div class="mb-3" id="quoteTotalWrap" style="display:none;">
+                <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">Total Amount (AED)</label>
+                <input type="number" class="form-control form-control-sm" name="total_amount" id="quoteTotalAmount" placeholder="0.00" step="0.01" min="0" style="border-radius:8px;">
+              </div>
+              <div class="mb-3">
+                <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">Valid Until</label>
+                <input type="date" class="form-control form-control-sm" name="valid_until" required style="border-radius:8px;">
               </div>
               <div class="mb-3">
                 <label class="form-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">Notes</label>
@@ -433,23 +456,41 @@
         <!-- Right Column - Quotes -->
         <div class="col-lg-7">
           <div class="general-info-card">
-            <h5 class="mb-3">Quotes ({{ quotes|length }})</h5>
-            {% if quotes %}
-              {% for quote in quotes %}
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h5 class="mb-0">Quotes ({{ quote_entries|length }})</h5>
+              {% if quote_entries|length > 1 %}
+              <span class="badge bg-primary" style="font-size:12px;font-weight:600;padding:6px 10px;">Total: AED {{ '{:,.0f}'.format(total_quoted_amount) }}</span>
+              {% endif %}
+            </div>
+            {% if quote_entries %}
+              {% for entry in quote_entries %}
+              {% set quote = entry.data %}
               <div class="activity-item mb-3">
                 <div class="activity-header">
                   <div class="activity-icon quote">
-                    <i class="fas fa-file-invoice-dollar"></i>
+                    <i class="fas fa-{{ 'layer-group' if entry.kind == 'bundle' else 'file-invoice-dollar' }}"></i>
                   </div>
                   <div>
+                    {% if entry.kind == 'bundle' %}
+                    <h6 class="mb-1">
+                      <span class="badge bg-warning text-dark me-1" style="font-size:9px;">BUNDLE</span>
+                      {{ quote.items|map(attribute='course.name')|join(' + ') }}
+                    </h6>
+                    {% else %}
                     <h6 class="mb-1">{{ quote.course.name }}</h6>
+                    {% endif %}
                     <div class="activity-meta">
                       {{ quote.created_at.strftime('%H:%M - %b %d, %Y') }}
                     </div>
                   </div>
                   <div class="text-end">
+                    {% if entry.kind == 'bundle' %}
+                    <h5 class="mb-0 text-primary">{{ quote.currency }} {{ quote.total_amount }}<small class="text-muted" style="font-size:11px;font-weight:400;"> total</small></h5>
+                    {% else %}
                     <h5 class="mb-0 text-primary">{{ quote.currency }} {{ quote.quoted_amount }}</h5>
+                    {% endif %}
                     <small class="text-muted">Valid until: {{ quote.valid_until.strftime('%b %d, %Y') }}</small>
+                    {% if entry.kind != 'bundle' %}
                     <div class="mt-2">
                       <button class="btn btn-sm btn-outline-primary" onclick="editQuote({{ quote.id }})">
                         <i class="fas fa-edit"></i> Edit
@@ -458,6 +499,7 @@
                         <i class="fas fa-money-bill"></i> Edit Amount
                       </button>
                     </div>
+                    {% endif %}
                   </div>
                 </div>
                 {% if quote.quote_notes %}
@@ -680,6 +722,90 @@ function editQuote(quoteId) {
   alert('Quote editing functionality will be implemented');
 }
 
+// ── Quote course picker: type-to-search dropdown + chips (optional per-chip price) ──
+const QUOTE_COURSES = [
+  {% for c in courses %}{ id: {{ c.id }}, name: {{ c.name|tojson }} },
+  {% endfor %}
+];
+const QUOTE_PRESELECTED = [{% for c in interested_courses %}{{ c.id }},{% endfor %}];
+
+function qcpGetSelectedIds() {
+  return Array.from(document.querySelectorAll('#quoteCourseSelected .qcp-chip')).map(chip => parseInt(chip.dataset.id, 10));
+}
+
+function qcpRenderDropdown(query) {
+  const dropdown = document.getElementById('quoteCourseDropdown');
+  const selected = new Set(qcpGetSelectedIds());
+  const q = (query || '').trim().toLowerCase();
+  const matches = QUOTE_COURSES.filter(c => !selected.has(c.id) && (!q || c.name.toLowerCase().includes(q)));
+  dropdown.innerHTML = '';
+  if (matches.length === 0) {
+    dropdown.innerHTML = '<div class="qcp-dropdown-empty">No matching courses</div>';
+  } else {
+    matches.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'qcp-dropdown-item';
+      item.textContent = c.name;
+      item.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        qcpAddCourse(c.id, c.name);
+      });
+      dropdown.appendChild(item);
+    });
+  }
+  dropdown.classList.add('show');
+}
+
+function qcpAddCourse(id, name) {
+  const wrap = document.getElementById('quoteCourseSelected');
+  const isTotal = document.getElementById('quoteModeField').value === 'total';
+  const chip = document.createElement('div');
+  chip.className = 'qcp-chip';
+  chip.dataset.id = id;
+  chip.innerHTML =
+    '<span class="qcp-chip-name"></span>' +
+    '<input type="number" class="form-control form-control-sm qcp-chip-amount" name="amounts[]" placeholder="0.00" step="0.01" min="0" style="' + (isTotal ? 'display:none;' : '') + '">' +
+    '<input type="hidden" name="course_ids[]" value="' + id + '">' +
+    '<i class="fas fa-times qcp-chip-remove"></i>';
+  chip.querySelector('.qcp-chip-name').textContent = name;
+  chip.querySelector('.qcp-chip-amount').required = !isTotal;
+  chip.querySelector('.qcp-chip-remove').addEventListener('click', () => chip.remove());
+  wrap.appendChild(chip);
+  const search = document.getElementById('quoteCourseSearch');
+  search.value = '';
+  document.getElementById('quoteCourseDropdown').classList.remove('show');
+  search.focus();
+}
+
+// ── Individual / Total quote mode ───────────────────────────────────────────
+function setQuoteMode(mode) {
+  document.getElementById('quoteModeField').value = mode;
+  const isTotal = mode === 'total';
+  document.getElementById('quoteTotalWrap').style.display = isTotal ? 'block' : 'none';
+  document.getElementById('quoteTotalAmount').required = isTotal;
+  document.querySelectorAll('#quoteCourseSelected .qcp-chip-amount').forEach(amt => {
+    amt.style.display = isTotal ? 'none' : 'inline-block';
+    amt.required = !isTotal;
+    if (isTotal) amt.value = '';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setQuoteMode('individual');
+  QUOTE_PRESELECTED.forEach(id => {
+    const course = QUOTE_COURSES.find(c => c.id === id);
+    if (course) qcpAddCourse(course.id, course.name);
+  });
+  const qSearch = document.getElementById('quoteCourseSearch');
+  qSearch.addEventListener('focus', () => qcpRenderDropdown(qSearch.value));
+  qSearch.addEventListener('input', () => qcpRenderDropdown(qSearch.value));
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.qcp-wrap')) {
+      document.getElementById('quoteCourseDropdown').classList.remove('show');
+    }
+  });
+});
+
 function openEditQuoteModal(quoteId, currentAmount) {
   document.getElementById('quoteId').value = quoteId;
   document.getElementById('quotedAmount').value = currentAmount;
@@ -760,7 +886,7 @@ function copySelfRegLink(leadId) {
 // ── WhatsApp Quick Message ──────────────────────────────────────
 const _waPhone = '{{ (lead.whatsapp or lead.phone or "")|replace(" ","")|replace("+","") }}';
 const _waName  = {{ lead.name | tojson }};
-const _waCourse= {{ (lead.course_interest.name if lead.course_interest else 'our courses') | tojson }};
+const _waCourse= {{ (interested_courses|map(attribute='name')|join(', ') if interested_courses else 'our courses') | tojson }};
 const _waLeadId= {{ lead.id }};
 
 const _waTemplates = {

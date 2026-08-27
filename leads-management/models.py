@@ -313,6 +313,46 @@ class LeadQuote(db.Model):
     course = db.relationship('Course', backref='quotes')
     created_by = db.relationship('User', backref='created_quotes')
 
+
+class LeadCourseInterest(db.Model):
+    """Many-to-many: which courses a lead is interested in. Lead.course_interest_id
+    (legacy, single) is kept in sync as the first course picked, for backward
+    compatibility — nothing that reads the old field needs to change."""
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('lead.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    lead = db.relationship('Lead', backref='course_interests')
+    course = db.relationship('Course')
+
+
+class QuoteBundle(db.Model):
+    """Header for a single quote that covers several courses at one total price
+    (as opposed to LeadQuote, which is one course at one price)."""
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('lead.id'), nullable=False)
+    total_amount = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(3), default='AED')
+    valid_until = db.Column(db.Date, nullable=False)
+    quote_notes = db.Column(db.Text)
+    status = db.Column(db.String(20), default='Active')  # Active, Accepted, Rejected, Expired
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    lead = db.relationship('Lead', backref='quote_bundles')
+    created_by = db.relationship('User')
+
+
+class QuoteBundleItem(db.Model):
+    """Which courses a QuoteBundle covers — no per-item price, that's the point of a bundle."""
+    id = db.Column(db.Integer, primary_key=True)
+    bundle_id = db.Column(db.Integer, db.ForeignKey('quote_bundle.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
+
+    bundle = db.relationship('QuoteBundle', backref=db.backref('items', cascade='all, delete-orphan'))
+    course = db.relationship('Course')
+
 # Trainer Management Models  
 class Trainer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -417,6 +457,27 @@ class PaymentProvider(db.Model):
     
     def __repr__(self):
         return f'<PaymentProvider {self.name}>'
+
+class LeadSourceIntegration(db.Model):
+    """Config for auto-capturing leads from an external source (Elementor website form, Meta Lead Ads)."""
+    id = db.Column(db.Integer, primary_key=True)
+    source_type = db.Column(db.String(20), nullable=False)  # 'website' or 'facebook'
+    name = db.Column(db.String(100), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    webhook_token = db.Column(db.String(64), unique=True, nullable=False)  # secret path segment for the inbound URL
+    # Facebook/Instagram (Meta) only:
+    fb_app_id = db.Column(db.String(100))
+    fb_app_secret = db.Column(db.String(200))
+    fb_verify_token = db.Column(db.String(100))  # static string Meta echoes back during webhook verification
+    fb_page_id = db.Column(db.String(100))
+    fb_page_access_token = db.Column(db.Text)
+    # No FK to course.id: the `course` table is MyISAM, which doesn't support foreign keys.
+    default_course_id = db.Column(db.Integer)
+    last_lead_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<LeadSourceIntegration {self.name}>'
 
 class PaymentLink(db.Model):
     id = db.Column(db.Integer, primary_key=True)

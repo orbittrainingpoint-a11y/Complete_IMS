@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}Lead Source Integrations{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Lead Source Integrations</h1>
+            <p class="text-muted">Auto-capture leads from your Elementor website form and Facebook/Instagram Lead Ads</p>
+        </div>
+        <a href="{{ url_for('main.leads') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Leads
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+
+            <!-- Website (Elementor) -->
+            <div class="card border-start-primary mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-globe fa-2x text-primary me-3"></i>
+                        <div>
+                            <h5 class="mb-0">Website (Elementor)</h5>
+                            <small class="text-muted">Feeds into "Website Leads"</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% set website_integrations = integrations|selectattr("source_type", "equalto", "website")|list %}
+                    {% if website_integrations %}
+                        {% for wi in website_integrations %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ wi.name }}</strong>
+                                    {% if wi.is_active %}<span class="badge bg-success ms-2">Active</span>{% else %}<span class="badge bg-secondary ms-2">Inactive</span>{% endif %}
+                                    {% if wi.default_course_id and course_map.get(wi.default_course_id) %}<div class="small text-muted mt-1">Default course: {{ course_map.get(wi.default_course_id) }}</div>{% endif %}
+                                    {% if wi.last_lead_at %}<div class="small text-muted">Last lead received: {{ wi.last_lead_at.strftime('%Y-%m-%d %H:%M') }} UTC</div>
+                                    {% else %}<div class="small text-muted">No leads received yet</div>{% endif %}
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <form method="POST" action="{{ url_for('main.toggle_lead_source_integration', id=wi.id) }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">{{ 'Deactivate' if wi.is_active else 'Activate' }}</button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('main.delete_lead_source_integration', id=wi.id) }}" onsubmit="return confirm('Delete this integration? Elementor will need a new URL.');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                    </form>
+                                </div>
+                            </div>
+                            <hr>
+                            <label class="form-label small fw-bold">Webhook URL — paste this into Elementor's form Webhook action</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-sm" readonly
+                                       value="{{ request.url_root.rstrip('/') }}{{ url_for('main.webhook_website', token=wi.webhook_token) }}"
+                                       id="websiteUrl{{ wi.id }}">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyField('websiteUrl{{ wi.id }}')"><i class="fas fa-copy"></i></button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">Not configured yet.</p>
+                    {% endif %}
+
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#websiteModal">
+                        <i class="fas fa-plus me-1"></i>Add Website Integration
+                    </button>
+                </div>
+            </div>
+
+            <!-- Facebook / Instagram -->
+            <div class="card border-start-info mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <i class="fab fa-facebook fa-2x text-info me-3"></i>
+                        <div>
+                            <h5 class="mb-0">Facebook / Instagram Lead Ads</h5>
+                            <small class="text-muted">Feeds into "Social Media Leads"</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% set fb_integrations = integrations|selectattr("source_type", "equalto", "facebook")|list %}
+                    {% if fb_integrations %}
+                        {% for fi in fb_integrations %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ fi.name }}</strong>
+                                    {% if fi.is_active %}<span class="badge bg-success ms-2">Active</span>{% else %}<span class="badge bg-secondary ms-2">Inactive</span>{% endif %}
+                                    {% if fi.default_course_id and course_map.get(fi.default_course_id) %}<div class="small text-muted mt-1">Default course: {{ course_map.get(fi.default_course_id) }}</div>{% endif %}
+                                    {% if fi.last_lead_at %}<div class="small text-muted">Last lead received: {{ fi.last_lead_at.strftime('%Y-%m-%d %H:%M') }} UTC</div>
+                                    {% else %}<div class="small text-muted">No leads received yet</div>{% endif %}
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <form method="POST" action="{{ url_for('main.toggle_lead_source_integration', id=fi.id) }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">{{ 'Deactivate' if fi.is_active else 'Activate' }}</button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('main.delete_lead_source_integration', id=fi.id) }}" onsubmit="return confirm('Delete this integration? Meta will need to be reconfigured.');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                    </form>
+                                </div>
+                            </div>
+                            <hr>
+                            <label class="form-label small fw-bold">Callback URL — paste into Meta App Dashboard &rarr; Webhooks &rarr; Page &rarr; leadgen</label>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control form-control-sm" readonly
+                                       value="{{ request.url_root.rstrip('/') }}{{ url_for('main.webhook_facebook', token=fi.webhook_token) }}"
+                                       id="fbUrl{{ fi.id }}">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyField('fbUrl{{ fi.id }}')"><i class="fas fa-copy"></i></button>
+                            </div>
+                            <label class="form-label small fw-bold">Verify Token</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-sm" readonly value="{{ fi.fb_verify_token }}" id="fbToken{{ fi.id }}">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyField('fbToken{{ fi.id }}')"><i class="fas fa-copy"></i></button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">Not configured yet.</p>
+                    {% endif %}
+
+                    <button class="btn btn-info btn-sm text-white" data-bs-toggle="modal" data-bs-target="#facebookModal">
+                        <i class="fas fa-plus me-1"></i>Add Facebook/Instagram Integration
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="m-0 font-weight-bold text-primary">Setup Guide</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Website (Elementor Pro)</h6>
+                    <ol class="small">
+                        <li>Add an integration below, save it</li>
+                        <li>Copy its webhook URL</li>
+                        <li>In Elementor: edit the form &rarr; Actions After Submit &rarr; add "Webhook"</li>
+                        <li>Paste the URL into the Webhook action's URL field</li>
+                    </ol>
+                    <hr>
+                    <h6>Facebook / Instagram Lead Ads</h6>
+                    <ol class="small">
+                        <li>Create (or use) a Meta Developer App and connect your Page as its admin/tester</li>
+                        <li>Add an integration below with your Page ID and a Page Access Token (needs <code>leads_retrieval</code> permission)</li>
+                        <li>In the Meta App Dashboard, add the Webhooks product, subscribe the Page to the <code>leadgen</code> field</li>
+                        <li>Paste the Callback URL and Verify Token shown below into that subscription</li>
+                    </ol>
+                    <div class="alert alert-warning alert-sm small">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        Page Access Tokens are sensitive — treat them like a password. This page is admin-only.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Website Integration Modal -->
+<div class="modal fade" id="websiteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('main.add_website_integration') }}">
+                {{ website_form.hidden_tag() }}
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Website Integration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        {{ website_form.name.label(class="form-label") }}
+                        {{ website_form.name(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ website_form.default_course_id.label(class="form-label") }}
+                        {{ website_form.default_course_id(class="form-select") }}
+                    </div>
+                    <div class="form-check">
+                        {{ website_form.is_active(class="form-check-input") }}
+                        {{ website_form.is_active.label(class="form-check-label") }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Facebook Integration Modal -->
+<div class="modal fade" id="facebookModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('main.add_facebook_integration') }}">
+                {{ facebook_form.hidden_tag() }}
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Facebook/Instagram Integration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        {{ facebook_form.name.label(class="form-label") }}
+                        {{ facebook_form.name(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ facebook_form.fb_page_id.label(class="form-label") }}
+                        {{ facebook_form.fb_page_id(class="form-control", placeholder="Your Facebook Page ID") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ facebook_form.fb_page_access_token.label(class="form-label") }}
+                        {{ facebook_form.fb_page_access_token(class="form-control", rows=3, placeholder="Long-lived Page Access Token") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ facebook_form.fb_app_id.label(class="form-label") }}
+                        {{ facebook_form.fb_app_id(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ facebook_form.fb_app_secret.label(class="form-label") }}
+                        {{ facebook_form.fb_app_secret(class="form-control", type="password") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ facebook_form.default_course_id.label(class="form-label") }}
+                        {{ facebook_form.default_course_id(class="form-select") }}
+                    </div>
+                    <div class="form-check">
+                        {{ facebook_form.is_active(class="form-check-input") }}
+                        {{ facebook_form.is_active.label(class="form-check-label") }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info text-white"><i class="fas fa-save me-2"></i>Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyField(id) {
+    const el = document.getElementById(id);
+    el.select();
+    el.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(el.value);
+}
+</script>
+{% endblock %}

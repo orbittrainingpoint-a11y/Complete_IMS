@@ -289,6 +289,20 @@ class PaymentProviderForm(FlaskForm):
     webhook_url = StringField("Webhook URL", validators=[Optional(), Length(max=500)])
     is_active = BooleanField("Active", default=True)
 
+class WebsiteIntegrationForm(FlaskForm):
+    name = StringField("Name", default="Elementor Website", validators=[DataRequired(), Length(max=100)])
+    default_course_id = SelectField("Default Course (optional)", coerce=int, validators=[Optional()])
+    is_active = BooleanField("Active", default=True)
+
+class FacebookIntegrationForm(FlaskForm):
+    name = StringField("Name", default="Facebook / Instagram Lead Ads", validators=[DataRequired(), Length(max=100)])
+    fb_app_id = StringField("Meta App ID", validators=[Optional(), Length(max=100)])
+    fb_app_secret = StringField("Meta App Secret", validators=[Optional(), Length(max=200)])
+    fb_page_id = StringField("Page ID", validators=[Optional(), Length(max=100)])
+    fb_page_access_token = TextAreaField("Page Access Token", validators=[Optional()])
+    default_course_id = SelectField("Default Course (optional)", coerce=int, validators=[Optional()])
+    is_active = BooleanField("Active", default=True)
+
 class PaymentLinkForm(FlaskForm):
     lead_id = SelectField("Lead", coerce=int, validators=[Optional()])
     student_id = SelectField("Student", coerce=int, validators=[Optional()])

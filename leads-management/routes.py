@@ -1,9 +1,9 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import func, desc, asc
 from datetime import datetime, date, timedelta
-import json, hmac, hashlib, time, base64, os
+import json, hmac, hashlib, time, base64, os, secrets, requests
 
 from extensions import db
 from models import *
@@ -15,6 +15,15 @@ from utils import create_payment_link, verify_payment_status
 logging.basicConfig(level=logging.DEBUG)
 
 main = Blueprint('main', __name__)
+
+
+@main.route('/sw.js')
+def service_worker():
+    """Served from the root path (not /static/) so its scope covers the whole app."""
+    response = send_from_directory(current_app.static_folder, 'sw.js')
+    response.headers['Service-Worker-Allowed'] = '/'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
 
 # ── SSO Bridge shared secret (must match Django settings.CRM_SSO_SECRET) ──
 _SSO_SECRET = 'orbit-erp-crm-sso-bridge-2024-x9q3mz'
@@ -170,6 +179,7 @@ def get_lead(id):
             'email': lead.email,
             'whatsapp': lead.whatsapp,
             'course_interest_id': lead.course_interest_id,
+            'course_interest_ids': [ci.course_id for ci in lead.course_interests] or ([lead.course_interest_id] if lead.course_interest_id else []),
             'status': lead.status,
             'lead_source': lead.lead_source,
             'comments': lead.comments,
@@ -195,9 +205,27 @@ def lead_detail(lead_id):
     # Get all meetings for this lead
     meetings = Meeting.query.filter_by(lead_id=lead_id).order_by(desc(Meeting.meeting_date)).all()
     
-    # Get all quotes for this lead
+    # Get all quotes for this lead — individual (one course, one price) and bundle (many courses, one total)
     quotes = LeadQuote.query.filter_by(lead_id=lead_id).order_by(desc(LeadQuote.created_at)).all()
-    
+    bundles = QuoteBundle.query.filter_by(lead_id=lead_id).order_by(desc(QuoteBundle.created_at)).all()
+
+    # Courses this lead is interested in (falls back to the legacy single field for older leads)
+    interested_courses = [ci.course for ci in lead.course_interests]
+    if not interested_courses and lead.course_interest:
+        interested_courses = [lead.course_interest]
+
+    # Unified, newest-first list for the Quotes panel — individual (one course) and bundle (many courses, one total)
+    quote_entries = (
+        [{'kind': 'individual', 'data': q, 'created_at': q.created_at} for q in quotes]
+        + [{'kind': 'bundle', 'data': b, 'created_at': b.created_at} for b in bundles]
+    )
+    quote_entries.sort(key=lambda e: e['created_at'] or datetime.min, reverse=True)
+
+    # Sum of every quote/bundle raised for this lead — the "total cost" across all
+    # courses when a lead has more than one, since lead.quoted_amount only ever
+    # holds the single most-recently-entered quote's value.
+    total_quoted_amount = sum(q.quoted_amount for q in quotes) + sum(b.total_amount for b in bundles)
+
     # Combine all activities and sort by date
     activities = []
     
@@ -236,7 +264,20 @@ def lead_detail(lead_id):
             'is_important': True,
             'data': quote
         })
-    
+
+    # Add bundle quotes (one total price covering several courses)
+    for bundle in bundles:
+        course_names = ', '.join(item.course.name for item in bundle.items)
+        activities.append({
+            'type': 'quote',
+            'subtype': bundle.status,
+            'date': bundle.created_at,
+            'content': f"Bundle quote for {course_names} - {bundle.currency} {bundle.total_amount}",
+            'created_by': bundle.created_by.username if bundle.created_by else 'System',
+            'is_important': True,
+            'data': bundle
+        })
+
     # Sort newest-first — use .timestamp() float so comparison is always unambiguous
     def _ts(d):
         if d is None:
@@ -262,6 +303,10 @@ def lead_detail(lead_id):
                          lead=lead,
                          activities=activities,
                          quotes=quotes,
+                         bundles=bundles,
+                         quote_entries=quote_entries,
+                         total_quoted_amount=total_quoted_amount,
+                         interested_courses=interested_courses,
                          meetings=meetings,
                          courses=courses,
                          activity_form=activity_form,
@@ -362,24 +407,36 @@ def logout():
     logout_user()
     return redirect(url_for('main.login'))
 
-@main.route('/leads')
-@login_required
-def leads():
+_SOURCE_CATEGORY_FILTERS = {
+    'website': lambda q: q.filter(Lead.lead_source == 'Website Inquiry'),
+    'social_media': lambda q: q.filter(Lead.lead_source.in_([
+        'Social Media (Facebook)', 'Social Media (Instagram)', 'Social Media (LinkedIn)'
+    ])),
+}
+_SOURCE_CATEGORY_TITLES = {
+    'website': 'Website Leads',
+    'social_media': 'Social Media Leads',
+}
+
+def _leads_view(source_category=None):
     lead_form = LeadForm()
-    
+
     meeting_form = MeetingForm()
     meeting_form.lead_id.choices = [(0, 'Select Lead')] + [(l.id, l.name) for l in Lead.query.filter(Lead.status != 'Converted').all()]
     meeting_form.student_id.choices = [(0, 'Select Student')] + [(s.id, s.name) for s in Student.query.all()]
-    
+
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '')
     status_filter = request.args.get('status', '')
     course_filter = request.args.get('course', '')
     consultant_filter = request.args.get('consultant', '', type=int) if (current_user.is_admin() or current_user.can_view_all_leads) else 0
+    source_filter_fn = _SOURCE_CATEGORY_FILTERS.get(source_category)
 
     # ROLE-BASED ACCESS CONTROL FOR LEADS
     if current_user.is_admin() or current_user.can_view_all_leads:
         query = Lead.query
+        if source_filter_fn:
+            query = source_filter_fn(query)
         if consultant_filter:
             query = query.filter_by(assigned_to=consultant_filter)
         if status_filter:
@@ -396,6 +453,8 @@ def leads():
             query = query.filter_by(course_interest_id=course_filter)
     else:
         query = Lead.query.filter_by(assigned_to=current_user.id)
+        if source_filter_fn:
+            query = source_filter_fn(query)
         if status_filter:
             query = query.filter_by(status=status_filter)
         if search:
@@ -454,6 +513,26 @@ def leads():
                     days_new = (_now - lead.created_at).days
                     lead_temps[lead.id] = 'new' if days_new <= 1 else ('warm' if days_new <= 5 else 'cold')
 
+    # Duplicate-phone detection — for each lead on this page, find any OTHER lead(s)
+    # (anywhere in the system, not just this page) sharing the same phone number.
+    lead_duplicates = {}
+    page_phones = [l.phone for l in leads_pagination.items if l.phone]
+    if page_phones:
+        same_phone_leads = Lead.query.filter(Lead.phone.in_(page_phones)).with_entities(
+            Lead.id, Lead.phone, Lead.name, Lead.status, Lead.created_at
+        ).all()
+        by_phone = {}
+        for row in same_phone_leads:
+            by_phone.setdefault(row.phone, []).append(row)
+        for lead in leads_pagination.items:
+            others = [r for r in by_phone.get(lead.phone, []) if r.id != lead.id]
+            if others:
+                lead_duplicates[lead.id] = [
+                    {'id': o.id, 'name': o.name, 'status': o.status,
+                     'created_at': o.created_at.strftime('%d %b %Y') if o.created_at else ''}
+                    for o in others
+                ]
+
     courses = Course.query.filter_by(is_active=True).all()
     statuses = ['New', 'Contacted', 'Interested', 'Quoted', 'Converted', 'Lost']
     consultants = User.query.filter_by(active=True, role='consultant').order_by(User.username).all() \
@@ -493,7 +572,177 @@ def leads():
                          lead=None,
                          converted_students=converted_students,
                          lead_temps=lead_temps,
-                         followup_reminder_leads=followup_reminder_leads)
+                         lead_duplicates=lead_duplicates,
+                         followup_reminder_leads=followup_reminder_leads,
+                         page_title=_SOURCE_CATEGORY_TITLES.get(source_category, 'Leads'))
+
+@main.route('/leads')
+@login_required
+def leads():
+    return _leads_view()
+
+def _can_manage_lead_sources():
+    return current_user.is_admin() or current_user.is_sales_manager()
+
+@main.route('/leads/website')
+@login_required
+def leads_website():
+    if not _can_manage_lead_sources():
+        flash('Access denied. Only admins and sales managers can view this section.', 'error')
+        return redirect(url_for('main.leads'))
+    return _leads_view(source_category='website')
+
+@main.route('/leads/social-media')
+@login_required
+def leads_social_media():
+    if not _can_manage_lead_sources():
+        flash('Access denied. Only admins and sales managers can view this section.', 'error')
+        return redirect(url_for('main.leads'))
+    return _leads_view(source_category='social_media')
+
+
+# ── External lead intake (Elementor website form, Meta Lead Ads) ──────────────
+
+def _notify_new_source_lead(lead, category):
+    """Alert whoever manages lead sources (admins + sales managers) that a fresh
+    website/social-media lead just came in and needs assigning."""
+    label = 'Website' if category == 'website' else 'Social Media'
+    notif_type = 'new_lead_website' if category == 'website' else 'new_lead_social'
+    recipients = [u for u in User.query.all() if u.is_admin() or u.is_sales_manager()]
+    for u in recipients:
+        db.session.add(CRMNotification(
+            user_id=u.id,
+            message=f'New {label} lead: "{lead.name}" ({lead.phone}).',
+            lead_id=lead.id,
+            notif_type=notif_type,
+        ))
+    db.session.commit()
+
+
+def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notify_category=None):
+    """Create a Lead from an external source, or merge into an existing one with the same phone."""
+    name = (name or 'Website Lead').strip()[:100]
+    phone = (phone or '').strip()[:20]
+    email = (email or '').strip()[:120] or None
+
+    if not phone:
+        return None  # Lead.phone is required — nothing usable to store
+
+    existing = Lead.check_duplicate(phone)
+    if existing:
+        stamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+        addition = f"\n\n[{stamp}] New {lead_source} submission received.{(' ' + note) if note else ''}"
+        existing.comments = (existing.comments or '') + addition
+        db.session.commit()
+        return existing
+
+    lead = Lead(
+        name=name,
+        phone=phone,
+        email=email,
+        lead_source=lead_source,
+        course_interest_id=course_id,
+        status='New',
+        comments=note or None,
+    )
+    db.session.add(lead)
+    db.session.commit()
+
+    if notify_category:
+        _notify_new_source_lead(lead, notify_category)
+
+    return lead
+
+
+@main.route('/webhooks/website/<token>/', methods=['POST'])
+def webhook_website(token):
+    integration = LeadSourceIntegration.query.filter_by(
+        webhook_token=token, source_type='website', is_active=True
+    ).first()
+    if not integration:
+        return jsonify({'status': 'error', 'message': 'invalid or inactive integration'}), 404
+
+    data = request.form.to_dict() if request.form else (request.get_json(silent=True) or {})
+
+    def pick(*keys):
+        for k in keys:
+            for candidate in (k, k.lower(), k.replace('_', '-'), k.replace('-', '_')):
+                if candidate in data and data[candidate]:
+                    return data[candidate]
+        return ''
+
+    name = pick('name', 'full_name', 'your-name', 'your_name', 'fullname')
+    phone = pick('phone', 'tel', 'phone_number', 'your-phone', 'your_phone', 'mobile')
+    email = pick('email', 'your-email', 'your_email')
+    message = pick('message', 'comment', 'comments', 'your-message')
+
+    lead = _intake_lead(
+        name=name, phone=phone, email=email,
+        lead_source='Website Inquiry',
+        course_id=integration.default_course_id,
+        note=message,
+        notify_category='website',
+    )
+    if lead is None:
+        return jsonify({'status': 'error', 'message': 'no phone number in submission'}), 400
+
+    integration.last_lead_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'status': 'ok'}), 200
+
+
+@main.route('/webhooks/facebook/<token>/', methods=['GET', 'POST'])
+def webhook_facebook(token):
+    integration = LeadSourceIntegration.query.filter_by(
+        webhook_token=token, source_type='facebook', is_active=True
+    ).first()
+    if not integration:
+        return jsonify({'status': 'error', 'message': 'invalid or inactive integration'}), 404
+
+    if request.method == 'GET':
+        # Meta's webhook verification handshake
+        if (request.args.get('hub.mode') == 'subscribe'
+                and request.args.get('hub.verify_token') == integration.fb_verify_token
+                and integration.fb_verify_token):
+            return request.args.get('hub.challenge', ''), 200
+        return 'verification failed', 403
+
+    payload = request.get_json(silent=True) or {}
+    for entry in payload.get('entry', []):
+        for change in entry.get('changes', []):
+            value = change.get('value', {})
+            leadgen_id = value.get('leadgen_id')
+            if not leadgen_id or not integration.fb_page_access_token:
+                continue
+            try:
+                resp = requests.get(
+                    f'https://graph.facebook.com/v19.0/{leadgen_id}',
+                    params={'access_token': integration.fb_page_access_token},
+                    timeout=10,
+                )
+                lead_data = resp.json()
+            except Exception:
+                logging.exception('Failed to fetch Facebook leadgen data for %s', leadgen_id)
+                continue
+
+            fields = {f.get('name', '').lower(): (f.get('values') or [''])[0]
+                      for f in lead_data.get('field_data', [])}
+            platform = (lead_data.get('platform') or 'facebook').lower()
+            source_label = 'Social Media (Instagram)' if 'instagram' in platform else 'Social Media (Facebook)'
+
+            _intake_lead(
+                name=fields.get('full_name') or fields.get('name') or '',
+                phone=fields.get('phone_number') or fields.get('phone') or '',
+                email=fields.get('email') or '',
+                lead_source=source_label,
+                course_id=integration.default_course_id,
+                note=f"Meta leadgen_id: {leadgen_id}",
+                notify_category='social',
+            )
+            integration.last_lead_at = datetime.utcnow()
+            db.session.commit()
+
+    return jsonify({'status': 'ok'}), 200
 
 @main.route('/overdue-followups')
 @login_required
@@ -623,11 +872,32 @@ def edit_lead(id):
         
         try:
             form.populate_obj(lead)
-            lead.course_interest_id = form.course_interest_id.data if form.course_interest_id.data != 0 else None
+
+            course_interest_ids = request.form.getlist('course_interest_ids[]', type=int)
+            if not course_interest_ids and form.course_interest_id.data:
+                course_interest_ids = [form.course_interest_id.data]
+            lead.course_interest_id = course_interest_ids[0] if course_interest_ids else None
+
             # Handle assignment change by admin
             if current_user.is_admin() and form.assigned_to.data != 0:
-                lead.assigned_to = form.assigned_to.data
+                new_assignee = form.assigned_to.data
+                if new_assignee != lead.assigned_to:
+                    db.session.add(LeadReassignment(
+                        lead_id=lead.id,
+                        from_user_id=lead.assigned_to,
+                        to_user_id=new_assignee,
+                        assigned_by_id=current_user.id,
+                        note='Assigned via Edit Lead',
+                    ))
+                    _notify_new_assignment(lead, new_assignee, current_user.id)
+                lead.assigned_to = new_assignee
             db.session.commit()
+
+            if course_interest_ids:
+                LeadCourseInterest.query.filter_by(lead_id=lead.id).delete()
+                for cid in course_interest_ids:
+                    db.session.add(LeadCourseInterest(lead_id=lead.id, course_id=cid))
+                db.session.commit()
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({
                     'success': True,
@@ -676,11 +946,16 @@ def add_lead():
     email    = (request.form.get('email') or '').strip() or None
     lead_source       = request.form.get('lead_source') or None
     comments          = (request.form.get('comments') or '').strip() or None
-    course_interest_raw = request.form.get('course_interest_id', '0')
-    try:
-        course_interest_id = int(course_interest_raw) or None
-    except (ValueError, TypeError):
-        course_interest_id = None
+    course_interest_ids = request.form.getlist('course_interest_ids[]', type=int)
+    if not course_interest_ids:
+        # Fallback for any caller still posting the old single-select field name
+        single = request.form.get('course_interest_id', '0')
+        try:
+            single_id = int(single) or None
+        except (ValueError, TypeError):
+            single_id = None
+        course_interest_ids = [single_id] if single_id else []
+    course_interest_id = course_interest_ids[0] if course_interest_ids else None
 
     # All fields except comments are required
     errors = []
@@ -692,8 +967,8 @@ def add_lead():
         errors.append('Email address is required.')
     if not whatsapp:
         errors.append('WhatsApp number is required.')
-    if not course_interest_id:
-        errors.append('Course interest is required.')
+    if not course_interest_ids:
+        errors.append('At least one course interest is required.')
     if not lead_source:
         errors.append('Lead source is required.')
 
@@ -726,6 +1001,10 @@ def add_lead():
         lead.assigned_to       = current_user.id  # self-assign by default
 
         db.session.add(lead)
+        db.session.commit()
+
+        for cid in course_interest_ids:
+            db.session.add(LeadCourseInterest(lead_id=lead.id, course_id=cid))
         db.session.commit()
 
         # Log the initial comment as the first activity entry
@@ -777,6 +1056,15 @@ def bulk_assign_leads():
                 if lead_id.strip():
                     lead = Lead.query.get(int(lead_id.strip()))
                     if lead:
+                        if lead.assigned_to != form.assigned_to.data:
+                            db.session.add(LeadReassignment(
+                                lead_id=lead.id,
+                                from_user_id=lead.assigned_to,
+                                to_user_id=form.assigned_to.data,
+                                assigned_by_id=current_user.id,
+                                note='Bulk assign',
+                            ))
+                            _notify_new_assignment(lead, form.assigned_to.data, current_user.id)
                         lead.assigned_to = form.assigned_to.data
                         updated_count += 1
             
@@ -794,6 +1082,49 @@ def bulk_assign_leads():
 
 def _can_reassign_leads():
     return current_user.is_admin() or current_user.is_sales_manager() or current_user.can_view_all_leads
+
+
+def _notify_new_assignment(lead, to_user_id, actor_id):
+    """Pop-up/bell notification for whoever a lead just got assigned to. No-op for
+    self-assignment (actor assigning a lead to themselves needs no notice)."""
+    if not to_user_id or to_user_id == actor_id:
+        return
+    db.session.add(CRMNotification(
+        user_id=to_user_id,
+        message=f'New lead assigned to you: "{lead.name}" (L-{lead.id}).',
+        lead_id=lead.id,
+        notif_type='new_assignment',
+    ))
+
+
+def _recent_assignment_status(user_id):
+    """Leads currently assigned to user_id, that were assigned via a logged
+    LeadReassignment, and that user_id has not yet logged a LeadInteraction on
+    since that assignment. Shared by the New Assignments page, its sidebar
+    badge count, and the hourly "connect with your lead" pop-up."""
+    reassigned_ids_q = db.session.query(LeadReassignment.lead_id).filter_by(
+        to_user_id=user_id
+    ).subquery()
+
+    candidates = Lead.query.filter(
+        Lead.assigned_to == user_id,
+        Lead.id.in_(reassigned_ids_q),
+    ).order_by(desc(Lead.created_at)).all()
+
+    results = []
+    for lead in candidates:
+        last_ra = LeadReassignment.query.filter_by(
+            lead_id=lead.id, to_user_id=user_id
+        ).order_by(LeadReassignment.assigned_at.desc()).first()
+        if not last_ra:
+            continue
+        contacted = LeadInteraction.query.filter(
+            LeadInteraction.lead_id == lead.id,
+            LeadInteraction.created_by_id == user_id,
+            LeadInteraction.interaction_date >= last_ra.assigned_at,
+        ).count() > 0
+        results.append({'lead': lead, 'reassignment': last_ra, 'contacted': contacted})
+    return results
 
 
 @main.route('/leads/<int:id>/reassign', methods=['POST'])
@@ -837,6 +1168,8 @@ def reassign_lead(id):
             lead_id=lead.id,
             notif_type='reassignment',
         ))
+
+    _notify_new_assignment(lead, to_user_id, current_user.id)
 
     lead.assigned_to = to_user_id
     db.session.commit()
@@ -891,6 +1224,8 @@ def bulk_reassign_leads():
                 notif_type='reassignment',
             ))
 
+        _notify_new_assignment(lead, to_user_id, current_user.id)
+
         lead.assigned_to = to_user_id
         reassigned += 1
 
@@ -902,37 +1237,143 @@ def bulk_reassign_leads():
     return jsonify({'success': True, 'message': msg, 'reassigned': reassigned})
 
 
+@main.route('/leads/assign-rule', methods=['POST'])
+@login_required
+def run_assign_rule():
+    """Manual, on-demand bulk assignment: assign every currently-unassigned lead matching
+    a source type + date range to one consultant. Run fresh each time — nothing is saved
+    as a recurring/automatic rule."""
+    if not _can_manage_lead_sources():
+        return jsonify({'success': False, 'message': 'Access denied. Only admins and sales managers can run this.'}), 403
+
+    lead_type   = request.form.get('lead_type', 'all')
+    date_from   = request.form.get('date_from', '')
+    date_to     = request.form.get('date_to', '')
+    to_user_id  = request.form.get('to_user_id', type=int)
+
+    if not to_user_id:
+        return jsonify({'success': False, 'message': 'Please select who to assign to.'}), 400
+    to_user = User.query.get(to_user_id)
+    if not to_user:
+        return jsonify({'success': False, 'message': 'User not found.'}), 400
+
+    query = Lead.query.filter(Lead.assigned_to.is_(None))
+
+    source_filter_fn = _SOURCE_CATEGORY_FILTERS.get(lead_type)
+    if source_filter_fn:
+        query = source_filter_fn(query)
+
+    if date_from:
+        try:
+            query = query.filter(Lead.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Invalid "date from".'}), 400
+    if date_to:
+        try:
+            query = query.filter(Lead.created_at < datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1))
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Invalid "date to".'}), 400
+
+    matched_leads = query.all()
+    if not matched_leads:
+        return jsonify({'success': True, 'message': 'No unassigned leads matched these criteria.', 'assigned': 0})
+
+    for lead in matched_leads:
+        db.session.add(LeadReassignment(
+            lead_id=lead.id,
+            from_user_id=None,
+            to_user_id=to_user_id,
+            assigned_by_id=current_user.id,
+            note='Assigned via Assign Rule',
+        ))
+        _notify_new_assignment(lead, to_user_id, current_user.id)
+        lead.assigned_to = to_user_id
+
+    db.session.commit()
+
+    msg = f'{len(matched_leads)} unassigned lead{"s" if len(matched_leads) != 1 else ""} assigned to {to_user.username}.'
+    return jsonify({'success': True, 'message': msg, 'assigned': len(matched_leads)})
+
+
+@main.route('/leads/merge', methods=['POST'])
+@login_required
+def merge_leads():
+    """Merge one or more duplicate leads (same phone number) into a single surviving lead.
+    Every related record (interactions, meetings, quotes, payment links, reassignment
+    history, notifications, converted-student link) is moved onto the survivor before
+    the duplicate rows are deleted."""
+    if not _can_reassign_leads():
+        return jsonify({'success': False, 'message': 'Access denied.'}), 403
+
+    keep_id = request.form.get('keep_id', type=int)
+    remove_ids = request.form.getlist('remove_ids[]', type=int)
+
+    if not keep_id or not remove_ids:
+        return jsonify({'success': False, 'message': 'Missing lead selection.'}), 400
+    if keep_id in remove_ids:
+        return jsonify({'success': False, 'message': 'Cannot merge a lead into itself.'}), 400
+
+    keeper = Lead.query.get(keep_id)
+    if not keeper:
+        return jsonify({'success': False, 'message': 'Lead to keep was not found.'}), 404
+
+    merged_names = []
+    for remove_id in remove_ids:
+        dupe = Lead.query.get(remove_id)
+        if not dupe:
+            continue
+        if dupe.phone != keeper.phone:
+            return jsonify({'success': False, 'message': f'"{dupe.name}" does not share the same phone number — refusing to merge.'}), 400
+
+        # Move every related record onto the survivor
+        LeadInteraction.query.filter_by(lead_id=dupe.id).update({'lead_id': keeper.id})
+        Meeting.query.filter_by(lead_id=dupe.id).update({'lead_id': keeper.id})
+        Student.query.filter_by(lead_id=dupe.id).update({'lead_id': keeper.id})
+        LeadQuote.query.filter_by(lead_id=dupe.id).update({'lead_id': keeper.id})
+        QuoteBundle.query.filter_by(lead_id=dupe.id).update({'lead_id': keeper.id})
+        PaymentLink.query.filter_by(lead_id=dupe.id).update({'lead_id': keeper.id})
+        LeadReassignment.query.filter_by(lead_id=dupe.id).update({'lead_id': keeper.id})
+        CRMNotification.query.filter_by(lead_id=dupe.id).update({'lead_id': keeper.id})
+
+        # Course interests: move over any the survivor doesn't already have, drop exact duplicates
+        keeper_course_ids = {ci.course_id for ci in keeper.course_interests}
+        for ci in LeadCourseInterest.query.filter_by(lead_id=dupe.id).all():
+            if ci.course_id in keeper_course_ids:
+                db.session.delete(ci)
+            else:
+                ci.lead_id = keeper.id
+                keeper_course_ids.add(ci.course_id)
+
+        # Fill in anything the survivor is missing
+        keeper.email = keeper.email or dupe.email
+        keeper.whatsapp = keeper.whatsapp or dupe.whatsapp
+        keeper.course_interest_id = keeper.course_interest_id or dupe.course_interest_id
+        keeper.assigned_to = keeper.assigned_to or dupe.assigned_to
+        if (not keeper.quoted_amount) and dupe.quoted_amount:
+            keeper.quoted_amount = dupe.quoted_amount
+
+        note = f'\n\n[Merged from duplicate lead L-{dupe.id} "{dupe.name}", {dupe.created_at.strftime("%d %b %Y") if dupe.created_at else ""}]'
+        if dupe.comments:
+            note += f'\n{dupe.comments}'
+        keeper.comments = (keeper.comments or '') + note
+
+        merged_names.append(dupe.name)
+        db.session.delete(dupe)
+
+    db.session.commit()
+
+    if not merged_names:
+        return jsonify({'success': False, 'message': 'Nothing was merged — leads not found or phone mismatch.'}), 400
+
+    msg = f'Merged {len(merged_names)} duplicate lead{"s" if len(merged_names) != 1 else ""} into "{keeper.name}".'
+    return jsonify({'success': True, 'message': msg, 'merged': len(merged_names)})
+
+
 @main.route('/leads/new-assignments')
 @login_required
 def new_assignments():
     """Leads recently reassigned to current user that they haven't contacted yet."""
-    reassigned_ids_q = db.session.query(LeadReassignment.lead_id).filter_by(
-        to_user_id=current_user.id
-    ).subquery()
-
-    candidates = Lead.query.filter(
-        Lead.assigned_to == current_user.id,
-        Lead.id.in_(reassigned_ids_q),
-    ).order_by(desc(Lead.created_at)).all()
-
-    new_assign_leads = []
-    for lead in candidates:
-        last_ra = LeadReassignment.query.filter_by(
-            lead_id=lead.id, to_user_id=current_user.id
-        ).order_by(LeadReassignment.assigned_at.desc()).first()
-        if not last_ra:
-            continue
-        contacted = LeadInteraction.query.filter(
-            LeadInteraction.lead_id == lead.id,
-            LeadInteraction.created_by_id == current_user.id,
-            LeadInteraction.interaction_date >= last_ra.assigned_at,
-        ).count()
-        new_assign_leads.append({
-            'lead': lead,
-            'reassignment': last_ra,
-            'contacted': contacted > 0,
-        })
-
+    new_assign_leads = _recent_assignment_status(current_user.id)
     return render_template('new_assignments.html', new_assign_leads=new_assign_leads)
 
 
@@ -979,27 +1420,28 @@ def mark_all_notifications_read():
 @login_required
 def new_assignments_count():
     """Count leads reassigned to current user that they haven't contacted yet."""
-    reassigned_ids_q = db.session.query(LeadReassignment.lead_id).filter_by(
-        to_user_id=current_user.id
-    ).subquery()
-    candidates = Lead.query.filter(
-        Lead.assigned_to == current_user.id,
-        Lead.id.in_(reassigned_ids_q),
-    ).all()
-    count = 0
-    for lead in candidates:
-        last_ra = LeadReassignment.query.filter_by(
-            lead_id=lead.id, to_user_id=current_user.id
-        ).order_by(LeadReassignment.assigned_at.desc()).first()
-        if last_ra:
-            contacted = LeadInteraction.query.filter(
-                LeadInteraction.lead_id == lead.id,
-                LeadInteraction.created_by_id == current_user.id,
-                LeadInteraction.interaction_date >= last_ra.assigned_at,
-            ).count()
-            if contacted == 0:
-                count += 1
+    results = _recent_assignment_status(current_user.id)
+    count = sum(1 for r in results if not r['contacted'])
     return jsonify({'count': count})
+
+
+@main.route('/api/pending-contacts')
+@login_required
+def pending_contacts():
+    """Leads currently assigned to current user that they haven't contacted yet —
+    powers the hourly "connect with your lead" pop-up (and fires immediately for
+    a brand-new assignment, since it lands in this list right away)."""
+    results = _recent_assignment_status(current_user.id)
+    pending = [r for r in results if not r['contacted']]
+    return jsonify({
+        'count': len(pending),
+        'leads': [{
+            'id': r['lead'].id,
+            'name': r['lead'].name,
+            'phone': r['lead'].phone,
+            'assigned_at': r['reassignment'].assigned_at.strftime('%b %d, %H:%M') if r['reassignment'].assigned_at else '',
+        } for r in pending]
+    })
 
 
 @main.route('/leads/<int:id>/convert', methods=['POST'])
@@ -2218,46 +2660,88 @@ def lead_detail(id):
 @login_required
 def add_lead_quote(id):
     lead = Lead.query.get_or_404(id)
-    
-    # Get form data directly from request since we're using a simple form
-    course_id = request.form.get('course_id', type=int)
-    quoted_amount = request.form.get('quoted_amount', type=float)
+
+    mode = request.form.get('mode', 'individual')
     valid_until = request.form.get('valid_until')
     quote_notes = request.form.get('quote_notes', '')
     currency = request.form.get('currency', 'AED')
-    
-    if not course_id or not quoted_amount or not valid_until:
+
+    if not valid_until:
         flash("Please fill all required fields", "error")
         return redirect(url_for("main.lead_detail", lead_id=id))
-    
+
     try:
-        # Parse the date
         from datetime import datetime
         valid_until_date = datetime.strptime(valid_until, '%Y-%m-%d').date()
-        
-        quote = LeadQuote(
-            lead_id=id,
-            course_id=course_id,
-            quoted_amount=quoted_amount,
-            currency=currency,
-            valid_until=valid_until_date,
-            quote_notes=quote_notes,
-            created_by_id=current_user.id
-        )
-        
-        # Update lead status and quoted amount
-        if lead.status not in ["Converted", "Lost"]:
-            lead.status = "Quoted"
-            lead.quoted_amount = quoted_amount
-        
-        db.session.add(quote)
-        db.session.commit()
-        flash("Quote added successfully!", "success")
-        
+
+        if mode == 'total':
+            course_ids = request.form.getlist('course_ids[]', type=int)
+            total_amount = request.form.get('total_amount', type=float)
+            if not course_ids or not total_amount:
+                flash("Please select at least one course and enter a total amount", "error")
+                return redirect(url_for("main.lead_detail", lead_id=id))
+
+            bundle = QuoteBundle(
+                lead_id=id,
+                total_amount=total_amount,
+                currency=currency,
+                valid_until=valid_until_date,
+                quote_notes=quote_notes,
+                created_by_id=current_user.id,
+            )
+            db.session.add(bundle)
+            db.session.flush()  # get bundle.id before commit
+            for cid in course_ids:
+                db.session.add(QuoteBundleItem(bundle_id=bundle.id, course_id=cid))
+
+            if lead.status not in ["Converted", "Lost"]:
+                lead.status = "Quoted"
+                lead.quoted_amount = total_amount
+
+            db.session.commit()
+            flash("Bundle quote added successfully!", "success")
+
+        else:
+            # Individual mode: one course + one price per row. Accepts either the
+            # batch fields (course_ids[] / amounts[]) or the legacy single fields
+            # (course_id / quoted_amount) so nothing else calling this endpoint breaks.
+            course_ids = request.form.getlist('course_ids[]', type=int)
+            amounts = request.form.getlist('amounts[]', type=float)
+            if not course_ids:
+                single_course = request.form.get('course_id', type=int)
+                single_amount = request.form.get('quoted_amount', type=float)
+                if single_course and single_amount:
+                    course_ids = [single_course]
+                    amounts = [single_amount]
+
+            if not course_ids or len(course_ids) != len(amounts) or not all(amounts):
+                flash("Please enter a price for every selected course", "error")
+                return redirect(url_for("main.lead_detail", lead_id=id))
+
+            last_amount = None
+            for cid, amount in zip(course_ids, amounts):
+                db.session.add(LeadQuote(
+                    lead_id=id,
+                    course_id=cid,
+                    quoted_amount=amount,
+                    currency=currency,
+                    valid_until=valid_until_date,
+                    quote_notes=quote_notes,
+                    created_by_id=current_user.id,
+                ))
+                last_amount = amount
+
+            if lead.status not in ["Converted", "Lost"]:
+                lead.status = "Quoted"
+                lead.quoted_amount = last_amount
+
+            db.session.commit()
+            flash("Quote added successfully!", "success")
+
     except Exception as e:
         db.session.rollback()
         flash(f"Error adding quote: {str(e)}", "error")
-    
+
     return redirect(url_for("main.lead_detail", lead_id=id))
 
 @main.route("/leads/<int:lead_id>/add_activity", methods=["POST"])
@@ -2861,6 +3345,120 @@ def add_payment_provider():
                 flash(f"{field}: {error}", "error")
     
     return redirect(url_for("main.payment_providers"))
+
+
+# ── Lead Source Integrations settings ─────────────────────────────────────────
+
+@main.route('/settings/lead-sources')
+@login_required
+def lead_source_integrations():
+    if not _can_manage_lead_sources():
+        flash('Access denied. Only admins and sales managers can manage lead source integrations.', 'error')
+        return redirect(url_for('main.leads'))
+
+    integrations = LeadSourceIntegration.query.order_by(LeadSourceIntegration.source_type).all()
+    website_form = WebsiteIntegrationForm()
+    facebook_form = FacebookIntegrationForm()
+    course_choices = [(0, 'None')] + [(c.id, c.name) for c in Course.query.filter_by(is_active=True).all()]
+    website_form.default_course_id.choices = course_choices
+    facebook_form.default_course_id.choices = course_choices
+    course_map = {c.id: c.name for c in Course.query.all()}
+
+    return render_template('lead_source_integrations.html',
+                            integrations=integrations,
+                            course_map=course_map,
+                            website_form=website_form,
+                            facebook_form=facebook_form)
+
+
+@main.route('/settings/lead-sources/website/add', methods=['POST'])
+@login_required
+def add_website_integration():
+    if not _can_manage_lead_sources():
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.leads'))
+
+    form = WebsiteIntegrationForm()
+    form.default_course_id.choices = [(0, 'None')] + [(c.id, c.name) for c in Course.query.filter_by(is_active=True).all()]
+
+    if form.validate_on_submit():
+        integration = LeadSourceIntegration(
+            source_type='website',
+            name=form.name.data,
+            is_active=form.is_active.data,
+            webhook_token=secrets.token_urlsafe(32),
+            default_course_id=form.default_course_id.data or None,
+        )
+        db.session.add(integration)
+        db.session.commit()
+        flash('Website integration created — copy the webhook URL below into Elementor.', 'success')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"{field}: {error}", "error")
+
+    return redirect(url_for('main.lead_source_integrations'))
+
+
+@main.route('/settings/lead-sources/facebook/add', methods=['POST'])
+@login_required
+def add_facebook_integration():
+    if not _can_manage_lead_sources():
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.leads'))
+
+    form = FacebookIntegrationForm()
+    form.default_course_id.choices = [(0, 'None')] + [(c.id, c.name) for c in Course.query.filter_by(is_active=True).all()]
+
+    if form.validate_on_submit():
+        integration = LeadSourceIntegration(
+            source_type='facebook',
+            name=form.name.data,
+            is_active=form.is_active.data,
+            webhook_token=secrets.token_urlsafe(32),
+            fb_verify_token=secrets.token_urlsafe(16),
+            fb_app_id=form.fb_app_id.data,
+            fb_app_secret=form.fb_app_secret.data,
+            fb_page_id=form.fb_page_id.data,
+            fb_page_access_token=form.fb_page_access_token.data,
+            default_course_id=form.default_course_id.data or None,
+        )
+        db.session.add(integration)
+        db.session.commit()
+        flash('Facebook/Instagram integration created — use the callback URL and verify token below in Meta\'s App Dashboard.', 'success')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"{field}: {error}", "error")
+
+    return redirect(url_for('main.lead_source_integrations'))
+
+
+@main.route('/settings/lead-sources/<int:id>/toggle', methods=['POST'])
+@login_required
+def toggle_lead_source_integration(id):
+    if not _can_manage_lead_sources():
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.leads'))
+    integration = LeadSourceIntegration.query.get_or_404(id)
+    integration.is_active = not integration.is_active
+    db.session.commit()
+    flash(f"{integration.name} {'activated' if integration.is_active else 'deactivated'}.", 'success')
+    return redirect(url_for('main.lead_source_integrations'))
+
+
+@main.route('/settings/lead-sources/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_lead_source_integration(id):
+    if not _can_manage_lead_sources():
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.leads'))
+    integration = LeadSourceIntegration.query.get_or_404(id)
+    db.session.delete(integration)
+    db.session.commit()
+    flash('Integration deleted.', 'success')
+    return redirect(url_for('main.lead_source_integrations'))
+
 
 @main.route("/payments/settings")
 @login_required
