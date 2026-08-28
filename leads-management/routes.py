@@ -408,7 +408,10 @@ def logout():
     return redirect(url_for('main.login'))
 
 _SOURCE_CATEGORY_FILTERS = {
-    'website': lambda q: q.filter(Lead.lead_source == 'Website Inquiry'),
+    # Old leads used the fixed 'Website Inquiry' label; newer ones are
+    # 'Website - <form name>' so each Elementor form's leads carry the form's
+    # name — the prefix match keeps both matching this category.
+    'website': lambda q: q.filter(db.or_(Lead.lead_source == 'Website Inquiry', Lead.lead_source.like('Website%'))),
     'social_media': lambda q: q.filter(Lead.lead_source.in_([
         'Social Media (Facebook)', 'Social Media (Instagram)', 'Social Media (LinkedIn)'
     ])),
@@ -672,15 +675,25 @@ def webhook_website(token):
         return ''
 
     name = pick('name', 'full_name', 'your-name', 'your_name', 'fullname')
-    phone = pick('phone', 'tel', 'phone_number', 'your-phone', 'your_phone', 'mobile')
+    phone = pick('phone', 'tel', 'phone_number', 'your-phone', 'your_phone', 'mobile', 'mobile_number', 'mobile-number', 'whatsapp', 'contact_number', 'contact-number')
     email = pick('email', 'your-email', 'your_email')
     message = pick('message', 'comment', 'comments', 'your-message')
+    course_text = pick('course', 'course_name', 'course-name', 'interested_course', 'interested-course',
+                        'which_course', 'which-course', 'select_course', 'select-course', 'subject')
+
+    # The course typed into the form is free text and often won't match a real
+    # course name exactly — don't try to auto-match it to course_interest_id
+    # (that would silently misfile leads). Keep it as plain text on the lead so
+    # staff can read it and assign the correct course from the CRM themselves.
+    note = f"Course entered on form: {course_text}" if course_text else ''
+    if message:
+        note = f"{note}\n{message}" if note else message
 
     lead = _intake_lead(
         name=name, phone=phone, email=email,
-        lead_source='Website Inquiry',
+        lead_source=f"Website - {integration.name}"[:50],
         course_id=integration.default_course_id,
-        note=message,
+        note=note,
         notify_category='website',
     )
     if lead is None:
