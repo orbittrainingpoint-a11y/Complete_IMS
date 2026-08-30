@@ -4092,6 +4092,34 @@ def send_whatsapp_template(account, to_phone, meta_template_name, meta_language_
     return False, None, data.get('error') or {'message': f'HTTP {resp.status_code}', 'raw': data}
 
 
+def send_whatsapp_text(account, to_phone, body):
+    """POST a plain free-text message — only valid within Meta's 24-hour customer
+    service window since the customer's last inbound message (a real reply to an
+    open conversation, not a proactive/marketing send, so no approved template
+    needed). Returns (success: bool, meta_message_id: str|None, error: dict|None)."""
+    payload = {
+        'messaging_product': 'whatsapp',
+        'to': to_phone,
+        'type': 'text',
+        'text': {'body': body},
+    }
+    try:
+        resp = requests.post(
+            f'https://graph.facebook.com/v20.0/{account.phone_number_id}/messages',
+            headers={'Authorization': f'Bearer {account.access_token}'},
+            json=payload,
+            timeout=10,
+        )
+        data = resp.json()
+    except Exception:
+        logging.exception('WhatsApp text reply failed for %s', to_phone)
+        return False, None, {'message': 'request_exception'}
+
+    if resp.status_code == 200 and data.get('messages'):
+        return True, data['messages'][0]['id'], None
+    return False, None, data.get('error') or {'message': f'HTTP {resp.status_code}', 'raw': data}
+
+
 def _log_and_fail(enrollment, lead, template_id, step_order, error_code, error_message):
     now = datetime.utcnow()
     db.session.add(WhatsAppMessageLog(
@@ -4165,10 +4193,12 @@ def _process_enrollment_step(account, enrollment):
         account, to_phone, template.meta_template_name, template.meta_language_code, variables)
 
     now = datetime.utcnow()
+    display_text = f'[Template: {template.name}] ' + ' / '.join(str(v) for v in variables) if variables else f'[Template: {template.name}]'
     db.session.add(WhatsAppMessageLog(
         campaign_id=campaign.id, enrollment_id=enrollment.id, step_order=step_order,
         lead_id=lead.id, template_id=template_id, to_phone=to_phone,
         meta_message_id=meta_message_id, rendered_variables=json.dumps(variables),
+        inbound_body=display_text,  # reused field: readable text for the conversation thread view
         status='sent' if success else 'failed',
         error_code=(error or {}).get('code') if error else None,
         error_message=json.dumps(error) if error else None,
@@ -4287,6 +4317,21 @@ def _handle_whatsapp_status(status_update):
     db.session.commit()
 
 
+def _notify_whatsapp_inbound(lead, from_phone, body):
+    """Alert admins + sales managers that a customer replied on WhatsApp."""
+    recipients = [u for u in User.query.all() if u.is_admin() or u.is_sales_manager()]
+    who = lead.name if lead else from_phone
+    preview = (body or '').strip()[:120] or '(no text — image/attachment/other)'
+    for u in recipients:
+        db.session.add(CRMNotification(
+            user_id=u.id,
+            message=f'WhatsApp reply from {who}: "{preview}"',
+            lead_id=lead.id if lead else None,
+            notif_type='whatsapp_inbound',
+        ))
+    db.session.commit()
+
+
 def _handle_whatsapp_inbound(msg):
     from_phone = msg.get('from', '')
     body = (msg.get('text') or {}).get('body', '') if msg.get('type') == 'text' else ''
@@ -4304,6 +4349,8 @@ def _handle_whatsapp_inbound(msg):
 
     if body.strip().lower() in _WHATSAPP_OPTOUT_KEYWORDS:
         _fanout_whatsapp_optout(from_phone)
+
+    _notify_whatsapp_inbound(lead, from_phone, body)
 
 
 @main.route('/webhooks/whatsapp/<token>/', methods=['GET', 'POST'])
@@ -4410,6 +4457,108 @@ def test_whatsapp_connection():
     account.last_test_result = 'failed'
     db.session.commit()
     return jsonify({'success': False, 'message': (data.get('error') or {}).get('message', 'Connection failed.')}), 400
+
+
+# ── WhatsApp Inbox (inbound replies) ───────────────────────────────────────
+
+@main.route('/whatsapp/inbox')
+@login_required
+def whatsapp_inbox():
+    if not _can_manage_campaigns():
+        flash('Access denied. Only admins and sales managers can view the WhatsApp inbox.', 'error')
+        return redirect(url_for('main.leads'))
+
+    # One row per conversation (grouped by lead, or by phone for unmatched numbers),
+    # showing the most recent message in each — a normal "inbox" view, not a flat log.
+    recent = WhatsAppMessageLog.query.order_by(desc(WhatsAppMessageLog.created_at)).limit(500).all()
+    seen = set()
+    conversations = []
+    for m in recent:
+        key = ('lead', m.lead_id) if m.lead_id else ('phone', m.to_phone)
+        if key in seen:
+            continue
+        seen.add(key)
+        conversations.append(m)
+
+    lead_ids = [c.lead_id for c in conversations if c.lead_id]
+    lead_map = {l.id: l for l in Lead.query.filter(Lead.id.in_(lead_ids)).all()}
+    return render_template('whatsapp_inbox.html', conversations=conversations, lead_map=lead_map)
+
+
+@main.route('/whatsapp/inbox/<int:lead_id>')
+@login_required
+def whatsapp_conversation(lead_id):
+    if not _can_manage_campaigns():
+        flash('Access denied. Only admins and sales managers can view WhatsApp conversations.', 'error')
+        return redirect(url_for('main.leads'))
+    lead = Lead.query.get_or_404(lead_id)
+    messages = WhatsAppMessageLog.query.filter_by(lead_id=lead_id).order_by(WhatsAppMessageLog.created_at).all()
+
+    last_inbound = (
+        WhatsAppMessageLog.query.filter_by(lead_id=lead_id, direction='inbound')
+        .order_by(desc(WhatsAppMessageLog.created_at)).first()
+    )
+    window_open = bool(
+        last_inbound and last_inbound.created_at
+        and (datetime.utcnow() - last_inbound.created_at) < timedelta(hours=24)
+    )
+    account = WhatsAppAccount.query.filter_by(is_active=True).first()
+    return render_template('whatsapp_conversation.html', lead=lead, messages=messages,
+                            window_open=window_open, account=account)
+
+
+@main.route('/whatsapp/inbox/<int:lead_id>/reply', methods=['POST'])
+@login_required
+def whatsapp_reply(lead_id):
+    if not _can_manage_campaigns():
+        return jsonify({'success': False, 'message': 'Access denied.'}), 403
+    lead = Lead.query.get_or_404(lead_id)
+    body = (request.form.get('body') or '').strip()
+    if not body:
+        return jsonify({'success': False, 'message': 'Message cannot be empty.'}), 400
+    if lead.whatsapp_opted_out:
+        return jsonify({'success': False, 'message': 'This lead has opted out of WhatsApp messages.'}), 400
+
+    last_inbound = (
+        WhatsAppMessageLog.query.filter_by(lead_id=lead_id, direction='inbound')
+        .order_by(desc(WhatsAppMessageLog.created_at)).first()
+    )
+    window_open = bool(
+        last_inbound and last_inbound.created_at
+        and (datetime.utcnow() - last_inbound.created_at) < timedelta(hours=24)
+    )
+    if not window_open:
+        return jsonify({'success': False, 'message': "This customer hasn't messaged in the last 24 hours — "
+                                                       "free-text replies aren't allowed. Use an approved template via a campaign instead."}), 400
+
+    account = WhatsAppAccount.query.filter_by(is_active=True).first()
+    if not account:
+        return jsonify({'success': False, 'message': 'WhatsApp is not configured yet.'}), 400
+
+    to_phone = _normalize_whatsapp_number(lead.whatsapp or lead.phone)
+    if not to_phone:
+        return jsonify({'success': False, 'message': 'This lead has no usable phone number.'}), 400
+
+    success, meta_message_id, error = send_whatsapp_text(account, to_phone, body)
+    now = datetime.utcnow()
+    db.session.add(WhatsAppMessageLog(
+        lead_id=lead.id, direction='outbound', to_phone=to_phone,
+        meta_message_id=meta_message_id, inbound_body=body,  # reused field: raw text for both directions
+        status='sent' if success else 'failed',
+        error_code=(error or {}).get('code') if error else None,
+        error_message=json.dumps(error) if error else None,
+        sent_at=now if success else None, created_at=now,
+    ))
+    if success:
+        db.session.add(LeadInteraction(
+            lead_id=lead.id, interaction_type='WhatsApp',
+            content=f'Replied: {body[:200]}', interaction_date=now, is_important=False,
+        ))
+    db.session.commit()
+
+    if not success:
+        return jsonify({'success': False, 'message': (error or {}).get('message', 'Failed to send.')}), 400
+    return jsonify({'success': True})
 
 
 # ── Campaigns ────────────────────────────────────────────────────────────

@@ -544,6 +544,12 @@
                     <span class="nav-icon"><i class="fab fa-whatsapp"></i></span> WhatsApp Campaigns
                 </a>
             </div>
+            <div class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'main.whatsapp_inbox' %}active{% endif %}"
+                   href="{{ url_for('main.whatsapp_inbox') }}">
+                    <span class="nav-icon"><i class="fas fa-inbox"></i></span> WhatsApp Inbox
+                </a>
+            </div>
             {% endif %}
             {% if current_user.is_admin() %}
             <div class="nav-item">
@@ -852,7 +858,7 @@
 
                 // Pop up a toast (with a heavy alert sound) for any not-yet-seen
                 // new-assignment / new-website-lead / new-social-lead notification
-                const SOUND_NOTIF_TYPES = ['new_assignment', 'new_lead_website', 'new_lead_social'];
+                const SOUND_NOTIF_TYPES = ['new_assignment', 'new_lead_website', 'new_lead_social', 'whatsapp_inbound'];
                 (data.notifications || []).forEach(n => {
                     if (SOUND_NOTIF_TYPES.includes(n.type) && !n.is_read) showCrmToast(n);
                 });
@@ -944,6 +950,7 @@
         new_assignment:    { icon: 'fa-user-tag',    bg: 'linear-gradient(135deg,#2563eb,#7c3aed)' },
         new_lead_website:  { icon: 'fa-globe',       bg: 'linear-gradient(135deg,#0891b2,#2563eb)' },
         new_lead_social:   { icon: 'fa-share-alt',   bg: 'linear-gradient(135deg,#db2777,#7c3aed)' },
+        whatsapp_inbound:  { icon: 'fa-comment-dots', bg: 'linear-gradient(135deg,#128c7e,#25d366)' },
     };
     function showCrmToast(n) {
         const shownKey = 'crm_shown_assign_toasts';

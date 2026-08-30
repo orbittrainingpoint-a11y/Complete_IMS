@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}WhatsApp Inbox{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">WhatsApp Inbox</h1>
+            <p class="text-muted">Conversations with customers over WhatsApp — visible to admins and sales managers</p>
+        </div>
+        <a href="{{ url_for('main.campaigns') }}" class="btn btn-outline-primary">
+            <i class="fas fa-bullhorn me-2"></i>Campaigns
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {% if conversations %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Lead / Number</th>
+                            <th>Last Message</th>
+                            <th></th>
+                            <th>When</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in conversations %}
+                        {% set lead = lead_map.get(m.lead_id) %}
+                        <tr>
+                            <td>
+                                {% if lead %}
+                                <strong>{{ lead.name }}</strong><br><span class="small text-muted">{{ m.to_phone }}</span>
+                                {% else %}
+                                <span class="text-muted">Unrecognized number</span><br><span class="small text-muted">{{ m.to_phone }}</span>
+                                {% endif %}
+                            </td>
+                            <td style="max-width:400px;">
+                                {% if m.direction == 'outbound' %}<span class="badge bg-light text-dark border me-1">You</span>{% endif %}
+                                {{ (m.inbound_body or '(no text)')|truncate(80) }}
+                                {% if m.inbound_body and m.inbound_body|lower in ['stop', 'unsubscribe', 'opt out', 'optout'] %}
+                                <span class="badge bg-warning text-dark ms-1">Opted out</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if m.status == 'failed' %}<span class="badge bg-danger">Failed</span>{% endif %}
+                            </td>
+                            <td class="small text-muted">{{ m.created_at.strftime('%b %d, %H:%M') if m.created_at else '' }}</td>
+                            <td class="text-end">
+                                {% if lead %}
+                                <a href="{{ url_for('main.whatsapp_conversation', lead_id=lead.id) }}" class="btn btn-sm btn-outline-success">
+                                    <i class="fas fa-comment-dots me-1"></i>Open
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fab fa-whatsapp fa-3x text-muted mb-3"></i>
+                <p class="text-muted mb-0">No WhatsApp conversations yet.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
