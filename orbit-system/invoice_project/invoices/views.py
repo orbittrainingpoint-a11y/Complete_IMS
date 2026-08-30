@@ -37,9 +37,10 @@ try:
 except Exception:
     WeasyHTML = None
 try:
-    from PyPDF2 import PdfMerger, PdfReader
+    from PyPDF2 import PdfMerger, PdfReader, PdfWriter, Transformation
+    from PyPDF2.generic import RectangleObject
 except Exception:
-    PdfMerger = PdfReader = None
+    PdfMerger = PdfReader = PdfWriter = Transformation = RectangleObject = None
 import io
 from django.conf import settings
 import os
@@ -3466,9 +3467,38 @@ def _append_divider(merger, request, title, subtitle=None, eyebrow=None):
     merger.append(io.BytesIO(pdf))
 
 
+# A4 landscape in points (297mm x 210mm @ 72dpi) — matches the @page size in every
+# proposal template exactly, so the whole merged document ends up one uniform size.
+_A4_LANDSCAPE_PT = (841.89, 595.28)
+
+
+def _append_pdf_fitted(merger, reader):
+    """Append every page of an uploaded/external PDF (course content, trainer
+    profile, company profile — arbitrary author-chosen sizes: widescreen slides,
+    A4 portrait resumes, etc.) scaled to fit inside our A4-landscape page, centered,
+    so the final document has one consistent page size throughout instead of the
+    page dimensions jumping around between branded and uploaded sections."""
+    target_w, target_h = _A4_LANDSCAPE_PT
+    writer = PdfWriter()
+    for page in reader.pages:
+        src_w, src_h = float(page.mediabox.width), float(page.mediabox.height)
+        if src_w > 0 and src_h > 0 and (abs(src_w - target_w) > 1 or abs(src_h - target_h) > 1):
+            scale = min(target_w / src_w, target_h / src_h)
+            off_x = (target_w - src_w * scale) / 2
+            off_y = (target_h - src_h * scale) / 2
+            page.add_transformation(Transformation().scale(scale, scale).translate(off_x, off_y))
+            page.mediabox = RectangleObject((0, 0, target_w, target_h))
+            page.cropbox = RectangleObject((0, 0, target_w, target_h))
+        writer.add_page(page)
+    buf = io.BytesIO()
+    writer.write(buf)
+    buf.seek(0)
+    merger.append(buf)
+
+
 @login_required
 def print_proposal(request, pk):
-    if WeasyHTML is None or PdfMerger is None or PdfReader is None:
+    if None in (WeasyHTML, PdfMerger, PdfReader, PdfWriter, Transformation, RectangleObject):
         logger.error("Proposal PDF generation unavailable — weasyprint/PyPDF2 not installed")
         return HttpResponseServerError(
             "PDF generation isn't available on this server (missing weasyprint/PyPDF2). "
@@ -3495,7 +3525,7 @@ def print_proposal(request, pk):
             for content in pdf_contents:
                 try:
                     with default_storage.open(content.file.name, 'rb') as file:
-                        merger.append(PdfReader(file))
+                        _append_pdf_fitted(merger, PdfReader(file))
                 except Exception:
                     logger.exception("Error appending course content PDF (content id=%s) for proposal %s",
                                       content.pk, proposal.proposal_number)
@@ -3508,7 +3538,7 @@ def print_proposal(request, pk):
                     subtitle=proposal.trainer.name, eyebrow='Trainer Profile',
                 )
                 with default_storage.open(proposal.trainer.profile_pdf.name, 'rb') as file:
-                    merger.append(PdfReader(file))
+                    _append_pdf_fitted(merger, PdfReader(file))
             except Exception:
                 logger.exception("Error appending trainer profile PDF for proposal %s", proposal.proposal_number)
 
@@ -3521,7 +3551,7 @@ def print_proposal(request, pk):
             for profile in my_pdf_profiles:
                 try:
                     with default_storage.open(profile.company_pdf.name, 'rb') as file:
-                        merger.append(PdfReader(file))
+                        _append_pdf_fitted(merger, PdfReader(file))
                 except Exception:
                     logger.exception("Error appending company profile PDF (%s) for proposal %s",
                                       profile.name, proposal.proposal_number)
