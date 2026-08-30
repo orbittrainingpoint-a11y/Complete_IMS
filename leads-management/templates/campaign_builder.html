@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}New Campaign{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">New WhatsApp Campaign</h1>
+            <p class="text-muted">Pick an audience, then a one-off broadcast or a multi-step follow-up sequence</p>
+        </div>
+        <a href="{{ url_for('main.campaigns') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Campaigns
+        </a>
+    </div>
+
+    {% if not account %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        WhatsApp isn't configured yet. <a href="{{ url_for('main.whatsapp_settings') }}">Set it up here</a> before creating a campaign.
+    </div>
+    {% endif %}
+    {% if not templates %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        No WhatsApp templates yet. Create one on the <a href="{{ url_for('main.messages') }}">Messages</a> page (set Message Type to "WhatsApp") — it needs to be approved in Meta Business Manager before a campaign using it can launch.
+    </div>
+    {% endif %}
+
+    <form method="POST" id="campaignForm">
+        <div class="row g-3">
+            <div class="col-md-8">
+                <div class="card mb-3">
+                    <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Campaign</h6></div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Campaign Name</label>
+                            <input type="text" name="name" class="form-control" placeholder="e.g. Interior Design — August Promo" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label d-block">Type</label>
+                            <div class="btn-group" role="group">
+                                <input type="radio" class="btn-check" name="campaign_type" id="typeBroadcast" value="broadcast" checked onchange="toggleCampaignType()">
+                                <label class="btn btn-outline-primary" for="typeBroadcast"><i class="fas fa-bullhorn me-1"></i>One-off Broadcast</label>
+                                <input type="radio" class="btn-check" name="campaign_type" id="typeSequence" value="sequence" onchange="toggleCampaignType()">
+                                <label class="btn btn-outline-primary" for="typeSequence"><i class="fas fa-stream me-1"></i>Automated Sequence</label>
+                            </div>
+                        </div>
+
+                        <div id="broadcastSection">
+                            <label class="form-label">Template</label>
+                            <select name="template_id" class="form-select">
+                                <option value="">Select a template…</option>
+                                {% for t in templates %}
+                                <option value="{{ t.id }}">{{ t.name }} {% if t.meta_status != 'approved' %}(not yet approved){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div id="sequenceSection" style="display:none;">
+                            <label class="form-label d-block">Steps</label>
+                            <div id="stepsList"></div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addStep()">
+                                <i class="fas fa-plus me-1"></i>Add Step
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card mb-3">
+                    <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Audience</h6></div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label small">Status</label>
+                            <select name="status" class="form-select form-select-sm audience-filter">
+                                <option value="">Any</option>
+                                {% for s in ['New','Contacted','Interested','Quoted','Converted','Lost'] %}
+                                <option value="{{ s }}">{{ s }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Course</label>
+                            <select name="course_id" class="form-select form-select-sm audience-filter">
+                                <option value="">Any</option>
+                                {% for c in courses %}
+                                <option value="{{ c.id }}">{{ c.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Lead Source</label>
+                            <input type="text" name="lead_source" class="form-control form-control-sm audience-filter" placeholder="e.g. Website - Enroll Now">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Assigned To</label>
+                            <select name="assigned_to" class="form-select form-select-sm audience-filter">
+                                <option value="">Any</option>
+                                {% for u in consultants %}
+                                <option value="{{ u.id }}">{{ u.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label small">Created From</label>
+                                <input type="date" name="date_from" class="form-control form-control-sm audience-filter">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small">Created To</label>
+                                <input type="date" name="date_to" class="form-control form-control-sm audience-filter">
+                            </div>
+                        </div>
+                        <div class="alert alert-light border text-center mb-0" id="audienceCount">
+                            <strong id="audienceCountNumber">—</strong> lead(s) match
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success w-100" {% if not account or not templates %}disabled{% endif %}>
+                    <i class="fas fa-save me-1"></i>Create Draft
+                </button>
+                <p class="text-muted small mt-2 mb-0">Creates a draft — review and launch it from the campaign page. Nothing sends until you launch.</p>
+            </div>
+        </div>
+    </form>
+</div>
+
+<template id="stepRowTemplate">
+    <div class="step-row border rounded p-2 mb-2 d-flex align-items-center gap-2">
+        <span class="step-number badge bg-secondary"></span>
+        <div style="width:90px;">
+            <input type="number" name="step_day_offset[]" class="form-control form-control-sm" value="0" min="0" title="Days after enrollment">
+        </div>
+        <select name="step_template_id[]" class="form-select form-select-sm flex-grow-1">
+            <option value="">Select a template…</option>
+            {% for t in templates %}
+            <option value="{{ t.id }}">{{ t.name }} {% if t.meta_status != 'approved' %}(not yet approved){% endif %}</option>
+            {% endfor %}
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.step-row').remove(); renumberSteps();">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+</template>
+
+<script>
+function toggleCampaignType() {
+    const isSequence = document.getElementById('typeSequence').checked;
+    document.getElementById('broadcastSection').style.display = isSequence ? 'none' : 'block';
+    document.getElementById('sequenceSection').style.display = isSequence ? 'block' : 'none';
+    if (isSequence && document.querySelectorAll('.step-row').length === 0) addStep();
+}
+
+function renumberSteps() {
+    document.querySelectorAll('.step-row').forEach((row, i) => {
+        row.querySelector('.step-number').textContent = 'Day ' + (row.querySelector('input').value || '0');
+    });
+}
+
+function addStep() {
+    const tpl = document.getElementById('stepRowTemplate').content.cloneNode(true);
+    const dayInput = tpl.querySelector('input[name="step_day_offset[]"]');
+    dayInput.addEventListener('input', renumberSteps);
+    document.getElementById('stepsList').appendChild(tpl);
+    renumberSteps();
+}
+
+// Live audience count
+let previewTimeout;
+function updateAudienceCount() {
+    clearTimeout(previewTimeout);
+    previewTimeout = setTimeout(() => {
+        const form = document.getElementById('campaignForm');
+        const data = new FormData();
+        form.querySelectorAll('.audience-filter').forEach(el => data.append(el.name, el.value));
+        fetch("{{ url_for('main.campaign_audience_preview') }}", { method: 'POST', body: data })
+            .then(r => r.json())
+            .then(d => {
+                document.getElementById('audienceCountNumber').textContent = d.success ? d.count : '—';
+            })
+            .catch(() => {});
+    }, 300);
+}
+document.querySelectorAll('.audience-filter').forEach(el => el.addEventListener('input', updateAudienceCount));
+document.querySelectorAll('.audience-filter').forEach(el => el.addEventListener('change', updateAudienceCount));
+updateAudienceCount();
+</script>
+{% endblock %}

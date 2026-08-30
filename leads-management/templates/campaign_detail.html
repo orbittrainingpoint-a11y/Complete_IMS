@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}{{ campaign.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">{{ campaign.name }}</h1>
+            <p class="text-muted mb-0">
+                <span class="badge bg-{{ 'info' if campaign.campaign_type == 'broadcast' else 'purple' }}" style="{{ 'background:#8b5cf6;' if campaign.campaign_type == 'sequence' }}">
+                    {{ 'Broadcast' if campaign.campaign_type == 'broadcast' else 'Sequence' }}
+                </span>
+                <span class="badge bg-{{ {'draft':'secondary','running':'success','paused':'warning','completed':'primary','cancelled':'dark'}.get(campaign.status, 'secondary') }} ms-1">
+                    {{ campaign.status|title }}
+                </span>
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('main.campaigns') }}" class="btn btn-outline-primary me-2">
+                <i class="fas fa-arrow-left me-2"></i>Back
+            </a>
+            {% if campaign.status in ('draft', 'paused') %}
+            <button class="btn btn-success" onclick="doAction('launch')"><i class="fas fa-play me-1"></i>Launch</button>
+            {% endif %}
+            {% if campaign.status == 'running' %}
+            <button class="btn btn-warning" onclick="doAction('pause')"><i class="fas fa-pause me-1"></i>Pause</button>
+            {% endif %}
+            {% if campaign.status in ('draft', 'running', 'paused') %}
+            <button class="btn btn-outline-danger" onclick="doAction('cancel')"><i class="fas fa-ban me-1"></i>Cancel</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h4 class="mb-0">{{ enrollments|length }}</h4><small class="text-muted">Enrolled</small></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h4 class="mb-0 text-success">{{ logs|selectattr('status', 'in', ['sent','delivered','read'])|list|length }}</h4><small class="text-muted">Sent</small></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h4 class="mb-0 text-danger">{{ logs|selectattr('status', 'equalto', 'failed')|list|length }}</h4><small class="text-muted">Failed</small></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h4 class="mb-0">{{ enrollments|selectattr('status', 'equalto', 'opted_out')|list|length }}</h4><small class="text-muted">Opted Out</small></div></div></div>
+    </div>
+
+    {% if campaign.campaign_type == 'sequence' and steps %}
+    <div class="card mb-3">
+        <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Sequence Steps</h6></div>
+        <div class="card-body">
+            <ol class="mb-0">
+                {% for s in steps %}
+                <li>Day {{ s.day_offset }} — {{ step_templates.get(s.template_id).name if step_templates.get(s.template_id) else 'Unknown template' }}</li>
+                {% endfor %}
+            </ol>
+        </div>
+    </div>
+    {% elif template %}
+    <div class="card mb-3">
+        <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Template</h6></div>
+        <div class="card-body">{{ template.name }} — <span class="badge bg-{{ 'success' if template.meta_status == 'approved' else 'secondary' }}">{{ template.meta_status|replace('_',' ')|title }}</span></div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Recipients</h6></div>
+        <div class="card-body">
+            {% if enrollments %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead><tr><th>Lead</th><th>Phone</th><th>Status</th><th>Step</th><th>Next Due</th></tr></thead>
+                    <tbody>
+                        {% for e in enrollments %}
+                        {% set lead = lead_map.get(e.lead_id) %}
+                        <tr>
+                            <td>{% if lead %}<a href="{{ url_for('main.lead_detail', lead_id=lead.id) }}">{{ lead.name }}</a>{% else %}<span class="text-muted">Lead #{{ e.lead_id }}</span>{% endif %}</td>
+                            <td class="small">{{ e.phone_snapshot or '' }}</td>
+                            <td>
+                                <span class="badge bg-{{ {'active':'info','completed':'success','stopped':'secondary','opted_out':'warning','failed':'danger'}.get(e.status, 'secondary') }}">
+                                    {{ e.status|replace('_',' ')|title }}
+                                </span>
+                                {% if e.stopped_reason %}<div class="small text-muted">{{ e.stopped_reason|replace('_',' ') }}</div>{% endif %}
+                            </td>
+                            <td>{{ e.current_step_order }}</td>
+                            <td class="small text-muted">{{ e.next_due_at.strftime('%b %d, %H:%M') if e.next_due_at and e.status == 'active' else '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">No leads enrolled yet — launch the campaign to enroll everyone matching its audience filters.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if logs %}
+    <div class="card mt-3">
+        <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Send Log</h6></div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead><tr><th>Phone</th><th>Status</th><th>Error</th><th>When</th></tr></thead>
+                    <tbody>
+                        {% for l in logs %}
+                        <tr>
+                            <td class="small">{{ l.to_phone }}</td>
+                            <td><span class="badge bg-{{ 'success' if l.status in ('sent','delivered','read') else ('danger' if l.status == 'failed' else 'secondary') }}">{{ l.status|title }}</span></td>
+                            <td class="small text-danger">{{ l.error_message or '' }}</td>
+                            <td class="small text-muted">{{ l.created_at.strftime('%b %d, %H:%M') if l.created_at else '' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function doAction(action) {
+    if (action === 'cancel' && !confirm('Cancel this campaign? Active enrollments will stop.')) return;
+    fetch(`/campaigns/{{ campaign.id }}/${action}`, { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+            if (d.message) alert(d.message);
+            if (d.success) location.reload();
+        })
+        .catch(() => alert('Network error.'));
+}
+</script>
+{% endblock %}

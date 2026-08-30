@@ -337,6 +337,16 @@
                 {% for c in interested_courses %}<span class="badge bg-info me-1" style="font-size:11px;">{{ c.name }}</span>{% endfor %}
               </span>
             </div>
+            {% elif lead.course_text %}
+            <div class="info-item">
+              <div class="info-icon">
+                <i class="fas fa-graduation-cap"></i>
+              </div>
+              <span class="info-label">Course Typed on Form</span>
+              <span class="info-value">
+                <span class="badge bg-warning text-dark me-1" style="font-size:11px;" title="Not yet matched to a real course — assign it via Edit">{{ lead.course_text }}</span>
+              </span>
+            </div>
             {% endif %}
             <div class="info-item">
               <div class="info-icon">

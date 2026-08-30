@@ -232,6 +232,40 @@ const TEMPLATES = {{ templates | map(attribute='id') | list | tojson }}.map((id,
                         {{ template_form.subject(class="form-control", placeholder="Subject line for email templates", id="newTmplSubject") }}
                     </div>
 
+                    <!-- Meta WhatsApp template linkage (WhatsApp only) -->
+                    <div class="mb-3 p-3" id="metaWaRow" style="background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.2);border-radius:10px;">
+                        <div style="font-size:12px;font-weight:600;color:#128c7e;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">
+                            <i class="fab fa-whatsapp me-1"></i>Meta Template (required to use this in a campaign)
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label small mb-1">Meta Template Name</label>
+                                {{ template_form.meta_template_name(class="form-control form-control-sm", placeholder="Exact name approved in Meta Business Manager") }}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">Language</label>
+                                {{ template_form.meta_language_code(class="form-control form-control-sm") }}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">Approval Status</label>
+                                {{ template_form.meta_status(class="form-select form-select-sm") }}
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1">Meta Category</label>
+                                {{ template_form.meta_category(class="form-select form-select-sm") }}
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label small mb-1">{{ template_form.variable_mapping_input.label.text }}</label>
+                                {{ template_form.variable_mapping_input(class="form-control form-control-sm", placeholder="lead.name, lead.course, static:20% off") }}
+                            </div>
+                        </div>
+                        <div style="font-size:11px;color:var(--text-muted);">
+                            The Message Content field above is a preview only for WhatsApp — the actual send always uses the approved Meta template + these variables, in order.
+                        </div>
+                    </div>
+
                     <!-- Content + placeholder helpers -->
                     <div class="mb-3">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -376,6 +410,7 @@ function selectType(btn) {
     btn.style.background = 'rgba(37,99,235,.25)'; btn.style.color = '#1d4ed8'; btn.style.borderColor = '#2563eb';
     document.getElementById('newTmplType').value = btn.dataset.val;
     document.getElementById('subjectRow').style.display = btn.dataset.val === 'Email' ? '' : 'none';
+    document.getElementById('metaWaRow').style.display = btn.dataset.val === 'WhatsApp' ? '' : 'none';
 }
 
 function insertPlaceholder(fieldId, text) {

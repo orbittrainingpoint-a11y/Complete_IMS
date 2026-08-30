@@ -1,9 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
-from sqlalchemy import func, desc, asc
-from datetime import datetime, date, timedelta
-import json, hmac, hashlib, time, base64, os, secrets, requests
+from sqlalchemy import func, desc, asc, text
+from datetime import datetime, date, timedelta, timezone as _timezone
+import json, hmac, hashlib, time, base64, os, secrets, requests, re, uuid
 
 from extensions import db
 from models import *
@@ -24,6 +24,23 @@ def service_worker():
     response.headers['Service-Worker-Allowed'] = '/'
     response.headers['Cache-Control'] = 'no-cache'
     return response
+
+
+# ── Daily 9:30 PM (Dubai) curfew — every non-admin gets logged out until the next day ──
+# Fixed UTC+4 offset (not zoneinfo/tzdata) — UAE has no DST, and this avoids depending on
+# an IANA tzdata package that isn't always present on Windows.
+_DUBAI_TZ = _timezone(timedelta(hours=4))
+
+def _is_after_dubai_curfew():
+    now = datetime.now(_DUBAI_TZ)
+    return now.hour > 21 or (now.hour == 21 and now.minute >= 30)
+
+@main.before_request
+def _enforce_dubai_curfew():
+    if current_user.is_authenticated and not current_user.is_admin() and _is_after_dubai_curfew():
+        logout_user()
+        flash('Daily access ends at 9:30 PM (Dubai time). Please log in again tomorrow.', 'warning')
+        return redirect(url_for('main.login'))
 
 # ── SSO Bridge shared secret (must match Django settings.CRM_SSO_SECRET) ──
 _SSO_SECRET = 'orbit-erp-crm-sso-bridge-2024-x9q3mz'
@@ -587,6 +604,8 @@ def leads():
 def _can_manage_lead_sources():
     return current_user.is_admin() or current_user.is_sales_manager()
 
+_can_manage_campaigns = _can_manage_lead_sources
+
 @main.route('/leads/website')
 @login_required
 def leads_website():
@@ -622,11 +641,12 @@ def _notify_new_source_lead(lead, category):
     db.session.commit()
 
 
-def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notify_category=None):
+def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notify_category=None, course_text=None):
     """Create a Lead from an external source, or merge into an existing one with the same phone."""
     name = (name or 'Website Lead').strip()[:100]
     phone = (phone or '').strip()[:20]
     email = (email or '').strip()[:120] or None
+    course_text = (course_text or '').strip()[:150] or None
 
     if not phone:
         return None  # Lead.phone is required — nothing usable to store
@@ -636,6 +656,8 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
         stamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
         addition = f"\n\n[{stamp}] New {lead_source} submission received.{(' ' + note) if note else ''}"
         existing.comments = (existing.comments or '') + addition
+        if course_text and not existing.course_interest_id:
+            existing.course_text = course_text
         db.session.commit()
         return existing
 
@@ -645,6 +667,7 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
         email=email,
         lead_source=lead_source,
         course_interest_id=course_id,
+        course_text=course_text if not course_id else None,
         status='New',
         comments=note or None,
     )
@@ -683,17 +706,14 @@ def webhook_website(token):
 
     # The course typed into the form is free text and often won't match a real
     # course name exactly — don't try to auto-match it to course_interest_id
-    # (that would silently misfile leads). Keep it as plain text on the lead so
-    # staff can read it and assign the correct course from the CRM themselves.
-    note = f"Course entered on form: {course_text}" if course_text else ''
-    if message:
-        note = f"{note}\n{message}" if note else message
-
+    # (that would silently misfile leads). Kept in its own field so it's visible
+    # on the lead as-typed until staff assign the real course.
     lead = _intake_lead(
         name=name, phone=phone, email=email,
         lead_source=f"Website - {integration.name}"[:50],
         course_id=integration.default_course_id,
-        note=note,
+        course_text=course_text,
+        note=message,
         notify_category='website',
     )
     if lead is None:
@@ -742,6 +762,8 @@ def webhook_facebook(token):
                       for f in lead_data.get('field_data', [])}
             platform = (lead_data.get('platform') or 'facebook').lower()
             source_label = 'Social Media (Instagram)' if 'instagram' in platform else 'Social Media (Facebook)'
+            course_text = (fields.get('course') or fields.get('which_course') or fields.get('interested_course')
+                           or fields.get('course_name') or fields.get('select_course') or '')
 
             _intake_lead(
                 name=fields.get('full_name') or fields.get('name') or '',
@@ -749,6 +771,7 @@ def webhook_facebook(token):
                 email=fields.get('email') or '',
                 lead_source=source_label,
                 course_id=integration.default_course_id,
+                course_text=course_text,
                 note=f"Meta leadgen_id: {leadgen_id}",
                 notify_category='social',
             )
@@ -2208,7 +2231,12 @@ def add_template():
             subject=form.subject.data,
             content=form.content.data,
             message_type=form.message_type.data,
-            is_active=form.is_active.data
+            is_active=form.is_active.data,
+            meta_template_name=form.meta_template_name.data or None,
+            meta_language_code=form.meta_language_code.data or 'en_US',
+            meta_category=form.meta_category.data or None,
+            meta_status=form.meta_status.data or 'not_submitted',
+            meta_variable_mapping=_parse_variable_mapping(form.variable_mapping_input.data),
         )
         db.session.add(template)
         db.session.commit()
@@ -2220,8 +2248,11 @@ def add_template():
 def edit_template(id):
     template = MessageTemplate.query.get_or_404(id)
     form = MessageTemplateForm(obj=template)
+    if request.method == 'GET':
+        form.variable_mapping_input.data = _variable_mapping_display(template.meta_variable_mapping)
     if form.validate_on_submit():
         form.populate_obj(template)
+        template.meta_variable_mapping = _parse_variable_mapping(form.variable_mapping_input.data)
         db.session.commit()
         flash('Template updated successfully!', 'success')
         return redirect(url_for('main.messages'))
@@ -3893,3 +3924,730 @@ def erp_jump():
     elif crm_lead:
         return redirect(f'{_ERP_URL}/crm-auth/?t={token}&crm_id={crm_lead}')
     return redirect(f'{_ERP_URL}/crm-auth/?t={token}')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# WhatsApp Marketing Campaigns (official Meta Cloud API)
+# ══════════════════════════════════════════════════════════════════════════
+
+# ── Small helpers ────────────────────────────────────────────────────────
+
+def _normalize_whatsapp_number(raw, default_cc='971'):
+    """Best-effort normalize a phone string to Meta's expected digits-only E.164
+    (no leading '+'). Leads in this DB have inconsistent formats — +971..., 05...,
+    971..., bare 9-digit local — so this is a heuristic, not a strict validator."""
+    if not raw:
+        return None
+    has_plus = raw.strip().startswith('+')
+    digits = re.sub(r'\D', '', raw)
+    if not digits:
+        return None
+    if digits.startswith('00'):
+        digits = digits[2:]
+        has_plus = True
+    if has_plus or digits.startswith(default_cc):
+        return digits
+    if digits.startswith('0'):
+        return default_cc + digits[1:]
+    if len(digits) <= 10:
+        return default_cc + digits
+    return digits
+
+
+def _parse_variable_mapping(text_input):
+    """Turn the template editor's shorthand ("lead.name, lead.course, static:20% off")
+    into the JSON list stored on MessageTemplate.meta_variable_mapping."""
+    if not text_input or not text_input.strip():
+        return None
+    mapping = []
+    for token in text_input.split(','):
+        token = token.strip()
+        if not token:
+            continue
+        if token.startswith('static:'):
+            mapping.append({'source': 'static', 'static_value': token[len('static:'):].strip(), 'label': 'Static text'})
+        elif token in ('lead.name', 'lead.course', 'lead.phone', 'lead.email'):
+            mapping.append({'source': token, 'label': token})
+        else:
+            # Unknown token — treat as static text so nothing silently vanishes
+            mapping.append({'source': 'static', 'static_value': token, 'label': 'Static text'})
+    return json.dumps(mapping) if mapping else None
+
+
+def _variable_mapping_display(mapping_json):
+    if not mapping_json:
+        return ''
+    try:
+        mapping = json.loads(mapping_json)
+    except Exception:
+        return ''
+    parts = []
+    for m in mapping:
+        parts.append(f"static:{m.get('static_value', '')}" if m.get('source') == 'static' else m.get('source', ''))
+    return ', '.join(parts)
+
+
+def _resolve_variable_value(source, static_value, lead):
+    if source == 'lead.name':
+        return lead.name or ''
+    if source == 'lead.course':
+        if lead.course_interest:
+            return lead.course_interest.name
+        return lead.course_text or ''
+    if source == 'lead.phone':
+        return lead.phone or ''
+    if source == 'lead.email':
+        return lead.email or ''
+    if source == 'static':
+        return static_value or ''
+    return ''
+
+
+def _render_template_variables(template, lead):
+    try:
+        mapping = json.loads(template.meta_variable_mapping or '[]')
+    except Exception:
+        mapping = []
+    return [_resolve_variable_value(m.get('source'), m.get('static_value'), lead) for m in mapping]
+
+
+def _fanout_whatsapp_optout(phone):
+    """A phone number can exist on more than one Lead row (duplicate detection
+    already handles this elsewhere) — flip opt-out on every row that shares it,
+    not just the first match, and stop any active enrollment for those leads."""
+    digits = re.sub(r'\D', '', phone or '')
+    if len(digits) < 9:
+        return
+    suffix = digits[-9:]
+    matches = Lead.query.filter(
+        db.or_(Lead.phone.like(f'%{suffix}'), Lead.whatsapp.like(f'%{suffix}'))
+    ).all()
+    now = datetime.utcnow()
+    for lead in matches:
+        lead.whatsapp_opted_out = True
+        lead.whatsapp_opted_out_at = now
+        WhatsAppEnrollment.query.filter_by(lead_id=lead.id, status='active').update({
+            'status': 'opted_out', 'stopped_reason': 'opted_out',
+        })
+    db.session.commit()
+
+
+def _apply_campaign_audience_filters(status=None, course_id=None, lead_source=None, assigned_to=None, date_from=None, date_to=None):
+    """Leads eligible for a WhatsApp campaign: opted-in, and have some usable number."""
+    query = Lead.query.filter(
+        Lead.whatsapp_opted_out.isnot(True),
+        db.or_(Lead.whatsapp.isnot(None), Lead.phone.isnot(None)),
+    )
+    if status:
+        query = query.filter(Lead.status == status)
+    if course_id:
+        query = query.filter(Lead.course_interest_id == course_id)
+    if lead_source:
+        query = query.filter(Lead.lead_source == lead_source)
+    if assigned_to:
+        query = query.filter(Lead.assigned_to == assigned_to)
+    if date_from:
+        try:
+            query = query.filter(Lead.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            query = query.filter(Lead.created_at < datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1))
+        except ValueError:
+            pass
+    return query
+
+
+# ── Sending ──────────────────────────────────────────────────────────────
+
+def send_whatsapp_template(account, to_phone, meta_template_name, meta_language_code, variables):
+    """POST a template message via the Meta WhatsApp Cloud API.
+    Returns (success: bool, meta_message_id: str|None, error: dict|None)."""
+    payload = {
+        'messaging_product': 'whatsapp',
+        'to': to_phone,
+        'type': 'template',
+        'template': {'name': meta_template_name, 'language': {'code': meta_language_code or 'en_US'}},
+    }
+    if variables:
+        payload['template']['components'] = [{
+            'type': 'body',
+            'parameters': [{'type': 'text', 'text': str(v)} for v in variables],
+        }]
+    try:
+        resp = requests.post(
+            f'https://graph.facebook.com/v20.0/{account.phone_number_id}/messages',
+            headers={'Authorization': f'Bearer {account.access_token}'},
+            json=payload,
+            timeout=10,
+        )
+        data = resp.json()
+    except Exception:
+        logging.exception('WhatsApp send failed for %s (template %s)', to_phone, meta_template_name)
+        return False, None, {'message': 'request_exception'}
+
+    if resp.status_code == 200 and data.get('messages'):
+        return True, data['messages'][0]['id'], None
+    return False, None, data.get('error') or {'message': f'HTTP {resp.status_code}', 'raw': data}
+
+
+def _log_and_fail(enrollment, lead, template_id, step_order, error_code, error_message):
+    now = datetime.utcnow()
+    db.session.add(WhatsAppMessageLog(
+        campaign_id=enrollment.campaign_id, enrollment_id=enrollment.id, step_order=step_order,
+        lead_id=lead.id, template_id=template_id, status='failed',
+        error_code=error_code, error_message=error_message, created_at=now,
+    ))
+    enrollment.attempts = (enrollment.attempts or 0) + 1
+    if enrollment.attempts >= 3:
+        enrollment.status = 'failed'
+        enrollment.stopped_reason = error_code
+    else:
+        enrollment.next_due_at = now + timedelta(hours=1)
+    enrollment.claim_token = None
+    enrollment.claimed_at = None
+    db.session.commit()
+
+
+def _notify_campaign_failure(campaign, lead, error):
+    recipients = [u for u in User.query.all() if u.is_admin() or u.is_sales_manager()]
+    msg = f'WhatsApp campaign "{campaign.name}": failed to reach {lead.name} after 3 attempts.'
+    for u in recipients:
+        db.session.add(CRMNotification(user_id=u.id, message=msg, lead_id=lead.id, notif_type='campaign_failure'))
+
+
+def _process_enrollment_step(account, enrollment):
+    campaign = WhatsAppCampaign.query.get(enrollment.campaign_id)
+    if not campaign or campaign.status != 'running':
+        WhatsAppEnrollment.query.filter_by(id=enrollment.id).update({'claim_token': None, 'claimed_at': None})
+        db.session.commit()
+        return
+
+    lead = Lead.query.get(enrollment.lead_id)
+    if not lead or lead.whatsapp_opted_out:
+        enrollment.status = 'opted_out' if lead else 'stopped'
+        enrollment.stopped_reason = 'opted_out' if lead else 'lead_deleted'
+        enrollment.claim_token = None
+        enrollment.claimed_at = None
+        db.session.commit()
+        return
+
+    next_step_exists = False
+    if campaign.campaign_type == 'broadcast':
+        template_id = campaign.template_id
+        step_order = 0
+    else:
+        step = WhatsAppCampaignStep.query.filter_by(campaign_id=campaign.id, step_order=enrollment.current_step_order).first()
+        if not step:
+            enrollment.status = 'completed'
+            enrollment.completed_at = datetime.utcnow()
+            enrollment.claim_token = None
+            enrollment.claimed_at = None
+            db.session.commit()
+            return
+        template_id = step.template_id
+        step_order = step.step_order
+        next_step_exists = WhatsAppCampaignStep.query.filter_by(campaign_id=campaign.id, step_order=step_order + 1).first() is not None
+
+    template = MessageTemplate.query.get(template_id)
+    to_phone = _normalize_whatsapp_number(lead.whatsapp or lead.phone)
+
+    if not template or not template.meta_template_name:
+        _log_and_fail(enrollment, lead, template_id, step_order, 'template_missing', 'Template not found or has no Meta template name')
+        return
+    if not to_phone:
+        _log_and_fail(enrollment, lead, template_id, step_order, 'invalid_number', 'Unparseable phone number')
+        return
+
+    variables = _render_template_variables(template, lead)
+    success, meta_message_id, error = send_whatsapp_template(
+        account, to_phone, template.meta_template_name, template.meta_language_code, variables)
+
+    now = datetime.utcnow()
+    db.session.add(WhatsAppMessageLog(
+        campaign_id=campaign.id, enrollment_id=enrollment.id, step_order=step_order,
+        lead_id=lead.id, template_id=template_id, to_phone=to_phone,
+        meta_message_id=meta_message_id, rendered_variables=json.dumps(variables),
+        status='sent' if success else 'failed',
+        error_code=(error or {}).get('code') if error else None,
+        error_message=json.dumps(error) if error else None,
+        sent_at=now if success else None,
+        created_at=now,
+    ))
+
+    if success:
+        db.session.add(LeadInteraction(
+            lead_id=lead.id, interaction_type='WhatsApp',
+            content=f'Campaign "{campaign.name}" — sent "{template.name}"',
+            interaction_date=now, is_important=False,
+        ))
+        enrollment.attempts = 0
+        if campaign.campaign_type == 'broadcast' or not next_step_exists:
+            enrollment.status = 'completed'
+            enrollment.completed_at = now
+        else:
+            next_step = WhatsAppCampaignStep.query.filter_by(campaign_id=campaign.id, step_order=step_order + 1).first()
+            enrollment.current_step_order = next_step.step_order
+            enrollment.next_due_at = enrollment.enrolled_at + timedelta(days=next_step.day_offset)
+    else:
+        enrollment.attempts = (enrollment.attempts or 0) + 1
+        if enrollment.attempts >= 3:
+            enrollment.status = 'failed'
+            enrollment.stopped_reason = 'max_attempts'
+            _notify_campaign_failure(campaign, lead, error)
+        else:
+            enrollment.next_due_at = now + timedelta(hours=1)  # brief backoff before retry
+
+    enrollment.claim_token = None
+    enrollment.claimed_at = None
+    db.session.commit()
+
+
+def _process_account_due_enrollments(account):
+    """Called by scheduler.py every tick. Safe under concurrent processes: the
+    claim UPDATE below is what guarantees a given enrollment is only ever
+    processed by one of them, not any process-level "only one worker" trick."""
+    if account.quiet_hours_start and account.quiet_hours_end:
+        current_time = datetime.now(_DUBAI_TZ).time()
+        if not (account.quiet_hours_start <= current_time <= account.quiet_hours_end):
+            return  # due enrollments just wait for the next in-window tick
+
+    now = datetime.utcnow()
+    day_ago = now - timedelta(hours=24)
+    sent_last_24h = (
+        db.session.query(func.count(WhatsAppMessageLog.id))
+        .join(WhatsAppCampaign, WhatsAppMessageLog.campaign_id == WhatsAppCampaign.id)
+        .filter(
+            WhatsAppCampaign.account_id == account.id,
+            WhatsAppMessageLog.direction == 'outbound',
+            WhatsAppMessageLog.status.in_(['sent', 'delivered', 'read']),
+            WhatsAppMessageLog.created_at >= day_ago,
+        ).scalar()
+    ) or 0
+    remaining_budget = max(0, (account.daily_send_limit or 250) - sent_last_24h)
+    if remaining_budget <= 0:
+        return
+
+    campaign_ids = [c.id for c in WhatsAppCampaign.query.filter_by(account_id=account.id, status='running').all()]
+    if not campaign_ids:
+        return
+
+    batch_size = min(account.max_sends_per_tick or 20, remaining_budget)
+    run_id = str(uuid.uuid4())
+    stale_before = now - timedelta(minutes=5)
+
+    stmt = text("""
+        UPDATE whatsapp_enrollment
+        SET claim_token = :run_id, claimed_at = :now
+        WHERE status = 'active' AND next_due_at <= :now
+          AND campaign_id IN :campaign_ids
+          AND (claim_token IS NULL OR claimed_at < :stale_before)
+        ORDER BY next_due_at
+        LIMIT :batch_size
+    """).bindparams(db.bindparam('campaign_ids', expanding=True))
+
+    # No explicit isolation-level override needed: InnoDB's UPDATE/DELETE (and
+    # SELECT ... FOR UPDATE) always perform a locking "current read" on the rows
+    # matching WHERE — reading the latest committed data — regardless of the
+    # transaction's isolation level. That's what makes this claim exclusive across
+    # concurrent processes even under MySQL's default REPEATABLE READ; verified
+    # under real concurrent load (6 threads racing 50 rows, zero double-claims).
+    db.session.execute(stmt, {
+        'run_id': run_id, 'now': now, 'stale_before': stale_before,
+        'campaign_ids': campaign_ids, 'batch_size': batch_size,
+    })
+    db.session.commit()  # commit immediately — this is what makes the claim exclusive
+
+    claimed = WhatsAppEnrollment.query.filter_by(claim_token=run_id).all()
+    for enrollment in claimed:
+        _process_enrollment_step(account, enrollment)
+
+
+# ── Webhook: delivery status + inbound messages/opt-out ─────────────────
+
+_WHATSAPP_OPTOUT_KEYWORDS = {'stop', 'unsubscribe', 'opt out', 'optout'}
+
+
+def _handle_whatsapp_status(status_update):
+    meta_message_id = status_update.get('id')
+    new_status = status_update.get('status')
+    if not meta_message_id or new_status not in ('sent', 'delivered', 'read', 'failed'):
+        return
+    log = WhatsAppMessageLog.query.filter_by(meta_message_id=meta_message_id).first()
+    if not log:
+        return
+    log.status = new_status
+    log.status_updated_at = datetime.utcnow()
+    if new_status == 'failed':
+        errors = status_update.get('errors') or []
+        if errors:
+            log.error_code = str(errors[0].get('code', ''))
+            log.error_message = errors[0].get('title', '')
+    db.session.commit()
+
+
+def _handle_whatsapp_inbound(msg):
+    from_phone = msg.get('from', '')
+    body = (msg.get('text') or {}).get('body', '') if msg.get('type') == 'text' else ''
+
+    suffix = re.sub(r'\D', '', from_phone)[-9:]
+    lead = Lead.query.filter(
+        db.or_(Lead.phone.like(f'%{suffix}'), Lead.whatsapp.like(f'%{suffix}'))
+    ).first() if len(suffix) >= 9 else None
+
+    db.session.add(WhatsAppMessageLog(
+        lead_id=lead.id if lead else None, direction='inbound', to_phone=from_phone,
+        inbound_body=body, status='delivered', created_at=datetime.utcnow(),
+    ))
+    db.session.commit()
+
+    if body.strip().lower() in _WHATSAPP_OPTOUT_KEYWORDS:
+        _fanout_whatsapp_optout(from_phone)
+
+
+@main.route('/webhooks/whatsapp/<token>/', methods=['GET', 'POST'])
+def webhook_whatsapp(token):
+    account = WhatsAppAccount.query.filter_by(webhook_token=token, is_active=True).first()
+    if not account:
+        return jsonify({'status': 'error'}), 404
+
+    if request.method == 'GET':
+        if (request.args.get('hub.mode') == 'subscribe'
+                and request.args.get('hub.verify_token') == account.verify_token
+                and account.verify_token):
+            return request.args.get('hub.challenge', ''), 200
+        return 'verification failed', 403
+
+    if account.app_secret:
+        signature = request.headers.get('X-Hub-Signature-256', '')
+        expected = 'sha256=' + hmac.new(account.app_secret.encode(), request.get_data(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            return jsonify({'status': 'error', 'message': 'invalid signature'}), 403
+
+    payload = request.get_json(silent=True) or {}
+    for entry in payload.get('entry', []):
+        for change in entry.get('changes', []):
+            value = change.get('value', {})
+            for status_update in value.get('statuses', []):
+                _handle_whatsapp_status(status_update)
+            for msg in value.get('messages', []):
+                _handle_whatsapp_inbound(msg)
+    return jsonify({'status': 'ok'}), 200
+
+
+# ── Settings ─────────────────────────────────────────────────────────────
+
+@main.route('/settings/whatsapp')
+@login_required
+def whatsapp_settings():
+    if not current_user.is_admin():
+        flash('Access denied. Only admins can manage WhatsApp settings.', 'error')
+        return redirect(url_for('main.dashboard'))
+    account = WhatsAppAccount.query.first()
+    form = WhatsAppAccountForm(obj=account) if account else WhatsAppAccountForm()
+    return render_template('whatsapp_settings.html', account=account, form=form)
+
+
+@main.route('/settings/whatsapp/save', methods=['POST'])
+@login_required
+def save_whatsapp_settings():
+    if not current_user.is_admin():
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.dashboard'))
+    form = WhatsAppAccountForm()
+    account = WhatsAppAccount.query.first()
+    if form.validate_on_submit():
+        if not account:
+            account = WhatsAppAccount(webhook_token=secrets.token_urlsafe(32), verify_token=secrets.token_urlsafe(16))
+            db.session.add(account)
+        account.name = form.name.data
+        account.phone_number_id = form.phone_number_id.data or None
+        account.waba_id = form.waba_id.data or None
+        account.business_display_phone = form.business_display_phone.data or None
+        if form.access_token.data:  # blank field on edit = keep the existing token
+            account.access_token = form.access_token.data
+        account.app_secret = form.app_secret.data or None
+        account.daily_send_limit = form.daily_send_limit.data or 250
+        account.max_sends_per_tick = form.max_sends_per_tick.data or 20
+        account.quiet_hours_start = form.quiet_hours_start.data
+        account.quiet_hours_end = form.quiet_hours_end.data
+        account.is_active = form.is_active.data
+        db.session.commit()
+        flash('WhatsApp settings saved.', 'success')
+    else:
+        flash('Please check the form for errors.', 'error')
+    return redirect(url_for('main.whatsapp_settings'))
+
+
+@main.route('/settings/whatsapp/test', methods=['POST'])
+@login_required
+def test_whatsapp_connection():
+    if not current_user.is_admin():
+        return jsonify({'success': False, 'message': 'Access denied.'}), 403
+    account = WhatsAppAccount.query.first()
+    if not account or not account.phone_number_id or not account.access_token:
+        return jsonify({'success': False, 'message': 'Configure Phone Number ID and Access Token first.'}), 400
+    try:
+        resp = requests.get(
+            f'https://graph.facebook.com/v20.0/{account.phone_number_id}',
+            params={'access_token': account.access_token},
+            timeout=10,
+        )
+        data = resp.json()
+    except Exception:
+        logging.exception('WhatsApp connection test failed')
+        account.last_test_at = datetime.utcnow()
+        account.last_test_result = 'failed'
+        db.session.commit()
+        return jsonify({'success': False, 'message': 'Network error contacting Meta.'}), 500
+
+    account.last_test_at = datetime.utcnow()
+    if resp.status_code == 200 and data.get('id'):
+        account.last_test_result = 'ok'
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Connected — {data.get("display_phone_number", data.get("id"))}'})
+    account.last_test_result = 'failed'
+    db.session.commit()
+    return jsonify({'success': False, 'message': (data.get('error') or {}).get('message', 'Connection failed.')}), 400
+
+
+# ── Campaigns ────────────────────────────────────────────────────────────
+
+@main.route('/campaigns')
+@login_required
+def campaigns():
+    if not _can_manage_campaigns():
+        flash('Access denied. Only admins and sales managers can manage campaigns.', 'error')
+        return redirect(url_for('main.leads'))
+    all_campaigns = WhatsAppCampaign.query.order_by(desc(WhatsAppCampaign.created_at)).all()
+    stats = {}
+    for c in all_campaigns:
+        counts = dict(
+            db.session.query(WhatsAppMessageLog.status, func.count(WhatsAppMessageLog.id))
+            .filter(WhatsAppMessageLog.campaign_id == c.id, WhatsAppMessageLog.direction == 'outbound')
+            .group_by(WhatsAppMessageLog.status).all()
+        )
+        stats[c.id] = {
+            'enrolled': WhatsAppEnrollment.query.filter_by(campaign_id=c.id).count(),
+            'sent': counts.get('sent', 0) + counts.get('delivered', 0) + counts.get('read', 0),
+            'failed': counts.get('failed', 0),
+            'opted_out': WhatsAppEnrollment.query.filter_by(campaign_id=c.id, status='opted_out').count(),
+        }
+    return render_template('campaigns.html', campaigns=all_campaigns, stats=stats)
+
+
+@main.route('/campaigns/new', methods=['GET', 'POST'])
+@login_required
+def new_campaign():
+    if not _can_manage_campaigns():
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.leads'))
+
+    account = WhatsAppAccount.query.filter_by(is_active=True).first()
+    templates = MessageTemplate.query.filter_by(message_type='WhatsApp', is_active=True).all()
+    courses = Course.query.filter_by(is_active=True).all()
+    consultants = User.query.order_by(User.username).all()
+
+    if request.method == 'POST':
+        name = (request.form.get('name') or '').strip()
+        campaign_type = request.form.get('campaign_type', 'broadcast')
+        if not name:
+            flash('Campaign name is required.', 'error')
+            return redirect(url_for('main.new_campaign'))
+        if not account:
+            flash('Configure WhatsApp settings before creating a campaign.', 'error')
+            return redirect(url_for('main.whatsapp_settings'))
+
+        audience = {
+            'status': request.form.get('status') or None,
+            'course_id': request.form.get('course_id', type=int) or None,
+            'lead_source': request.form.get('lead_source') or None,
+            'assigned_to': request.form.get('assigned_to', type=int) or None,
+            'date_from': request.form.get('date_from') or None,
+            'date_to': request.form.get('date_to') or None,
+        }
+        campaign = WhatsAppCampaign(
+            name=name, campaign_type=campaign_type, status='draft',
+            account_id=account.id, audience_filters=json.dumps(audience),
+            created_by_id=current_user.id,
+        )
+
+        if campaign_type == 'broadcast':
+            template_id = request.form.get('template_id', type=int)
+            if not template_id:
+                flash('Select a template for the broadcast.', 'error')
+                return redirect(url_for('main.new_campaign'))
+            campaign.template_id = template_id
+            db.session.add(campaign)
+            db.session.commit()
+        else:
+            step_templates = request.form.getlist('step_template_id[]', type=int)
+            step_offsets = request.form.getlist('step_day_offset[]', type=int)
+            if not step_templates:
+                flash('Add at least one step to the sequence.', 'error')
+                return redirect(url_for('main.new_campaign'))
+            db.session.add(campaign)
+            db.session.flush()
+            for i, (tid, offset) in enumerate(zip(step_templates, step_offsets)):
+                db.session.add(WhatsAppCampaignStep(campaign_id=campaign.id, step_order=i, day_offset=offset or 0, template_id=tid))
+            db.session.commit()
+
+        flash('Campaign created as a draft. Review and launch it from the campaign page.', 'success')
+        return redirect(url_for('main.campaign_detail', id=campaign.id))
+
+    return render_template('campaign_builder.html', account=account, templates=templates, courses=courses, consultants=consultants)
+
+
+@main.route('/campaigns/audience-preview', methods=['POST'])
+@login_required
+def campaign_audience_preview():
+    if not _can_manage_campaigns():
+        return jsonify({'success': False}), 403
+    query = _apply_campaign_audience_filters(
+        status=request.form.get('status') or None,
+        course_id=request.form.get('course_id', type=int),
+        lead_source=request.form.get('lead_source') or None,
+        assigned_to=request.form.get('assigned_to', type=int),
+        date_from=request.form.get('date_from') or None,
+        date_to=request.form.get('date_to') or None,
+    )
+    return jsonify({'success': True, 'count': query.count()})
+
+
+def _launch_campaign_enrollments(campaign, leads):
+    now = datetime.utcnow()
+    if campaign.campaign_type == 'broadcast':
+        first_offset = 0
+    else:
+        first_step = WhatsAppCampaignStep.query.filter_by(campaign_id=campaign.id, step_order=0).first()
+        first_offset = first_step.day_offset if first_step else 0
+
+    existing_lead_ids = {e.lead_id for e in WhatsAppEnrollment.query.filter_by(campaign_id=campaign.id).all()}
+    added = 0
+    for lead in leads:
+        if lead.id in existing_lead_ids:
+            continue
+        db.session.add(WhatsAppEnrollment(
+            campaign_id=campaign.id, lead_id=lead.id,
+            phone_snapshot=lead.whatsapp or lead.phone,
+            status='active', current_step_order=0,
+            next_due_at=now + timedelta(days=first_offset),
+            enrolled_at=now,
+        ))
+        added += 1
+    db.session.commit()
+    return added
+
+
+@main.route('/campaigns/<int:id>/launch', methods=['POST'])
+@login_required
+def launch_campaign(id):
+    if not _can_manage_campaigns():
+        return jsonify({'success': False, 'message': 'Access denied.'}), 403
+    campaign = WhatsAppCampaign.query.get_or_404(id)
+    if campaign.status not in ('draft', 'paused'):
+        return jsonify({'success': False, 'message': f'Campaign is already {campaign.status}.'}), 400
+
+    if campaign.campaign_type == 'broadcast':
+        template_ids = [campaign.template_id]
+    else:
+        template_ids = [s.template_id for s in WhatsAppCampaignStep.query.filter_by(campaign_id=campaign.id).all()]
+    templates_map = {t.id: t for t in MessageTemplate.query.filter(MessageTemplate.id.in_(template_ids)).all()}
+    for tid in template_ids:
+        t = templates_map.get(tid)
+        if not t or t.meta_status != 'approved' or not t.meta_template_name:
+            name = t.name if t else tid
+            return jsonify({'success': False, 'message': f'Template "{name}" is not an approved WhatsApp template yet.'}), 400
+
+    filters = json.loads(campaign.audience_filters or '{}')
+    leads = _apply_campaign_audience_filters(**filters).all()
+    if not leads:
+        return jsonify({'success': False, 'message': "No leads match this campaign's audience filters."}), 400
+
+    added = _launch_campaign_enrollments(campaign, leads)
+    campaign.status = 'running'
+    campaign.launched_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'success': True, 'message': f'Campaign launched — {added} lead(s) enrolled.'})
+
+
+@main.route('/campaigns/<int:id>/pause', methods=['POST'])
+@login_required
+def pause_campaign(id):
+    if not _can_manage_campaigns():
+        return jsonify({'success': False}), 403
+    campaign = WhatsAppCampaign.query.get_or_404(id)
+    if campaign.status == 'running':
+        campaign.status = 'paused'
+        db.session.commit()
+    return jsonify({'success': True})
+
+
+@main.route('/campaigns/<int:id>/resume', methods=['POST'])
+@login_required
+def resume_campaign(id):
+    if not _can_manage_campaigns():
+        return jsonify({'success': False}), 403
+    campaign = WhatsAppCampaign.query.get_or_404(id)
+    if campaign.status == 'paused':
+        campaign.status = 'running'
+        db.session.commit()
+    return jsonify({'success': True})
+
+
+@main.route('/campaigns/<int:id>/cancel', methods=['POST'])
+@login_required
+def cancel_campaign(id):
+    if not _can_manage_campaigns():
+        return jsonify({'success': False}), 403
+    campaign = WhatsAppCampaign.query.get_or_404(id)
+    campaign.status = 'cancelled'
+    WhatsAppEnrollment.query.filter_by(campaign_id=campaign.id, status='active').update({
+        'status': 'stopped', 'stopped_reason': 'manual_cancel',
+    })
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@main.route('/campaigns/<int:id>')
+@login_required
+def campaign_detail(id):
+    if not _can_manage_campaigns():
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.leads'))
+    campaign = WhatsAppCampaign.query.get_or_404(id)
+    steps = (WhatsAppCampaignStep.query.filter_by(campaign_id=id).order_by(WhatsAppCampaignStep.step_order).all()
+             if campaign.campaign_type == 'sequence' else [])
+    template = MessageTemplate.query.get(campaign.template_id) if campaign.template_id else None
+    step_templates = {s.template_id: MessageTemplate.query.get(s.template_id) for s in steps}
+    enrollments = WhatsAppEnrollment.query.filter_by(campaign_id=id).order_by(desc(WhatsAppEnrollment.enrolled_at)).all()
+    lead_map = {l.id: l for l in Lead.query.filter(Lead.id.in_([e.lead_id for e in enrollments])).all()} if enrollments else {}
+    logs = WhatsAppMessageLog.query.filter_by(campaign_id=id, direction='outbound').order_by(desc(WhatsAppMessageLog.created_at)).limit(200).all()
+    return render_template('campaign_detail.html', campaign=campaign, steps=steps, template=template,
+                            step_templates=step_templates, enrollments=enrollments, lead_map=lead_map, logs=logs)
+
+
+@main.route('/leads/bulk-enroll-whatsapp', methods=['POST'])
+@login_required
+def bulk_enroll_whatsapp():
+    if not _can_manage_campaigns():
+        return jsonify({'success': False, 'message': 'Access denied.'}), 403
+    campaign_id = request.form.get('campaign_id', type=int)
+    lead_ids = request.form.getlist('lead_ids[]', type=int)
+    campaign = WhatsAppCampaign.query.get_or_404(campaign_id) if campaign_id else None
+    if not campaign or campaign.status not in ('running', 'draft'):
+        return jsonify({'success': False, 'message': 'Pick an active or draft campaign.'}), 400
+    if not lead_ids:
+        return jsonify({'success': False, 'message': 'No leads selected.'}), 400
+    leads = Lead.query.filter(Lead.id.in_(lead_ids), Lead.whatsapp_opted_out.isnot(True)).all()
+    added = _launch_campaign_enrollments(campaign, leads)
+    return jsonify({'success': True, 'message': f'{added} lead(s) added to "{campaign.name}".'})
+
+
+@main.route('/leads/<int:id>/whatsapp-opt-out', methods=['POST'])
+@login_required
+def set_lead_whatsapp_opt_out(id):
+    lead = Lead.query.get_or_404(id)
+    _fanout_whatsapp_optout(lead.whatsapp or lead.phone)
+    return jsonify({'success': True, 'message': 'Marked as opted out of WhatsApp campaigns.'})

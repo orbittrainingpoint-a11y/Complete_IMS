@@ -193,6 +193,8 @@
                     <td data-course="{{ lead.course_interest.name if lead.course_interest else '' }}">
                         {% if lead.course_interest %}
                             <span class="badge bg-info" style="font-size:11px;">{{ lead.course_interest.name }}</span>
+                        {% elif lead.course_text %}
+                            <span class="badge bg-warning text-dark" style="font-size:11px;" title="Typed on the form — not yet matched to a real course">{{ lead.course_text }}</span>
                         {% else %}
                             <span class="text-muted" style="font-size:12px;">Not specified</span>
                         {% endif %}

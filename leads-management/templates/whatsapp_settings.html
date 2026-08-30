@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}WhatsApp Settings{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">WhatsApp Settings</h1>
+            <p class="text-muted">Connect the official Meta WhatsApp Cloud API for marketing campaigns</p>
+        </div>
+        <a href="{{ url_for('main.campaigns') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Campaigns
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <i class="fab fa-whatsapp fa-2x text-success me-3"></i>
+                        <div>
+                            <h5 class="mb-0">WhatsApp Business Account</h5>
+                            {% if account %}
+                                {% if account.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}
+                                {% if account.last_test_result == 'ok' %}<span class="badge bg-success ms-1"><i class="fas fa-check me-1"></i>Connection OK</span>
+                                {% elif account.last_test_result == 'failed' %}<span class="badge bg-danger ms-1"><i class="fas fa-times me-1"></i>Connection Failed</span>{% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary">Not configured</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if account %}
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="testConnection()">
+                        <i class="fas fa-plug me-1"></i>Test Connection
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('main.save_whatsapp_settings') }}">
+                        {{ form.hidden_tag() }}
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                {{ form.name.label(class="form-label") }}
+                                {{ form.name(class="form-control") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.business_display_phone.label(class="form-label") }}
+                                {{ form.business_display_phone(class="form-control", placeholder="+971 5x xxx xxxx") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.phone_number_id.label(class="form-label") }}
+                                {{ form.phone_number_id(class="form-control", placeholder="From Meta App Dashboard → WhatsApp → API Setup") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.waba_id.label(class="form-label") }}
+                                {{ form.waba_id(class="form-control") }}
+                            </div>
+                            <div class="col-12">
+                                {{ form.access_token.label(class="form-label") }}
+                                {{ form.access_token(class="form-control", rows=3, placeholder="Leave blank to keep the current token unchanged") }}
+                                <small class="text-muted">A permanent System User token, not the 24-hour temporary token from the API Setup page.</small>
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.app_secret.label(class="form-label") }}
+                                {{ form.app_secret(class="form-control", type="password") }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.daily_send_limit.label(class="form-label") }}
+                                {{ form.daily_send_limit(class="form-control") }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ form.max_sends_per_tick.label(class="form-label") }}
+                                {{ form.max_sends_per_tick(class="form-control") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.quiet_hours_start.label(class="form-label") }}
+                                {{ form.quiet_hours_start(class="form-control") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.quiet_hours_end.label(class="form-label") }}
+                                {{ form.quiet_hours_end(class="form-control") }}
+                            </div>
+                            <div class="col-12 form-check">
+                                {{ form.is_active(class="form-check-input") }}
+                                {{ form.is_active.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success mt-3"><i class="fas fa-save me-2"></i>Save Settings</button>
+                    </form>
+
+                    {% if account %}
+                    <hr>
+                    <label class="form-label small fw-bold">Webhook Callback URL — paste into Meta App Dashboard &rarr; WhatsApp &rarr; Configuration</label>
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control form-control-sm" readonly
+                               value="{{ request.url_root.rstrip('/') }}{{ url_for('main.webhook_whatsapp', token=account.webhook_token) }}"
+                               id="waWebhookUrl">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyField('waWebhookUrl')"><i class="fas fa-copy"></i></button>
+                    </div>
+                    <label class="form-label small fw-bold">Verify Token</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control form-control-sm" readonly value="{{ account.verify_token }}" id="waVerifyToken">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyField('waVerifyToken')"><i class="fas fa-copy"></i></button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="m-0 font-weight-bold text-primary">Setup Guide</h6>
+                </div>
+                <div class="card-body">
+                    <ol class="small">
+                        <li>Create/select a Meta Business app with the WhatsApp product added</li>
+                        <li>Fill in Phone Number ID, WABA ID, and a permanent System User Access Token here, then Save</li>
+                        <li>Copy the Webhook Callback URL and Verify Token shown below and paste them into Meta App Dashboard &rarr; WhatsApp &rarr; Configuration &rarr; Webhook</li>
+                        <li>Subscribe to the <code>messages</code> field so delivery statuses and replies (including STOP opt-outs) reach the CRM</li>
+                        <li>Click <strong>Test Connection</strong> to confirm the token/phone number are valid before creating campaigns</li>
+                    </ol>
+                    <div class="alert alert-warning alert-sm small">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        The access token and app secret are sensitive — treat them like passwords. This page is admin-only.
+                    </div>
+                    <div class="alert alert-info alert-sm small mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Marketing messages require a Meta-approved message template. Manage templates and their approval status from the <a href="{{ url_for('main.messages') }}">Messages</a> page.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyField(id) {
+    const el = document.getElementById(id);
+    el.select();
+    el.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(el.value);
+}
+
+function testConnection() {
+    fetch("{{ url_for('main.test_whatsapp_connection') }}", { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            alert(data.message);
+            if (data.success) location.reload();
+        })
+        .catch(() => alert('Network error while testing the connection.'));
+}
+</script>
+{% endblock %}

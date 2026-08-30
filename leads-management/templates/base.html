@@ -537,6 +537,22 @@
                     <span class="nav-icon"><i class="fas fa-envelope"></i></span> Messages
                 </a>
             </div>
+            {% if current_user.is_admin() or current_user.is_sales_manager() %}
+            <div class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'main.campaigns' or request.endpoint == 'main.new_campaign' or request.endpoint == 'main.campaign_detail' %}active{% endif %}"
+                   href="{{ url_for('main.campaigns') }}">
+                    <span class="nav-icon"><i class="fab fa-whatsapp"></i></span> WhatsApp Campaigns
+                </a>
+            </div>
+            {% endif %}
+            {% if current_user.is_admin() %}
+            <div class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'main.whatsapp_settings' %}active{% endif %}"
+                   href="{{ url_for('main.whatsapp_settings') }}">
+                    <span class="nav-icon"><i class="fas fa-cog"></i></span> WhatsApp Settings
+                </a>
+            </div>
+            {% endif %}
         </div>
 
         <!-- ── REPORTS & ADMIN ─────────────────── -->

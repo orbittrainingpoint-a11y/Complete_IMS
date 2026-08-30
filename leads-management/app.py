@@ -59,7 +59,14 @@ def create_app():
             db.create_all()
         except Exception:
             pass
-    
+
+    # WhatsApp campaign scheduler — avoid double-starting under the local Flask
+    # reloader (which spawns a watcher + a worker process); in production, every
+    # gunicorn worker legitimately starts its own (see scheduler.py for why that's safe).
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        from scheduler import start_scheduler
+        start_scheduler(app)
+
     return app
 
 app = create_app()

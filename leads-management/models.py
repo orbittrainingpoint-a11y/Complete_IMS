@@ -65,7 +65,13 @@ class Lead(db.Model):
     added_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     email = db.Column(db.String(120))
     course_interest_id = db.Column(db.Integer, db.ForeignKey('course.id'))
+    # Raw course text typed on an external form (Elementor/Meta) — kept separate from
+    # course_interest_id because it's free text and often won't match a real course
+    # name exactly; staff read it and assign the real course themselves.
+    course_text = db.Column(db.String(150))
     lead_source = db.Column(db.String(50))
+    whatsapp_opted_out = db.Column(db.Boolean, default=False)
+    whatsapp_opted_out_at = db.Column(db.DateTime)
     status = db.Column(db.String(20), default='New')  # New, Contacted, Interested, Quoted, Converted, Lost
     quoted_amount = db.Column(db.Float, default=0.0)
     last_contact_date = db.Column(db.Date)
@@ -286,6 +292,16 @@ class MessageTemplate(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     usage_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # WhatsApp Cloud API template linkage — `content` above is display-only for WhatsApp;
+    # an actual send only ever references meta_template_name + meta_language_code + rendered
+    # variables, since Meta requires a pre-approved template for any proactive/marketing send.
+    meta_template_name = db.Column(db.String(200))
+    meta_language_code = db.Column(db.String(10), default='en_US')
+    meta_category = db.Column(db.String(20))  # MARKETING / UTILITY / AUTHENTICATION
+    meta_status = db.Column(db.String(20), default='not_submitted')  # not_submitted/pending/approved/rejected/paused
+    meta_body_preview = db.Column(db.Text)
+    meta_variable_mapping = db.Column(db.Text)  # JSON: [{"source": "lead.name"|"lead.course"|"static", "static_value": ..., "label": ...}, ...]
+    meta_last_synced_at = db.Column(db.DateTime)
 
 class SystemSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -633,4 +649,120 @@ class ImsStudent(db.Model):
 
     def __repr__(self):
         return f'<ImsStudent {self.registration_number} {self.name}>'
+
+
+# ── WhatsApp Marketing Campaigns (official Meta Cloud API) ──────────────────
+
+class WhatsAppAccount(db.Model):
+    """Meta WhatsApp Cloud API credentials — mirrors LeadSourceIntegration's shape."""
+    __tablename__ = 'whatsapp_account'
+    id                     = db.Column(db.Integer, primary_key=True)
+    name                   = db.Column(db.String(100), nullable=False)
+    is_active              = db.Column(db.Boolean, default=True)
+    phone_number_id        = db.Column(db.String(50))
+    waba_id                = db.Column(db.String(50))
+    business_display_phone = db.Column(db.String(20))
+    access_token           = db.Column(db.Text)
+    app_secret             = db.Column(db.String(200))
+    verify_token           = db.Column(db.String(100))
+    webhook_token           = db.Column(db.String(64), unique=True, nullable=False)
+    daily_send_limit       = db.Column(db.Integer, default=250)
+    max_sends_per_tick     = db.Column(db.Integer, default=20)
+    quiet_hours_start      = db.Column(db.Time)
+    quiet_hours_end        = db.Column(db.Time)
+    last_test_at           = db.Column(db.DateTime)
+    last_test_result       = db.Column(db.String(20))  # ok / failed
+    created_at             = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<WhatsAppAccount {self.name}>'
+
+
+class WhatsAppCampaign(db.Model):
+    __tablename__ = 'whatsapp_campaign'
+    id               = db.Column(db.Integer, primary_key=True)
+    name             = db.Column(db.String(150), nullable=False)
+    campaign_type    = db.Column(db.String(20), nullable=False)   # 'broadcast' | 'sequence'
+    status           = db.Column(db.String(20), default='draft')  # draft/scheduled/running/paused/completed/cancelled
+    account_id       = db.Column(db.Integer, db.ForeignKey('whatsapp_account.id'))
+    audience_filters = db.Column(db.Text)   # JSON snapshot of filter criteria, for display/audit only
+    template_id      = db.Column(db.Integer)  # no FK (message_template is MyISAM) — broadcast only, null for sequences
+    scheduled_at     = db.Column(db.DateTime)  # null = send immediately on launch
+    throttle_per_run = db.Column(db.Integer)
+    launched_at      = db.Column(db.DateTime)
+    completed_at     = db.Column(db.DateTime)
+    created_by_id    = db.Column(db.Integer)  # no FK (user is MyISAM)
+    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
+
+    account = db.relationship('WhatsAppAccount')
+
+    def __repr__(self):
+        return f'<WhatsAppCampaign {self.name}>'
+
+
+class WhatsAppCampaignStep(db.Model):
+    """One message in a sequence campaign. A one-off broadcast has no steps —
+    it sends via WhatsAppCampaign.template_id directly instead."""
+    __tablename__ = 'whatsapp_campaign_step'
+    id                 = db.Column(db.Integer, primary_key=True)
+    campaign_id        = db.Column(db.Integer, db.ForeignKey('whatsapp_campaign.id'), nullable=False)
+    step_order         = db.Column(db.Integer, nullable=False)
+    day_offset         = db.Column(db.Integer, nullable=False, default=0)  # days after enrollment
+    template_id        = db.Column(db.Integer, nullable=False)  # no FK (message_template is MyISAM)
+    variable_overrides = db.Column(db.Text)  # JSON, optional override of the template's default mapping
+    created_at         = db.Column(db.DateTime, default=datetime.utcnow)
+
+    campaign = db.relationship('WhatsAppCampaign', backref=db.backref('steps', order_by='WhatsAppCampaignStep.step_order'))
+
+    def __repr__(self):
+        return f'<WhatsAppCampaignStep campaign={self.campaign_id} order={self.step_order}>'
+
+
+class WhatsAppEnrollment(db.Model):
+    """Per-lead progress through a campaign — the scheduler's work queue."""
+    __tablename__ = 'whatsapp_enrollment'
+    id                  = db.Column(db.Integer, primary_key=True)
+    campaign_id         = db.Column(db.Integer, db.ForeignKey('whatsapp_campaign.id'), nullable=False)
+    lead_id             = db.Column(db.Integer, nullable=False)  # no FK (lead is MyISAM)
+    phone_snapshot      = db.Column(db.String(20))  # audit only — live lead.whatsapp/phone is used at send time
+    status              = db.Column(db.String(20), default='active')  # active/completed/stopped/opted_out/failed
+    current_step_order  = db.Column(db.Integer, default=0)  # next step index to send
+    next_due_at         = db.Column(db.DateTime, nullable=False)
+    claim_token         = db.Column(db.String(36))  # uuid, set by a scheduler tick while processing
+    claimed_at          = db.Column(db.DateTime)
+    attempts            = db.Column(db.Integer, default=0)  # consecutive failures on the current step
+    stopped_reason       = db.Column(db.String(100))  # opted_out / max_attempts / manual_cancel / template_not_approved
+    enrolled_at         = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at         = db.Column(db.DateTime)
+
+    __table_args__ = (db.UniqueConstraint('campaign_id', 'lead_id', name='uq_campaign_lead'),)
+    campaign = db.relationship('WhatsAppCampaign', backref='enrollments')
+
+    def __repr__(self):
+        return f'<WhatsAppEnrollment campaign={self.campaign_id} lead={self.lead_id} status={self.status}>'
+
+
+class WhatsAppMessageLog(db.Model):
+    """Per send attempt (and inbound message) — the delivery-status source of truth."""
+    __tablename__ = 'whatsapp_message_log'
+    id                 = db.Column(db.Integer, primary_key=True)
+    campaign_id        = db.Column(db.Integer, db.ForeignKey('whatsapp_campaign.id'))
+    enrollment_id      = db.Column(db.Integer, db.ForeignKey('whatsapp_enrollment.id'))
+    step_order         = db.Column(db.Integer)
+    lead_id            = db.Column(db.Integer, nullable=True)  # no FK — nullable: inbound msgs from unrecognized numbers have no matched lead
+    template_id        = db.Column(db.Integer)  # no FK
+    direction          = db.Column(db.String(10), default='outbound')  # outbound / inbound
+    to_phone           = db.Column(db.String(20))
+    meta_message_id    = db.Column(db.String(100), index=True)  # correlates webhook status callbacks
+    rendered_variables = db.Column(db.Text)  # JSON — audit of what was actually substituted
+    status             = db.Column(db.String(20), default='queued')  # queued/sent/delivered/read/failed
+    error_code         = db.Column(db.String(50))
+    error_message       = db.Column(db.Text)
+    inbound_body       = db.Column(db.Text)  # for direction='inbound' rows
+    sent_at            = db.Column(db.DateTime)
+    status_updated_at  = db.Column(db.DateTime)
+    created_at         = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<WhatsAppMessageLog lead={self.lead_id} status={self.status}>'
 

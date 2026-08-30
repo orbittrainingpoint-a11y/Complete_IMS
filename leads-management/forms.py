@@ -204,6 +204,23 @@ class MessageTemplateForm(FlaskForm):
         ('Email', 'Email')
     ], default='SMS', validators=[DataRequired()])
     is_active = BooleanField('Active', default=True)
+    # WhatsApp Cloud API linkage — only meaningful when message_type == 'WhatsApp'.
+    # `content` above stays as a display-only preview; the real send only ever uses
+    # meta_template_name + meta_language_code + rendered variables (Meta requires a
+    # pre-approved template for any proactive/marketing message).
+    meta_template_name = StringField('Meta Template Name', validators=[Optional(), Length(max=200)],
+                                      description='Exact name of the template as approved in Meta Business Manager')
+    meta_language_code = StringField('Language Code', validators=[Optional(), Length(max=10)], default='en_US')
+    meta_category = SelectField('Meta Category', choices=[
+        ('', '—'), ('MARKETING', 'Marketing'), ('UTILITY', 'Utility'), ('AUTHENTICATION', 'Authentication'),
+    ], validators=[Optional()])
+    meta_status = SelectField('Approval Status', choices=[
+        ('not_submitted', 'Not submitted'), ('pending', 'Pending review'),
+        ('approved', 'Approved'), ('rejected', 'Rejected'), ('paused', 'Paused'),
+    ], default='not_submitted', validators=[Optional()])
+    variable_mapping_input = StringField(
+        'Template Variables ({{1}}, {{2}}, … in order)', validators=[Optional()],
+        description='Comma-separated, in order — e.g. "lead.name, lead.course, static:20% off this month"')
 
 class SendMessageForm(FlaskForm):
     template_id = SelectField('Message Template', coerce=int, validators=[DataRequired()])
@@ -301,6 +318,20 @@ class FacebookIntegrationForm(FlaskForm):
     fb_page_id = StringField("Page ID", validators=[Optional(), Length(max=100)])
     fb_page_access_token = TextAreaField("Page Access Token", validators=[Optional()])
     default_course_id = SelectField("Default Course (optional)", coerce=int, validators=[Optional()])
+    is_active = BooleanField("Active", default=True)
+
+class WhatsAppAccountForm(FlaskForm):
+    name = StringField("Name", default="WhatsApp Business", validators=[DataRequired(), Length(max=100)])
+    phone_number_id = StringField("Phone Number ID", validators=[Optional(), Length(max=50)])
+    waba_id = StringField("WhatsApp Business Account ID", validators=[Optional(), Length(max=50)])
+    business_display_phone = StringField("Display Phone Number", validators=[Optional(), Length(max=20)])
+    access_token = TextAreaField("System User Access Token", validators=[Optional()])
+    app_secret = StringField("Meta App Secret", validators=[Optional(), Length(max=200)],
+                              description='Used to verify webhook signatures')
+    daily_send_limit = IntegerField("Daily Send Limit", validators=[Optional(), NumberRange(min=1)], default=250)
+    max_sends_per_tick = IntegerField("Max Sends per Scheduler Run", validators=[Optional(), NumberRange(min=1)], default=20)
+    quiet_hours_start = TimeField("Quiet Hours Start", validators=[Optional()])
+    quiet_hours_end = TimeField("Quiet Hours End", validators=[Optional()])
     is_active = BooleanField("Active", default=True)
 
 class PaymentLinkForm(FlaskForm):

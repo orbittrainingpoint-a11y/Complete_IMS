@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}WhatsApp Campaigns{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">WhatsApp Campaigns</h1>
+            <p class="text-muted">Broadcast promotions and automated follow-up sequences over WhatsApp</p>
+        </div>
+        <div>
+            <a href="{{ url_for('main.whatsapp_settings') }}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-cog me-1"></i>Settings
+            </a>
+            <a href="{{ url_for('main.new_campaign') }}" class="btn btn-success">
+                <i class="fas fa-plus me-1"></i>New Campaign
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {% if campaigns %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Enrolled</th>
+                            <th>Sent</th>
+                            <th>Failed</th>
+                            <th>Opted Out</th>
+                            <th>Created</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in campaigns %}
+                        {% set s = stats[c.id] %}
+                        <tr>
+                            <td><a href="{{ url_for('main.campaign_detail', id=c.id) }}">{{ c.name }}</a></td>
+                            <td><span class="badge bg-{{ 'info' if c.campaign_type == 'broadcast' else 'purple' }}" style="{{ 'background:#8b5cf6;' if c.campaign_type == 'sequence' }}">{{ 'Broadcast' if c.campaign_type == 'broadcast' else 'Sequence' }}</span></td>
+                            <td>
+                                <span class="badge bg-{{ {'draft':'secondary','running':'success','paused':'warning','completed':'primary','cancelled':'dark'}.get(c.status, 'secondary') }}">
+                                    {{ c.status|title }}
+                                </span>
+                            </td>
+                            <td>{{ s.enrolled }}</td>
+                            <td>{{ s.sent }}</td>
+                            <td>{% if s.failed %}<span class="text-danger">{{ s.failed }}</span>{% else %}0{% endif %}</td>
+                            <td>{{ s.opted_out }}</td>
+                            <td class="small text-muted">{{ c.created_at.strftime('%b %d, %Y') if c.created_at else '' }}</td>
+                            <td class="text-end">
+                                <a href="{{ url_for('main.campaign_detail', id=c.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fab fa-whatsapp fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No campaigns yet. Create one to start sending WhatsApp broadcasts or follow-up sequences.</p>
+                <a href="{{ url_for('main.new_campaign') }}" class="btn btn-success"><i class="fas fa-plus me-1"></i>New Campaign</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
