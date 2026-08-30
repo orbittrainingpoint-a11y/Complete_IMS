@@ -3453,63 +3453,93 @@ def delete_proposal(request, pk):
         return redirect('proposal_dashboard')
     return render(request, 'proposal/delete_proposal.html', {'proposal': proposal})
 
+def _render_pdf_page(request, template_name, context):
+    """Render one Django template to a single-page(s) PDF via WeasyPrint."""
+    html = render_to_string(template_name, context)
+    return WeasyHTML(string=html, base_url=request.build_absolute_uri()).write_pdf()
+
+
+def _append_divider(merger, request, title, subtitle=None, eyebrow=None):
+    pdf = _render_pdf_page(request, 'proposal/proposal_divider.html', {
+        'title': title, 'subtitle': subtitle, 'eyebrow': eyebrow,
+    })
+    merger.append(io.BytesIO(pdf))
+
+
 @login_required
 def print_proposal(request, pk):
+    if WeasyHTML is None or PdfMerger is None or PdfReader is None:
+        logger.error("Proposal PDF generation unavailable — weasyprint/PyPDF2 not installed")
+        return HttpResponseServerError(
+            "PDF generation isn't available on this server (missing weasyprint/PyPDF2). "
+            "Contact an admin to install the required packages."
+        )
+
     try:
         proposal = get_object_or_404(Proposal, pk=pk)
-
         merger = PdfMerger()
 
         # Pages 1-3: cover, about, course overview (dynamic, theme-matched)
-        front_html = render_to_string('proposal/proposal_front.html', {'proposal': proposal})
-        front_pdf = WeasyHTML(string=front_html, base_url=request.build_absolute_uri()).write_pdf()
-        merger.append(io.BytesIO(front_pdf))
+        merger.append(io.BytesIO(_render_pdf_page(request, 'proposal/proposal_front.html', {'proposal': proposal})))
 
-        # Course syllabus PDFs for the selected course
-        course_contents = CourseContent.objects.filter(course=proposal.course)
-        for content in course_contents:
-            if content.file and content.file.name.lower().endswith('.pdf'):
+        # Course curriculum PDFs for the selected course — divider page first so the
+        # switch from our branded design to a staff-uploaded document reads as a
+        # deliberate section, not a style break.
+        course_contents = list(CourseContent.objects.filter(course=proposal.course))
+        pdf_contents = [c for c in course_contents if c.file and c.file.name.lower().endswith('.pdf')]
+        if pdf_contents:
+            _append_divider(
+                merger, request, 'Course Curriculum',
+                subtitle=proposal.course.name, eyebrow='What You Will Learn',
+            )
+            for content in pdf_contents:
                 try:
                     with default_storage.open(content.file.name, 'rb') as file:
                         merger.append(PdfReader(file))
-                except Exception as e:
-                    print(f"Error appending course content PDF: {str(e)}")
+                except Exception:
+                    logger.exception("Error appending course content PDF (content id=%s) for proposal %s",
+                                      content.pk, proposal.proposal_number)
 
         # Trainer's profile PDF, if this proposal has one assigned
         if proposal.trainer and proposal.trainer.profile_pdf:
             try:
+                _append_divider(
+                    merger, request, 'Meet Your Trainer',
+                    subtitle=proposal.trainer.name, eyebrow='Trainer Profile',
+                )
                 with default_storage.open(proposal.trainer.profile_pdf.name, 'rb') as file:
                     merger.append(PdfReader(file))
-            except Exception as e:
-                print(f"Error appending trainer profile PDF: {str(e)}")
+            except Exception:
+                logger.exception("Error appending trainer profile PDF for proposal %s", proposal.proposal_number)
 
-        # Company profile PDFs
-        company_profiles = CompanyProfile.objects.exclude(company_pdf='')
-        for profile in company_profiles:
-            if profile.company_pdf and profile.company_pdf.name.lower().endswith('.pdf'):
+        # This user's own company/consultant profile PDF(s), if they have any — not every
+        # profile in the system (that was appending everyone's PDF into every proposal).
+        my_profiles = CompanyProfile.objects.filter(user=request.user).exclude(company_pdf='')
+        my_pdf_profiles = [p for p in my_profiles if p.company_pdf and p.company_pdf.name.lower().endswith('.pdf')]
+        if my_pdf_profiles:
+            _append_divider(merger, request, 'About Your Consultant', eyebrow='Presented By')
+            for profile in my_pdf_profiles:
                 try:
                     with default_storage.open(profile.company_pdf.name, 'rb') as file:
                         merger.append(PdfReader(file))
-                except Exception as e:
-                    print(f"Error appending company profile PDF for {profile.name}: {str(e)}")
+                except Exception:
+                    logger.exception("Error appending company profile PDF (%s) for proposal %s",
+                                      profile.name, proposal.proposal_number)
 
         # Pages 4-6: reviews, stats, contact (closes out the document)
-        back_html = render_to_string('proposal/proposal_back.html', {'proposal': proposal})
-        back_pdf = WeasyHTML(string=back_html, base_url=request.build_absolute_uri()).write_pdf()
-        merger.append(io.BytesIO(back_pdf))
+        merger.append(io.BytesIO(_render_pdf_page(request, 'proposal/proposal_back.html', {'proposal': proposal})))
 
         # Write the merged PDF to a buffer
         buffer = io.BytesIO()
         merger.write(buffer)
         buffer.seek(0)
 
-        # Return the PDF as a response
         response = HttpResponse(buffer, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="{proposal.proposal_number}.pdf"'
         return response
 
-    except Exception as e:
-        print(f"Error generating PDF: {str(e)}")
+    except Exception:
+        logger.exception("Error generating proposal PDF for pk=%s", pk)
         return HttpResponseServerError("Failed to generate PDF")
     
 def change_logo_to_white(input_path, output_path):
