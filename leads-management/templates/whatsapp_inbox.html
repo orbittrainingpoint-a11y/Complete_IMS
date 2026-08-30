@@ -2,73 +2,211 @@
 
 {% block title %}WhatsApp Inbox{% endblock %}
 
+{% block extra_head %}
+<style>
+.wa-app {
+    display: flex; height: calc(100vh - 130px); min-height: 480px;
+    background: #fff; border-radius: 12px; overflow: hidden;
+    box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.08));
+    border: 1px solid var(--border, #e2e8f0);
+}
+
+/* ── Sidebar (conversation list) ── */
+.wa-sidebar { width: 340px; flex: none; display: flex; flex-direction: column; border-right: 1px solid var(--border, #e2e8f0); background: var(--card-bg, #fff); }
+.wa-sidebar-header {
+    background: linear-gradient(135deg, #0f1b2d, #1a2d47);
+    color: #fff; padding: 16px 18px; font-weight: 700; font-size: 16px;
+    display: flex; align-items: center; gap: 10px; flex: none;
+}
+.wa-conv-list { flex: 1; overflow-y: auto; }
+.wa-conv-item {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    text-decoration: none; color: inherit; border-bottom: 1px solid var(--border, #f0f0f0);
+    transition: background .1s;
+}
+.wa-conv-item:hover { background: var(--bg, #f5f7fa); }
+.wa-conv-item.active { background: rgba(37,211,102,.1); }
+.wa-conv-item.disabled { cursor: default; opacity: .65; }
+.wa-avatar {
+    width: 44px; height: 44px; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, #128c7e, #25d366); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px;
+}
+.wa-conv-info { flex: 1; min-width: 0; }
+.wa-conv-name { font-weight: 600; font-size: 14px; color: var(--text, #1e293b); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wa-conv-preview { font-size: 12.5px; color: var(--text-muted, #64748b); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.wa-conv-time { font-size: 11px; color: var(--text-muted, #94a3b8); flex: none; align-self: flex-start; margin-top: 2px; }
+.wa-conv-empty { padding: 40px 20px; text-align: center; color: var(--text-muted, #94a3b8); font-size: 13px; }
+
+/* ── Main pane ── */
+.wa-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.wa-main-header {
+    flex: none; padding: 12px 20px; border-bottom: 1px solid var(--border, #e2e8f0);
+    display: flex; align-items: center; gap: 12px; background: var(--card-bg, #fff);
+}
+.wa-main-header .wa-avatar { width: 38px; height: 38px; font-size: 14px; }
+.wa-main-header .name { font-weight: 700; font-size: 15px; color: var(--text, #1e293b); }
+.wa-main-header .phone { font-size: 11.5px; color: var(--text-muted, #64748b); }
+
+.wa-thread {
+    flex: 1; overflow-y: auto; padding: 18px 22px;
+    background: #e5ded8 url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="60" height="60"%3E%3Crect width="60" height="60" fill="%23e5ded8"/%3E%3C/svg%3E');
+}
+.wa-bubble-row { display: flex; margin-bottom: 10px; }
+.wa-bubble-row.out { justify-content: flex-end; }
+.wa-bubble {
+    max-width: 62%; padding: 8px 12px; border-radius: 10px; font-size: 13.5px; line-height: 1.45;
+    box-shadow: 0 1px 1px rgba(0,0,0,.1); word-wrap: break-word;
+}
+.wa-bubble-row.in .wa-bubble { background: #fff; color: #111; border-top-left-radius: 2px; }
+.wa-bubble-row.out .wa-bubble { background: #d9fdd3; color: #111; border-top-right-radius: 2px; }
+.wa-bubble .wa-meta { font-size: 10px; color: #667781; margin-top: 4px; text-align: right; }
+.wa-bubble .wa-fail { color: #d32f2f; font-size: 10.5px; margin-top: 3px; }
+
+.wa-composer { flex: none; padding: 12px 16px; background: var(--card-bg, #fff); border-top: 1px solid var(--border, #e2e8f0); }
+.wa-composer form { display: flex; gap: 10px; }
+.wa-composer input { flex: 1; border-radius: 22px; border: 1px solid var(--border, #e2e8f0); padding: 10px 16px; font-size: 13.5px; }
+.wa-composer button { width: 42px; height: 42px; border-radius: 50%; background: #25d366; color: #fff; border: none; flex: none; }
+.wa-composer button:hover { background: #128c7e; }
+
+.wa-empty-state {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--text-muted, #94a3b8); background: #f7f8fa;
+}
+.wa-empty-state i { font-size: 60px; margin-bottom: 14px; opacity: .5; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h1 class="h3 mb-0 text-gray-800">WhatsApp Inbox</h1>
-            <p class="text-muted">Conversations with customers over WhatsApp — visible to admins and sales managers</p>
+            <h1 class="h4 mb-0 text-gray-800">WhatsApp Inbox</h1>
         </div>
-        <a href="{{ url_for('main.campaigns') }}" class="btn btn-outline-primary">
+        <a href="{{ url_for('main.campaigns') }}" class="btn btn-outline-primary btn-sm">
             <i class="fas fa-bullhorn me-2"></i>Campaigns
         </a>
     </div>
 
-    <div class="card">
-        <div class="card-body">
-            {% if conversations %}
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead>
-                        <tr>
-                            <th>Lead / Number</th>
-                            <th>Last Message</th>
-                            <th></th>
-                            <th>When</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for m in conversations %}
-                        {% set lead = lead_map.get(m.lead_id) %}
-                        <tr>
-                            <td>
-                                {% if lead %}
-                                <strong>{{ lead.name }}</strong><br><span class="small text-muted">{{ m.to_phone }}</span>
-                                {% else %}
-                                <span class="text-muted">Unrecognized number</span><br><span class="small text-muted">{{ m.to_phone }}</span>
-                                {% endif %}
-                            </td>
-                            <td style="max-width:400px;">
-                                {% if m.direction == 'outbound' %}<span class="badge bg-light text-dark border me-1">You</span>{% endif %}
-                                {{ (m.inbound_body or '(no text)')|truncate(80) }}
-                                {% if m.inbound_body and m.inbound_body|lower in ['stop', 'unsubscribe', 'opt out', 'optout'] %}
-                                <span class="badge bg-warning text-dark ms-1">Opted out</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if m.status == 'failed' %}<span class="badge bg-danger">Failed</span>{% endif %}
-                            </td>
-                            <td class="small text-muted">{{ m.created_at.strftime('%b %d, %H:%M') if m.created_at else '' }}</td>
-                            <td class="text-end">
-                                {% if lead %}
-                                <a href="{{ url_for('main.whatsapp_conversation', lead_id=lead.id) }}" class="btn btn-sm btn-outline-success">
-                                    <i class="fas fa-comment-dots me-1"></i>Open
-                                </a>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    <div class="wa-app">
+        <div class="wa-sidebar">
+            <div class="wa-sidebar-header"><i class="fab fa-whatsapp"></i>Chats</div>
+            <div class="wa-conv-list">
+                {% if conversations %}
+                    {% for m in conversations %}
+                    {% set lead = lead_map.get(m.lead_id) %}
+                    <a href="{{ url_for('main.whatsapp_conversation', lead_id=lead.id) if lead else '#' }}"
+                       class="wa-conv-item {% if active_lead and lead and active_lead.id == lead.id %}active{% endif %} {% if not lead %}disabled{% endif %}">
+                        <div class="wa-avatar">{{ (lead.name if lead else '?')[:1]|upper }}</div>
+                        <div class="wa-conv-info">
+                            <div class="wa-conv-name">{{ lead.name if lead else 'Unrecognized number' }}</div>
+                            <div class="wa-conv-preview">
+                                {% if m.direction == 'outbound' %}You: {% endif %}{{ m.inbound_body or '(no text)' }}
+                            </div>
+                        </div>
+                        <div class="wa-conv-time">{{ m.created_at.strftime('%H:%M') if m.created_at else '' }}</div>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                <div class="wa-conv-empty"><i class="fab fa-whatsapp fa-2x mb-2 d-block"></i>No conversations yet</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="wa-main">
+            {% if active_lead %}
+            <div class="wa-main-header">
+                <div class="wa-avatar">{{ active_lead.name[:1]|upper }}</div>
+                <div>
+                    <div class="name">{{ active_lead.name }}</div>
+                    <div class="phone">{{ active_lead.whatsapp or active_lead.phone }}
+                        {% if active_lead.whatsapp_opted_out %}<span class="badge bg-warning text-dark ms-1">Opted out</span>{% endif %}
+                    </div>
+                </div>
+                <a href="{{ url_for('main.lead_detail', lead_id=active_lead.id) }}" class="btn btn-sm btn-outline-secondary ms-auto">
+                    <i class="fas fa-user me-1"></i>Lead Profile
+                </a>
+            </div>
+
+            <div class="wa-thread" id="waThread">
+                {% if messages %}
+                    {% for m in messages %}
+                    <div class="wa-bubble-row {{ 'out' if m.direction == 'outbound' else 'in' }}">
+                        <div class="wa-bubble">
+                            {{ m.inbound_body or '(no text — image/attachment/other)' }}
+                            <div class="wa-meta">{{ m.created_at.strftime('%b %d, %H:%M') if m.created_at else '' }}</div>
+                            {% if m.status == 'failed' %}
+                            <div class="wa-fail"><i class="fas fa-exclamation-circle me-1"></i>Failed{% if m.error_message %}: {{ m.error_message|truncate(60) }}{% endif %}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <p class="text-muted text-center mt-4">No messages yet.</p>
+                {% endif %}
+            </div>
+
+            <div class="wa-composer">
+                {% if active_lead.whatsapp_opted_out %}
+                <div class="alert alert-warning mb-0 py-2 small"><i class="fas fa-ban me-1"></i>This lead has opted out — you cannot message them.</div>
+                {% elif not account %}
+                <div class="alert alert-info mb-0 py-2 small"><i class="fas fa-info-circle me-1"></i>WhatsApp isn't configured — <a href="{{ url_for('main.whatsapp_settings') }}">set it up here</a>.</div>
+                {% elif window_open %}
+                <form id="replyForm">
+                    <input type="text" id="replyBody" placeholder="Type a message…" autocomplete="off" required>
+                    <button type="submit"><i class="fas fa-paper-plane"></i></button>
+                </form>
+                {% else %}
+                <div class="alert alert-secondary mb-0 py-2 small">
+                    <i class="fas fa-clock me-1"></i>No message from this customer in the last 24 hours — free-text replies aren't allowed.
+                    Use an approved template via a <a href="{{ url_for('main.new_campaign') }}">campaign</a> instead.
+                </div>
+                {% endif %}
             </div>
             {% else %}
-            <div class="text-center py-5">
-                <i class="fab fa-whatsapp fa-3x text-muted mb-3"></i>
-                <p class="text-muted mb-0">No WhatsApp conversations yet.</p>
+            <div class="wa-empty-state">
+                <i class="fab fa-whatsapp"></i>
+                <div>Select a conversation to start messaging</div>
             </div>
             {% endif %}
         </div>
     </div>
 </div>
+
+<script>
+const thread = document.getElementById('waThread');
+if (thread) thread.scrollTop = thread.scrollHeight;
+
+const replyForm = document.getElementById('replyForm');
+if (replyForm) {
+    replyForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const input = document.getElementById('replyBody');
+        const body = input.value.trim();
+        if (!body) return;
+        const btn = replyForm.querySelector('button');
+        btn.disabled = true;
+
+        fetch("{{ url_for('main.whatsapp_reply', lead_id=active_lead.id) if active_lead else '#' }}", {
+            method: 'POST',
+            body: new URLSearchParams({ body: body }),
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message || 'Failed to send.');
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            alert('Network error while sending.');
+        });
+    });
+}
+</script>
 {% endblock %}

@@ -4461,15 +4461,10 @@ def test_whatsapp_connection():
 
 # ── WhatsApp Inbox (inbound replies) ───────────────────────────────────────
 
-@main.route('/whatsapp/inbox')
-@login_required
-def whatsapp_inbox():
-    if not _can_manage_campaigns():
-        flash('Access denied. Only admins and sales managers can view the WhatsApp inbox.', 'error')
-        return redirect(url_for('main.leads'))
-
-    # One row per conversation (grouped by lead, or by phone for unmatched numbers),
-    # showing the most recent message in each — a normal "inbox" view, not a flat log.
+def _whatsapp_conversation_list():
+    """One entry per conversation (grouped by lead, or by phone for unmatched
+    numbers), most recent message first — shared by the inbox and thread views
+    so the left-hand conversation list is identical in both."""
     recent = WhatsAppMessageLog.query.order_by(desc(WhatsAppMessageLog.created_at)).limit(500).all()
     seen = set()
     conversations = []
@@ -4479,10 +4474,21 @@ def whatsapp_inbox():
             continue
         seen.add(key)
         conversations.append(m)
-
     lead_ids = [c.lead_id for c in conversations if c.lead_id]
     lead_map = {l.id: l for l in Lead.query.filter(Lead.id.in_(lead_ids)).all()}
-    return render_template('whatsapp_inbox.html', conversations=conversations, lead_map=lead_map)
+    return conversations, lead_map
+
+
+@main.route('/whatsapp/inbox')
+@login_required
+def whatsapp_inbox():
+    if not _can_manage_campaigns():
+        flash('Access denied. Only admins and sales managers can view the WhatsApp inbox.', 'error')
+        return redirect(url_for('main.leads'))
+    conversations, lead_map = _whatsapp_conversation_list()
+    return render_template('whatsapp_inbox.html', conversations=conversations, lead_map=lead_map,
+                            active_lead=None, messages=[], window_open=False,
+                            account=WhatsAppAccount.query.filter_by(is_active=True).first())
 
 
 @main.route('/whatsapp/inbox/<int:lead_id>')
@@ -4492,6 +4498,7 @@ def whatsapp_conversation(lead_id):
         flash('Access denied. Only admins and sales managers can view WhatsApp conversations.', 'error')
         return redirect(url_for('main.leads'))
     lead = Lead.query.get_or_404(lead_id)
+    conversations, lead_map = _whatsapp_conversation_list()
     messages = WhatsAppMessageLog.query.filter_by(lead_id=lead_id).order_by(WhatsAppMessageLog.created_at).all()
 
     last_inbound = (
@@ -4503,8 +4510,8 @@ def whatsapp_conversation(lead_id):
         and (datetime.utcnow() - last_inbound.created_at) < timedelta(hours=24)
     )
     account = WhatsAppAccount.query.filter_by(is_active=True).first()
-    return render_template('whatsapp_conversation.html', lead=lead, messages=messages,
-                            window_open=window_open, account=account)
+    return render_template('whatsapp_inbox.html', conversations=conversations, lead_map=lead_map,
+                            active_lead=lead, messages=messages, window_open=window_open, account=account)
 
 
 @main.route('/whatsapp/inbox/<int:lead_id>/reply', methods=['POST'])
