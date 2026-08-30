@@ -3542,20 +3542,6 @@ def print_proposal(request, pk):
             except Exception:
                 logger.exception("Error appending trainer profile PDF for proposal %s", proposal.proposal_number)
 
-        # This user's own company/consultant profile PDF(s), if they have any — not every
-        # profile in the system (that was appending everyone's PDF into every proposal).
-        my_profiles = CompanyProfile.objects.filter(user=request.user).exclude(company_pdf='')
-        my_pdf_profiles = [p for p in my_profiles if p.company_pdf and p.company_pdf.name.lower().endswith('.pdf')]
-        if my_pdf_profiles:
-            _append_divider(merger, request, 'About Your Consultant', eyebrow='Presented By')
-            for profile in my_pdf_profiles:
-                try:
-                    with default_storage.open(profile.company_pdf.name, 'rb') as file:
-                        _append_pdf_fitted(merger, PdfReader(file))
-                except Exception:
-                    logger.exception("Error appending company profile PDF (%s) for proposal %s",
-                                      profile.name, proposal.proposal_number)
-
         # Pages 4-6: reviews, stats, contact (closes out the document)
         merger.append(io.BytesIO(_render_pdf_page(request, 'proposal/proposal_back.html', {'proposal': proposal})))
 
