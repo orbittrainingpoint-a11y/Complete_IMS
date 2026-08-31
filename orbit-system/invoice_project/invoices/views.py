@@ -3471,15 +3471,41 @@ def _append_divider(merger, request, title, subtitle=None, eyebrow=None):
 # proposal template exactly, so the whole merged document ends up one uniform size.
 _A4_LANDSCAPE_PT = (841.89, 595.28)
 
+# Navy mat behind letterboxed uploaded pages (widescreen slides, portrait resumes,
+# etc. never exactly match A4 landscape) — matches the divider pages' darkest tone,
+# so the fitted margin reads as a deliberate frame instead of a stray white gap.
+_CONTENT_MAT_RGB = (0x0f / 255, 0x1b / 255, 0x2d / 255)
+
+
+def _mat_background_page(width, height, rgb, content_rect=None):
+    """A full navy-mat page, with an opaque white rect painted where the scaled
+    content will sit — PDF pages have no real 'white background' object (unpainted
+    canvas is transparent, not white), so without this white patch the mat shows
+    through every blank area *inside* the content too, not just its margin."""
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(width, height))
+    c.setFillColorRGB(*rgb)
+    c.rect(0, 0, width, height, stroke=0, fill=1)
+    if content_rect:
+        x, y, w, h = content_rect
+        c.setFillColorRGB(1, 1, 1)
+        c.rect(x, y, w, h, stroke=0, fill=1)
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    return buf.getvalue()
+
 
 def _append_pdf_fitted(merger, reader):
     """Append every page of an uploaded/external PDF (course content, trainer
     profile, company profile — arbitrary author-chosen sizes: widescreen slides,
     A4 portrait resumes, etc.) scaled to fit inside our A4-landscape page, centered,
-    so the final document has one consistent page size throughout instead of the
-    page dimensions jumping around between branded and uploaded sections."""
+    on a branded navy mat, so the final document has one consistent page size and
+    look throughout instead of the page dimensions jumping around and leaving bare
+    white gaps between branded and uploaded sections."""
     target_w, target_h = _A4_LANDSCAPE_PT
     writer = PdfWriter()
+    mat_cache = {}
     for page in reader.pages:
         src_w, src_h = float(page.mediabox.width), float(page.mediabox.height)
         if src_w > 0 and src_h > 0 and (abs(src_w - target_w) > 1 or abs(src_h - target_h) > 1):
@@ -3489,6 +3515,16 @@ def _append_pdf_fitted(merger, reader):
             page.add_transformation(Transformation().scale(scale, scale).translate(off_x, off_y))
             page.mediabox = RectangleObject((0, 0, target_w, target_h))
             page.cropbox = RectangleObject((0, 0, target_w, target_h))
+            if off_x > 1 or off_y > 1:
+                cache_key = (round(src_w * scale), round(src_h * scale))
+                if cache_key not in mat_cache:
+                    mat_cache[cache_key] = _mat_background_page(
+                        target_w, target_h, _CONTENT_MAT_RGB,
+                        content_rect=(off_x, off_y, src_w * scale, src_h * scale),
+                    )
+                mat_page = PdfReader(io.BytesIO(mat_cache[cache_key])).pages[0]
+                mat_page.merge_page(page)
+                page = mat_page
         writer.add_page(page)
     buf = io.BytesIO()
     writer.write(buf)
