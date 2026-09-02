@@ -1,4 +1,5 @@
 from decimal import Decimal
+import re
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse, HttpResponseServerError
 from django.contrib.auth.decorators import login_required
@@ -3496,17 +3497,36 @@ def _mat_background_page(width, height, rgb, content_rect=None):
     return buf.getvalue()
 
 
-def _append_pdf_fitted(merger, reader):
-    """Append every page of an uploaded/external PDF (course content, trainer
-    profile, company profile — arbitrary author-chosen sizes: widescreen slides,
-    A4 portrait resumes, etc.) scaled to fit inside our A4-landscape page, centered,
+# Our course-content uploads are auto-generated multi-section brochures (a
+# certification intro, an "About Us" page, a course-overview page, pricing
+# tiers, the MODULES pages, testimonials, then a call-to-action) — every
+# section except MODULES duplicates something our own proposal template
+# already renders. Each section page opens with its own eyebrow label
+# ("MODULES", "SUCCESS STORIES", ...), so we keep only the pages whose text
+# starts with "MODULES" and fall back to every page if none match, so a
+# differently-structured upload never ends up with an empty curriculum.
+_MODULES_PAGE_RE = re.compile(r'^\s*MODULES\b', re.IGNORECASE)
+
+
+def _select_module_pages(reader):
+    module_pages = [
+        page for page in reader.pages
+        if _MODULES_PAGE_RE.match((page.extract_text() or '').strip())
+    ]
+    return module_pages or list(reader.pages)
+
+
+def _append_pdf_fitted(merger, pages):
+    """Append the given pages of an uploaded/external PDF (course content,
+    trainer profile — arbitrary author-chosen sizes: widescreen slides, A4
+    portrait resumes, etc.) scaled to fit inside our A4-landscape page, centered,
     on a branded navy mat, so the final document has one consistent page size and
     look throughout instead of the page dimensions jumping around and leaving bare
     white gaps between branded and uploaded sections."""
     target_w, target_h = _A4_LANDSCAPE_PT
     writer = PdfWriter()
     mat_cache = {}
-    for page in reader.pages:
+    for page in pages:
         src_w, src_h = float(page.mediabox.width), float(page.mediabox.height)
         if src_w > 0 and src_h > 0 and (abs(src_w - target_w) > 1 or abs(src_h - target_h) > 1):
             scale = min(target_w / src_w, target_h / src_h)
@@ -3561,7 +3581,7 @@ def print_proposal(request, pk):
             for content in pdf_contents:
                 try:
                     with default_storage.open(content.file.name, 'rb') as file:
-                        _append_pdf_fitted(merger, PdfReader(file))
+                        _append_pdf_fitted(merger, _select_module_pages(PdfReader(file)))
                 except Exception:
                     logger.exception("Error appending course content PDF (content id=%s) for proposal %s",
                                       content.pk, proposal.proposal_number)
@@ -3574,7 +3594,7 @@ def print_proposal(request, pk):
                     subtitle=proposal.trainer.name, eyebrow='Trainer Profile',
                 )
                 with default_storage.open(proposal.trainer.profile_pdf.name, 'rb') as file:
-                    _append_pdf_fitted(merger, PdfReader(file))
+                    _append_pdf_fitted(merger, list(PdfReader(file).pages))
             except Exception:
                 logger.exception("Error appending trainer profile PDF for proposal %s", proposal.proposal_number)
 
