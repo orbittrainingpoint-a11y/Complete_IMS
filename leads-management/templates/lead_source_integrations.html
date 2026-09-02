@@ -112,10 +112,28 @@
                                 <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyField('fbUrl{{ fi.id }}')"><i class="fas fa-copy"></i></button>
                             </div>
                             <label class="form-label small fw-bold">Verify Token</label>
-                            <div class="input-group">
+                            <div class="input-group mb-3">
                                 <input type="text" class="form-control form-control-sm" readonly value="{{ fi.fb_verify_token }}" id="fbToken{{ fi.id }}">
                                 <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyField('fbToken{{ fi.id }}')"><i class="fas fa-copy"></i></button>
                             </div>
+
+                            <hr>
+                            <label class="form-label small fw-bold">Page connection</label>
+                            <div id="fbConnectStatus{{ fi.id }}" class="mb-2">
+                                {% if fi.fb_page_id %}
+                                    <span class="badge bg-success"><i class="fas fa-check me-1"></i>Connected: {{ fi.fb_page_name or fi.fb_page_id }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Not connected</span>
+                                {% endif %}
+                            </div>
+                            {% if fi.fb_app_id and fi.fb_app_secret %}
+                            <button type="button" class="btn btn-sm btn-primary" onclick="connectFacebook({{ fi.id }}, '{{ fi.fb_app_id }}')">
+                                <i class="fab fa-facebook me-1"></i>{{ 'Reconnect' if fi.fb_page_id else 'Connect' }} with Facebook
+                            </button>
+                            <div id="fbPagePicker{{ fi.id }}" class="mt-2" style="display:none;"></div>
+                            {% else %}
+                            <div class="small text-muted">Add the Meta App ID and App Secret above first, then you can connect a Page with one click.</div>
+                            {% endif %}
                         </div>
                         {% endfor %}
                     {% else %}
@@ -249,6 +267,97 @@ function copyField(id) {
     el.select();
     el.setSelectionRange(0, 99999);
     navigator.clipboard.writeText(el.value);
+}
+
+// ── Facebook "Connect with Facebook" flow ──────────────────────────────
+// Loaded lazily (only once, on first click) since most integrations pages
+// will only ever have one Facebook App configured.
+let fbSdkReady = null;
+function loadFacebookSdk(appId) {
+    if (fbSdkReady) return fbSdkReady;
+    fbSdkReady = new Promise((resolve) => {
+        window.fbAsyncInit = function () {
+            FB.init({ appId: appId, cookie: true, xfbml: false, version: 'v20.0' });
+            resolve();
+        };
+        const js = document.createElement('script');
+        js.src = 'https://connect.facebook.net/en_US/sdk.js';
+        js.onload = () => { if (!window.FB) resolve(); };
+        document.body.appendChild(js);
+    });
+    return fbSdkReady;
+}
+
+function connectFacebook(integrationId, appId) {
+    const statusEl = document.getElementById('fbConnectStatus' + integrationId);
+    statusEl.innerHTML = '<span class="badge bg-secondary">Loading Facebook…</span>';
+
+    loadFacebookSdk(appId).then(() => {
+        if (!window.FB) {
+            statusEl.innerHTML = '<span class="badge bg-danger">Could not load the Facebook SDK.</span>';
+            return;
+        }
+        FB.login(function (response) {
+            if (response.status !== 'connected' || !response.authResponse) {
+                statusEl.innerHTML = '<span class="badge bg-secondary">Not connected</span>';
+                return;
+            }
+            statusEl.innerHTML = '<span class="badge bg-secondary">Fetching your Pages…</span>';
+            fetch(`/settings/lead-sources/facebook/${integrationId}/exchange-token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: response.authResponse.accessToken }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        statusEl.innerHTML = `<span class="badge bg-danger">${data.message}</span>`;
+                        return;
+                    }
+                    if (data.pages.length === 1) {
+                        selectFacebookPage(integrationId, data.pages[0]);
+                    } else {
+                        showFacebookPagePicker(integrationId, data.pages);
+                    }
+                })
+                .catch(() => {
+                    statusEl.innerHTML = '<span class="badge bg-danger">Network error contacting the server.</span>';
+                });
+        }, { scope: 'pages_show_list,pages_read_engagement,pages_manage_metadata,leads_retrieval,pages_manage_ads' });
+    });
+}
+
+function showFacebookPagePicker(integrationId, pages) {
+    const picker = document.getElementById('fbPagePicker' + integrationId);
+    const statusEl = document.getElementById('fbConnectStatus' + integrationId);
+    statusEl.innerHTML = '<span class="badge bg-secondary">Choose a Page:</span>';
+    picker.style.display = 'block';
+    picker.innerHTML = pages.map((p, i) =>
+        `<button type="button" class="btn btn-sm btn-outline-primary d-block mb-1" onclick='selectFacebookPage(${integrationId}, ${JSON.stringify(p)})'>${p.name}</button>`
+    ).join('');
+}
+
+function selectFacebookPage(integrationId, page) {
+    const statusEl = document.getElementById('fbConnectStatus' + integrationId);
+    const picker = document.getElementById('fbPagePicker' + integrationId);
+    statusEl.innerHTML = '<span class="badge bg-secondary">Saving…</span>';
+    fetch(`/settings/lead-sources/facebook/${integrationId}/select-page`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ page_id: page.id, page_name: page.name, page_access_token: page.access_token }),
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                statusEl.innerHTML = `<span class="badge bg-success"><i class="fas fa-check me-1"></i>Connected: ${page.name}</span>`;
+                if (picker) { picker.style.display = 'none'; picker.innerHTML = ''; }
+            } else {
+                statusEl.innerHTML = `<span class="badge bg-danger">${data.message}</span>`;
+            }
+        })
+        .catch(() => {
+            statusEl.innerHTML = '<span class="badge bg-danger">Network error contacting the server.</span>';
+        });
 }
 </script>
 {% endblock %}

@@ -3504,6 +3504,86 @@ def delete_lead_source_integration(id):
     return redirect(url_for('main.lead_source_integrations'))
 
 
+@main.route('/settings/lead-sources/facebook/<int:id>/exchange-token', methods=['POST'])
+@login_required
+def facebook_exchange_token(id):
+    """Step 1 of the 'Connect with Facebook' flow: the browser already ran
+    FB.login() and got a short-lived user access token. We exchange it
+    server-side for a long-lived one (needs the App Secret, so this can't
+    happen client-side) and return the Pages this user manages so the admin
+    can pick which one to wire up — replacing manual Graph API Explorer copy/paste."""
+    if not _can_manage_lead_sources():
+        return jsonify({'success': False, 'message': 'Access denied.'}), 403
+    integration = LeadSourceIntegration.query.get_or_404(id)
+    if integration.source_type != 'facebook' or not integration.fb_app_id or not integration.fb_app_secret:
+        return jsonify({'success': False, 'message': 'This integration is missing its Meta App ID/Secret.'}), 400
+
+    short_lived_token = (request.get_json(silent=True) or {}).get('access_token')
+    if not short_lived_token:
+        return jsonify({'success': False, 'message': 'Missing access_token.'}), 400
+
+    try:
+        exchange_resp = requests.get(
+            'https://graph.facebook.com/v20.0/oauth/access_token',
+            params={
+                'grant_type': 'fb_exchange_token',
+                'client_id': integration.fb_app_id,
+                'client_secret': integration.fb_app_secret,
+                'fb_exchange_token': short_lived_token,
+            },
+            timeout=10,
+        )
+        exchange_data = exchange_resp.json()
+        long_lived_token = exchange_data.get('access_token')
+        if not long_lived_token:
+            logging.error('Facebook token exchange failed: %s', exchange_data)
+            message = (exchange_data.get('error') or {}).get('message') or 'Facebook did not return a token.'
+            return jsonify({'success': False, 'message': f'Token exchange failed: {message}'}), 400
+
+        pages_resp = requests.get(
+            'https://graph.facebook.com/v20.0/me/accounts',
+            params={'access_token': long_lived_token, 'fields': 'id,name,access_token'},
+            timeout=10,
+        )
+        pages_data = pages_resp.json()
+        pages = pages_data.get('data', [])
+        if not pages:
+            return jsonify({'success': False,
+                             'message': 'No Facebook Pages found for this account. Make sure you are an admin of the Page.'}), 400
+
+        return jsonify({'success': True, 'pages': [
+            {'id': p['id'], 'name': p.get('name', p['id']), 'access_token': p['access_token']} for p in pages
+        ]})
+    except Exception:
+        logging.exception('Facebook token exchange failed for integration %s', id)
+        return jsonify({'success': False, 'message': 'Something went wrong talking to Facebook. Check the server logs.'}), 500
+
+
+@main.route('/settings/lead-sources/facebook/<int:id>/select-page', methods=['POST'])
+@login_required
+def facebook_select_page(id):
+    """Step 2: admin picked a Page from the list returned by exchange-token
+    above — save its ID and page-scoped access token onto the integration."""
+    if not _can_manage_lead_sources():
+        return jsonify({'success': False, 'message': 'Access denied.'}), 403
+    integration = LeadSourceIntegration.query.get_or_404(id)
+    if integration.source_type != 'facebook':
+        return jsonify({'success': False, 'message': 'Not a Facebook integration.'}), 400
+
+    data = request.get_json(silent=True) or {}
+    page_id = data.get('page_id')
+    page_access_token = data.get('page_access_token')
+    page_name = data.get('page_name')
+    if not page_id or not page_access_token:
+        return jsonify({'success': False, 'message': 'Missing page selection.'}), 400
+
+    integration.fb_page_id = page_id
+    integration.fb_page_name = page_name
+    integration.fb_page_access_token = page_access_token
+    db.session.commit()
+    return jsonify({'success': True})
+
+
 @main.route("/payments/settings")
 @login_required
 def payment_settings():

@@ -486,6 +486,7 @@ class LeadSourceIntegration(db.Model):
     fb_app_secret = db.Column(db.String(200))
     fb_verify_token = db.Column(db.String(100))  # static string Meta echoes back during webhook verification
     fb_page_id = db.Column(db.String(100))
+    fb_page_name = db.Column(db.String(200))
     fb_page_access_token = db.Column(db.Text)
     # No FK to course.id: the `course` table is MyISAM, which doesn't support foreign keys.
     default_course_id = db.Column(db.Integer)
