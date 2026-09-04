@@ -4,6 +4,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import func, desc, asc, text
 from datetime import datetime, date, timedelta, timezone as _timezone
 import json, hmac, hashlib, time, base64, os, secrets, requests, re, uuid
+from difflib import SequenceMatcher
 
 from extensions import db
 from models import *
@@ -641,6 +642,71 @@ def _notify_new_source_lead(lead, category):
     db.session.commit()
 
 
+_COURSE_MATCH_STOPWORDS = {'course', 'courses', 'training', 'class', 'classes',
+                            'the', 'a', 'an', 'and', 'program', 'programme'}
+
+
+def _normalize_course_basic(text):
+    """Lowercase + strip punctuation/whitespace only — no word removal, so
+    two courses that only differ by a word like "Course" stay distinguishable
+    (e.g. "STAAD Pro" vs "STAAD Pro Course" are two different real courses)."""
+    text = (text or '').lower()
+    text = re.sub(r'[^a-z0-9\s]', ' ', text)
+    return ' '.join(text.split())
+
+
+def _normalize_course_loose(text):
+    """Basic normalization plus filler-word removal, for fuzzy comparison only
+    — "Revit Architecture" typed without "Course" should still fuzzy-match
+    "Revit Architecture Course"."""
+    words = [w for w in _normalize_course_basic(text).split() if w not in _COURSE_MATCH_STOPWORDS]
+    return ' '.join(words)
+
+
+def _match_course_by_name(course_text):
+    """Resolve a free-typed course name (from a website form or Lead Ads
+    question) to a real Course record.
+
+    Two tiers: an exact match on the literally-typed text (case/punctuation
+    normalized only) wins outright — this is what correctly separates near-
+    duplicates like "STAAD Pro" from "STAAD Pro Course" when the visitor typed
+    one of them exactly. Otherwise we fall back to fuzzy similarity on filler-
+    word-stripped text, but only auto-assign when the best match is both very
+    close AND clearly ahead of the runner-up — the catalog has real near-
+    duplicates (seven different Revit courses, etc.), so a vague or ambiguous
+    typed name should never get force-assigned to a guess; it's left as free
+    text for staff to review instead."""
+    basic_input = _normalize_course_basic(course_text)
+    if not basic_input:
+        return None
+
+    courses = Course.query.filter_by(is_active=True).all()
+    for course in courses:
+        if _normalize_course_basic(course.name) == basic_input:
+            return course
+
+    loose_input = _normalize_course_loose(course_text)
+    if not loose_input:
+        return None
+
+    scored = []
+    for course in courses:
+        loose_name = _normalize_course_loose(course.name)
+        if not loose_name:
+            continue
+        ratio = SequenceMatcher(None, loose_input, loose_name).ratio()
+        scored.append((ratio, course))
+
+    if not scored:
+        return None
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    best_ratio, best_course = scored[0]
+    second_ratio = scored[1][0] if len(scored) > 1 else 0
+    if best_ratio >= 0.86 and (best_ratio - second_ratio) >= 0.08:
+        return best_course
+    return None
+
+
 def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notify_category=None, course_text=None):
     """Create a Lead from an external source, or merge into an existing one with the same phone."""
     name = (name or 'Website Lead').strip()[:100]
@@ -651,12 +717,18 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
     if not phone:
         return None  # Lead.phone is required — nothing usable to store
 
+    matched_course = _match_course_by_name(course_text) if course_text else None
+    if matched_course:
+        course_id = matched_course.id
+
     existing = Lead.check_duplicate(phone)
     if existing:
         stamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
         addition = f"\n\n[{stamp}] New {lead_source} submission received.{(' ' + note) if note else ''}"
         existing.comments = (existing.comments or '') + addition
         if course_text and not existing.course_interest_id:
+            if matched_course:
+                existing.course_interest_id = matched_course.id
             existing.course_text = course_text
         db.session.commit()
         return existing
@@ -667,7 +739,7 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
         email=email,
         lead_source=lead_source,
         course_interest_id=course_id,
-        course_text=course_text if not course_id else None,
+        course_text=course_text,
         status='New',
         comments=note or None,
     )
@@ -704,10 +776,9 @@ def webhook_website(token):
     course_text = pick('course', 'course_name', 'course-name', 'interested_course', 'interested-course',
                         'which_course', 'which-course', 'select_course', 'select-course', 'subject')
 
-    # The course typed into the form is free text and often won't match a real
-    # course name exactly — don't try to auto-match it to course_interest_id
-    # (that would silently misfile leads). Kept in its own field so it's visible
-    # on the lead as-typed until staff assign the real course.
+    # _intake_lead tries to resolve the free-typed course name against real
+    # Course records (_match_course_by_name); course_text is always kept too
+    # so staff can see exactly what the visitor typed either way.
     lead = _intake_lead(
         name=name, phone=phone, email=email,
         lead_source=f"Website - {integration.name}"[:50],
