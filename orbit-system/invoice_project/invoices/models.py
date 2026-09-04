@@ -63,7 +63,11 @@ def portal_vat_cert_path(instance, filename):
 
 
 class Client(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # SET_NULL (not CASCADE): deleting a staff account must never delete the
+    # clients/invoices they created — that's real revenue history, not login
+    # data. consultant_name on Registration already carries attribution text
+    # independent of this FK, same pattern used elsewhere (recorded_by, etc.).
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     name = models.CharField(max_length=255)
     email = models.EmailField()
     phone = models.CharField(max_length=20)
@@ -285,7 +289,9 @@ class Invoice(models.Model):
     ]
     
     registration = models.ForeignKey(Registration, on_delete=models.SET_NULL, null=True, blank=True)  # Changed to ForeignKey
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # SET_NULL (not CASCADE): deleting a staff account must never delete the
+    # invoices they created — that's real revenue history, not login data.
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     client = models.ForeignKey(Client, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, blank=True)  # Keep one course field
     invoice_number = models.CharField(max_length=50, unique=True, blank=True)
@@ -368,7 +374,9 @@ class InvoicePurchase(models.Model):
         (CHEQUE, 'Cheque'),
     ]
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # SET_NULL (not CASCADE): deleting a staff account must never delete the
+    # purchase invoices they created — that's real financial history.
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     client = models.ForeignKey(Client, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True)  # Added course field
     invoice_number = models.CharField(max_length=50, unique=True, blank=True, db_index=True)
@@ -463,7 +471,10 @@ class Quotation(models.Model):
 
     quotation_number = models.CharField(max_length=20, unique=True, editable=False)
     client_name = models.CharField(max_length=255)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # SET_NULL (not CASCADE): deleting a staff account must never delete the
+    # quotations they created — consultant_name below already carries
+    # attribution text independent of this FK.
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     schedule = models.CharField(max_length=255)
     training_venue = models.CharField(max_length=50, choices=VENUE_CHOICES)
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
