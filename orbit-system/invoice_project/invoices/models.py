@@ -513,7 +513,9 @@ class Quotation(models.Model):
 
 class QuotationItem(models.Model):
     quotation = models.ForeignKey(Quotation, related_name='items', on_delete=models.CASCADE)
-    course = models.ForeignKey('Course', on_delete=models.CASCADE)
+    # SET_NULL (not CASCADE): deleting a Course must never delete quotation
+    # line items that reference it — matches InvoiceItem.course.
+    course = models.ForeignKey('Course', on_delete=models.SET_NULL, null=True, blank=True)
     duration = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     number_of_persons = models.PositiveIntegerField()
 
@@ -537,7 +539,12 @@ class QuotationLevel(models.Model):
 
 class RegistrationCourse(models.Model):
     registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name='registration_courses')
-    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    # PROTECT (not CASCADE): a student's course-enrollment link must never be
+    # silently destroyed by deleting a Course row (e.g. cleaning up a
+    # duplicate course) — this exact thing already happened and broke 65+
+    # student registrations with no way to recover the original course.
+    # PROTECT forces an explicit reassignment before the Course can be removed.
+    course = models.ForeignKey(Course, on_delete=models.PROTECT)
     discount = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
@@ -705,7 +712,9 @@ class CompanyProfile(models.Model):
 class Proposal(models.Model):
     proposal_number = models.CharField(max_length=20, unique=True, editable=False)
     client_name = models.CharField(max_length=255)
-    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    # SET_NULL (not CASCADE): deleting a Course must never delete the
+    # proposals generated for it — matches Invoice.course.
+    course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, blank=True)
     presenter_title = models.CharField(max_length=255)
     date = models.DateField(default=timezone.now)
     location = models.CharField(max_length=255)
@@ -1047,7 +1056,9 @@ class TrainingSchedule(models.Model):
         ('online', 'Online'), ('offline', 'Offline'),
         ('batch', 'Batch'), ('private', 'Private'),
     ]
-    course = models.ForeignKey('Course', on_delete=models.CASCADE, related_name='schedules')
+    # SET_NULL (not CASCADE): deleting a Course must never delete the
+    # training schedule entries that reference it.
+    course = models.ForeignKey('Course', on_delete=models.SET_NULL, null=True, blank=True, related_name='schedules')
     title = models.CharField(max_length=200)
     class_type = models.CharField(max_length=20, choices=CLASS_TYPE_CHOICES, default='offline')
     start_date = models.DateField()
