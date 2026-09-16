@@ -6,6 +6,7 @@ from . import views
 urlpatterns = [
     path('', views.orbit_dashboard, name='orbit_dashboard'),
     path('settings/', views.institute_settings, name='institute_settings'),
+    path('registrations/missing-course/', views.registrations_missing_course, name='registrations_missing_course'),
     path('registrations/<int:pk>/refund/', views.initiate_refund, name='initiate_refund'),
     path('refunds/<int:pk>/confirm/', views.confirm_refund, name='confirm_refund'),
     path('refunds/', views.refund_list, name='refund_list'),

@@ -1426,6 +1426,28 @@ def edit_registration(request, pk):
         'courses': courses,
     })
 
+
+@login_required
+def registrations_missing_course(request):
+    """Data-cleanup report: registrations with no RegistrationCourse link at
+    all (course_id was silently lost, e.g. from a Course row being deleted
+    while still CASCADE — since fixed). Links straight into the normal edit
+    screen so fixing one is just picking a course there and saving."""
+    try:
+        role = request.user.profile.role
+    except Exception:
+        role = None
+    if role not in ('admin', 'sales_manager') and not request.user.is_superuser:
+        messages.error(request, "Access denied. Only admins and sales managers can view this report.")
+        return redirect('student_dashboard')
+
+    registrations = Registration.objects.filter(registration_courses__isnull=True).order_by('consultant_name', 'date')
+
+    return render(request, 'studentregistration/registrations_missing_course.html', {
+        'registrations': registrations,
+    })
+
+
 @login_required
 @require_POST
 def reassign_consultant(request, pk):
