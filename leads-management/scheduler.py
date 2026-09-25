@@ -22,6 +22,8 @@ def start_scheduler(app):
     _scheduler = BackgroundScheduler(daemon=True)
     _scheduler.add_job(lambda: _tick(app), 'interval', minutes=5,
                         id='whatsapp_campaign_tick', max_instances=1)
+    _scheduler.add_job(lambda: _attendance_tick(app), 'interval', minutes=15,
+                        id='attendance_settle', max_instances=1)
     _scheduler.start()
     logging.info('WhatsApp campaign scheduler started')
 
@@ -56,3 +58,27 @@ def _run_tick(db):
             _process_account_due_enrollments(account)
         except Exception:
             logging.exception('Failed processing WhatsApp account %s', account.id)
+
+
+def _attendance_tick(app):
+    """Mark sessions left open past their Dubai date as unpaid leave, even if the
+    person never opens the CRM again (so admin reports are right without waiting)."""
+    with app.app_context():
+        from extensions import db
+        got_lock = False
+        try:
+            got_lock = bool(db.session.execute(text("SELECT GET_LOCK('attendance_settle', 0)")).scalar())
+            if not got_lock:
+                return
+            import attendance
+            attendance.settle_stale_sessions()
+        except Exception:
+            logging.exception('Attendance settle tick failed')
+            db.session.rollback()
+        finally:
+            if got_lock:
+                try:
+                    db.session.execute(text("SELECT RELEASE_LOCK('attendance_settle')"))
+                    db.session.commit()
+                except Exception:
+                    pass

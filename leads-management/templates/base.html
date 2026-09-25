@@ -424,6 +424,28 @@
             </div>
         </div>
 
+        {% if attendance_tracked or current_user.is_admin() or current_user.is_sales_manager() %}
+        <div class="nav-section">
+            <div class="nav-section-label">Attendance</div>
+            {% if attendance_tracked %}
+            <div class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'main.attendance_my' %}active{% endif %}"
+                   href="{{ url_for('main.attendance_my') }}">
+                    <span class="nav-icon"><i class="fas fa-user-clock"></i></span> My Attendance
+                </a>
+            </div>
+            {% endif %}
+            {% if current_user.is_admin() or current_user.is_sales_manager() %}
+            <div class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'main.attendance_admin' %}active{% endif %}"
+                   href="{{ url_for('main.attendance_admin') }}">
+                    <span class="nav-icon"><i class="fas fa-clipboard-user"></i></span> Team Attendance
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <!-- ── SALES ───────────────────────────── -->
         <div class="nav-section">
             <div class="nav-section-label">Sales</div>
@@ -637,6 +659,12 @@
         </div>
 
         <div class="topbar-right">
+            {% if attendance_tracked %}
+            <button class="btn btn-outline-warning btn-sm" id="startBreakBtn" type="button">
+                <i class="fas fa-mug-hot me-1"></i> Break
+            </button>
+            {% endif %}
+
             <!-- Quick Add -->
             <div class="dropdown">
                 <button class="btn btn-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
@@ -761,11 +789,150 @@
   </div>
 </div>
 
+{% if attendance_tracked %}
+<!-- Break / idle modal -->
+<div class="modal fade" id="breakModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;overflow:hidden;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none;">
+        <h5 class="modal-title text-white mb-0"><i class="fas fa-mug-hot me-2"></i><span id="breakTitle">You are on a break</span></h5>
+      </div>
+      <div class="modal-body text-center py-4">
+        <p class="text-muted mb-2" id="breakReason" style="font-size:13px;"></p>
+        <div id="breakTimer" style="font-size:38px;font-weight:800;font-variant-numeric:tabular-nums;">00:00</div>
+        <div class="text-muted" style="font-size:12px;">Break time is not counted as working time.</div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);justify-content:center;">
+        <button type="button" class="btn btn-success px-4" id="endBreakBtn"><i class="fas fa-play me-1"></i> I am back</button>
+        <button type="button" class="btn btn-outline-secondary" id="workedBtn" title="Use this if you were on a call or with a lead - it is not counted as a break, but managers can see the claim">I was working (call / lead)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if attendance_warning %}
+<!-- Missed-logout warning -->
+<div class="modal fade" id="missedLogoutModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;overflow:hidden;border:none;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#ef4444,#b91c1c);border:none;">
+        <h5 class="modal-title text-white mb-0"><i class="fas fa-triangle-exclamation me-2"></i>You did not log out</h5>
+      </div>
+      <div class="modal-body">
+        <p>You did not log out on <strong>{{ attendance_warning.work_date.strftime('%A, %d %b %Y') }}</strong>.
+        The system kept your session running with no real activity, so <strong>that day is being counted as unpaid leave</strong>.</p>
+        <p class="text-muted mb-0" style="font-size:13px;">Always click <em>Logout</em> when you finish for the day. If you think this is a mistake, speak to your manager &mdash; they can review it.</p>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-danger px-4" id="ackMissedLogoutBtn">I understand</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
 <!-- Bootstrap 5 JS Bundle -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+
+
+{% if current_user.is_authenticated %}
+<script>
+(function () {
+    function soundGuard() {
+        fetch('/sound-status', { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } }).then(r => r.json()).then(d => {
+            if (!d.ok) location.href = '/sound-check?next=' + encodeURIComponent(location.pathname + location.search);
+        }).catch(() => {});
+    }
+    setInterval(soundGuard, 60 * 1000);
+})();
+</script>
+{% endif %}
+{% if attendance_tracked %}
+<script>
+(function () {
+    const IDLE_MS = 15 * 60 * 1000;
+    let lastInput = Date.now(), activeSinceBeat = true, onBreak = false, breakStart = null, timerId = null;
+    const modal = new bootstrap.Modal(document.getElementById('breakModal'));
+
+    ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(ev =>
+        window.addEventListener(ev, () => { lastInput = Date.now(); activeSinceBeat = true; }, { passive: true }));
+
+    function post(url, body) {
+        return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body || {}), credentials: 'same-origin' })
+            .then(r => r.json());
+    }
+    function fmt(ms) {
+        const s = Math.max(0, Math.floor(ms / 1000));
+        return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    }
+    function showBreak(state) {
+        onBreak = true;
+        breakStart = new Date(state.break_start).getTime();
+        const auto = state.break_type === 'auto_idle';
+        document.getElementById('breakTitle').textContent = auto ? 'Break started automatically' : 'You are on a break';
+        document.getElementById('breakReason').textContent = auto
+            ? 'You were inactive for 15 minutes, so that time is counted as a break.'
+            : 'Enjoy your break. Click below when you are back.';
+        modal.show();
+        clearInterval(timerId);
+        const tick = () => { document.getElementById('breakTimer').textContent = fmt(Date.now() - breakStart); };
+        tick(); timerId = setInterval(tick, 1000);
+    }
+    function applyState(state) {
+        if (!state || !state.success) return;
+        if (state.on_break && !onBreak) showBreak(state);
+        if (!state.on_break && onBreak) { onBreak = false; clearInterval(timerId); modal.hide(); }
+    }
+    function ping() { try { localStorage.setItem('orbit_att_ping', String(Date.now())); } catch (e) {} }
+    window.addEventListener('storage', ev => { if (ev.key === 'orbit_att_ping') beat(); });
+
+    document.getElementById('startBreakBtn').addEventListener('click', () =>
+        post('/attendance/break/start', { type: 'manual' }).then(s => { applyState(s); ping(); }));
+
+    function endBreak(worked) {
+        return post('/attendance/break/end', { worked: !!worked }).then(state => {
+            onBreak = false; clearInterval(timerId); modal.hide();
+            lastInput = Date.now(); activeSinceBeat = true;
+            if (state && state.break_minutes !== undefined) {
+                const t = document.createElement('div');
+                t.className = 'alert alert-success position-fixed';
+                t.style.cssText = 'top:70px;right:20px;z-index:3000;';
+                t.textContent = 'Welcome back! Break recorded: ' + state.break_minutes + ' min.';
+                document.body.appendChild(t); setTimeout(() => t.remove(), 4000);
+            }
+            ping();
+        });
+    }
+    document.getElementById('endBreakBtn').addEventListener('click', () => endBreak(false));
+    document.getElementById('workedBtn').addEventListener('click', () => endBreak(true));
+
+    function beat() {
+        const active = !onBreak && activeSinceBeat;
+        activeSinceBeat = false;
+        post('/attendance/heartbeat', { active: active }).then(applyState).catch(() => {});
+    }
+    beat();
+    setInterval(beat, 60 * 1000);
+
+    setInterval(() => {
+        if (!onBreak && Date.now() - lastInput >= IDLE_MS)
+            post('/attendance/break/start', { type: 'auto_idle' }).then(applyState);
+    }, 30 * 1000);
+
+    const ack = document.getElementById('ackMissedLogoutBtn');
+    if (ack) {
+        const m = new bootstrap.Modal(document.getElementById('missedLogoutModal'));
+        m.show();
+        ack.addEventListener('click', () => post('/attendance/ack-warning').then(() => m.hide()));
+    }
+})();
+</script>
+{% endif %}
 
 <script>
 (function () {

@@ -54,6 +54,11 @@
     <button class="btn btn-outline-primary btn-sm" onclick="openAssignRuleModal()">
         <i class="fas fa-sliders-h me-1"></i>Assign Rule
     </button>
+    {% if current_user.is_admin() %}
+    <button class="btn btn-outline-success btn-sm ms-1" onclick="rematchCourses()" title="Fill the course on website leads that have none, by matching what the visitor typed">
+        <i class="fas fa-wand-magic-sparkles me-1"></i>Match Courses
+    </button>
+    {% endif %}
 </div>
 {% endif %}
 <!-- Search and Filter Bar -->
@@ -91,6 +96,7 @@
                 <div class="col-md-3">
                     <select class="form-select filter-select" name="consultant" onchange="applyFilters()">
                         <option value="">All Consultants</option>
+                        <option value="unassigned" {% if unassigned_only %}selected{% endif %}>Not Assigned</option>
                         {% for c in consultants %}
                         <option value="{{ c.id }}" {% if consultant_filter == c.id %}selected{% endif %}>{{ c.username }}</option>
                         {% endfor %}
@@ -315,7 +321,7 @@
     <ul class="pagination justify-content-center">
         {% if pagination.has_prev %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('main.leads', page=pagination.prev_num, search=search, status=status_filter, course=course_filter) }}">
+            <a class="page-link" href="{{ url_for('main.leads', page=pagination.prev_num, search=search, status=status_filter, course=course_filter, consultant=consultant_param) }}">
                 Previous
             </a>
         </li>
@@ -325,7 +331,7 @@
             {% if page_num %}
                 {% if page_num != pagination.page %}
                 <li class="page-item">
-                    <a class="page-link" href="{{ url_for('main.leads', page=page_num, search=search, status=status_filter, course=course_filter) }}">
+                    <a class="page-link" href="{{ url_for('main.leads', page=page_num, search=search, status=status_filter, course=course_filter, consultant=consultant_param) }}">
                         {{ page_num }}
                     </a>
                 </li>
@@ -343,7 +349,7 @@
         
         {% if pagination.has_next %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('main.leads', page=pagination.next_num, search=search, status=status_filter, course=course_filter) }}">
+            <a class="page-link" href="{{ url_for('main.leads', page=pagination.next_num, search=search, status=status_filter, course=course_filter, consultant=consultant_param) }}">
                 Next
             </a>
         </li>
@@ -711,14 +717,14 @@
             <div class="modal-header" style="background:linear-gradient(135deg,#1e3a5f,#4f46e5);padding:1.25rem 1.5rem;">
                 <div>
                     <h5 class="modal-title text-white mb-0"><i class="fas fa-sliders-h me-2 opacity-75"></i>Assign Rule</h5>
-                    <small class="text-white opacity-75">Assign every currently-unassigned lead matching these criteria — runs once, right now</small>
+                    <small class="text-white opacity-75">Bulk-assign NOT ASSIGNED leads by source, course, status and date — runs once, right now</small>
                 </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
                 <div class="mb-3">
                     <label class="form-label fw-bold" style="font-size:13px;">Lead Type</label>
-                    <select class="form-select" id="assignRuleLeadType" style="border-radius:8px;">
+                    <select class="form-select" id="assignRuleLeadType" style="border-radius:8px;" onchange="previewAssignRule()">
                         <option value="all">All sources</option>
                         <option value="website">Website</option>
                         <option value="social_media">Social Media</option>
@@ -726,13 +732,40 @@
                 </div>
                 <div class="row g-2 mb-3">
                     <div class="col-6">
-                        <label class="form-label" style="font-size:13px;">Date From</label>
-                        <input type="date" class="form-control" id="assignRuleDateFrom" style="border-radius:8px;">
+                        <label class="form-label fw-bold" style="font-size:13px;">Course</label>
+                        <select class="form-select" id="assignRuleCourse" style="border-radius:8px;" onchange="previewAssignRule()">
+                            <option value="">All courses</option>
+                            {% for course in courses %}
+                            <option value="{{ course.id }}">{{ course.name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="col-6">
-                        <label class="form-label" style="font-size:13px;">Date To</label>
-                        <input type="date" class="form-control" id="assignRuleDateTo" style="border-radius:8px;">
+                        <label class="form-label fw-bold" style="font-size:13px;">Status</label>
+                        <select class="form-select" id="assignRuleStatus" style="border-radius:8px;" onchange="previewAssignRule()">
+                            <option value="">All statuses</option>
+                            {% for status in statuses %}
+                            <option value="{{ status }}">{{ status }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-4">
+                        <label class="form-label" style="font-size:13px;">Date From</label>
+                        <input type="date" class="form-control" id="assignRuleDateFrom" style="border-radius:8px;" onchange="previewAssignRule()">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label" style="font-size:13px;">Date To</label>
+                        <input type="date" class="form-control" id="assignRuleDateTo" style="border-radius:8px;" onchange="previewAssignRule()">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label" style="font-size:13px;">Max leads</label>
+                        <input type="number" min="1" class="form-control" id="assignRuleMax" placeholder="All" style="border-radius:8px;">
+                    </div>
+                </div>
+                <div class="mb-3 p-3 rounded-3" style="background:rgba(79,70,229,.07);border:1px solid rgba(79,70,229,.18);font-size:13px;color:#4f46e5;">
+                    <i class="fas fa-user-slash me-1"></i><strong id="assignRuleCount">...</strong> not-assigned lead(s) match these criteria
                 </div>
                 <div class="mb-1">
                     <label class="form-label fw-bold" style="font-size:13px;">Assign To <span class="text-danger">*</span></label>
@@ -1435,8 +1468,43 @@ function openAssignRuleModal() {
     document.getElementById('assignRuleDateFrom').value = '';
     document.getElementById('assignRuleDateTo').value = '';
     document.getElementById('assignRuleToUser').value = '';
+    document.getElementById('assignRuleCourse').value = '';
+    document.getElementById('assignRuleStatus').value = '';
+    document.getElementById('assignRuleMax').value = '';
     document.getElementById('assignRuleUserErr').style.display = 'none';
     new bootstrap.Modal(document.getElementById('assignRuleModal')).show();
+    previewAssignRule();
+}
+
+function assignRuleFormData() {
+    const fd = new FormData();
+    fd.append('lead_type', document.getElementById('assignRuleLeadType').value);
+    fd.append('course_id', document.getElementById('assignRuleCourse').value);
+    fd.append('status', document.getElementById('assignRuleStatus').value);
+    fd.append('date_from', document.getElementById('assignRuleDateFrom').value);
+    fd.append('date_to', document.getElementById('assignRuleDateTo').value);
+    return fd;
+}
+
+function rematchCourses() {
+    const post = apply => { const fd = new FormData(); fd.append('apply', apply ? '1' : '0');
+        return fetch('/leads/rematch-courses', { method: 'POST', body: fd }).then(r => r.json()); };
+    post(false).then(d => {
+        if (!d.success) { alert(d.message || 'Failed'); return; }
+        if (!d.matched) { alert('Checked ' + d.checked + ' website leads without a course - none could be matched.'); return; }
+        const list = d.samples.join('\n');
+        if (confirm(d.matched + ' of ' + d.checked + ' website leads without a course can be matched.\n\nExamples:\n' + list + '\n\nAssign these courses now? (Only leads with no course are changed.)'))
+            post(true).then(r => { alert(r.matched + ' leads updated.'); location.reload(); });
+    });
+}
+
+function previewAssignRule() {
+    const el = document.getElementById('assignRuleCount');
+    el.textContent = '...';
+    fetch('/leads/assign-rule/preview', { method: 'POST', body: assignRuleFormData() })
+        .then(r => r.json())
+        .then(d => { el.textContent = d.success ? d.count : '?'; })
+        .catch(() => { el.textContent = '?'; });
 }
 
 function submitAssignRule() {
@@ -1452,10 +1520,8 @@ function submitAssignRule() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Running…';
 
-    const fd = new FormData();
-    fd.append('lead_type', leadType);
-    fd.append('date_from', dateFrom);
-    fd.append('date_to', dateTo);
+    const fd = assignRuleFormData();
+    fd.append('max_leads', document.getElementById('assignRuleMax').value);
     fd.append('to_user_id', toUser);
 
     fetch('/leads/assign-rule', { method: 'POST', body: fd })

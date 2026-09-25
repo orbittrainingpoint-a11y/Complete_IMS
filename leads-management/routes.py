@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, current_app, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import func, desc, asc, text
@@ -11,6 +11,7 @@ from models import *
 from forms import *
 import logging
 from utils import create_payment_link, verify_payment_status
+import attendance as att
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -39,6 +40,10 @@ def _is_after_dubai_curfew():
 @main.before_request
 def _enforce_dubai_curfew():
     if current_user.is_authenticated and not current_user.is_admin() and _is_after_dubai_curfew():
+        if att.is_tracked(current_user):
+            left = len(att.pending_comment_leads(current_user.id))
+            att.close_session(current_user.id, 'curfew',
+                              f'Auto-logged out at 9:30 PM with {left} lead(s) still uncommented.' if left else None)
         logout_user()
         flash('Daily access ends at 9:30 PM (Dubai time). Please log in again tomorrow.', 'warning')
         return redirect(url_for('main.login'))
@@ -400,11 +405,18 @@ def login():
         user = User.query.filter_by(username=form.username.data).first()
         if user and check_password_hash(user.password_hash, form.password.data):
             login_user(user)
+            session.pop('sound_ok_at', None)
             db.session.add(LoginLog(
                 user_id=user.id, username_try=form.username.data,
                 ip_address=ip, user_agent=ua, status='success'
             ))
             db.session.commit()
+            if att.is_tracked(user):
+                try:
+                    att.ensure_session(user)
+                except Exception:
+                    logging.exception('attendance ensure_session failed at login')
+                    db.session.rollback()
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
         # failed attempt — look up user just to get their id if they exist
@@ -422,8 +434,249 @@ def login():
 @main.route('/logout')
 @login_required
 def logout():
+    if att.is_tracked(current_user):
+        pending = att.pending_comment_leads(current_user.id)
+        if pending:
+            return render_template('logout_blocked.html', leads=pending)
+        att.close_session(current_user.id, 'manual')
+    session.pop('sound_ok_at', None)
     logout_user()
     return redirect(url_for('main.login'))
+
+
+# ── Sound check: the CRM stays locked until sound is confirmed (login + every 30 min) ──
+SOUND_VALID_SECONDS = 30 * 60
+_SOUND_EXEMPT = {'main.login', 'main.logout', 'main.sound_check', 'main.sound_status', 'main.service_worker', 'static', None}
+
+
+def _sound_remaining():
+    at = session.get('sound_ok_at')
+    if not at:
+        return 0
+    return max(0, int(at + SOUND_VALID_SECONDS - time.time()))
+
+
+@main.before_request
+def _enforce_sound_check():
+    if not current_user.is_authenticated or request.endpoint in _SOUND_EXEMPT or request.blueprint != 'main':
+        return
+    if _sound_remaining() > 0:
+        return
+    if request.method == 'GET' and 'text/html' in request.headers.get('Accept', '') and not request.headers.get('X-Requested-With'):
+        return redirect(url_for('main.sound_check', next=request.full_path.rstrip('?')))
+    return jsonify({'success': False, 'sound_required': True, 'message': 'Sound check required.'}), 423
+
+
+@main.route('/sound-check', methods=['GET', 'POST'])
+@login_required
+def sound_check():
+    nxt = request.values.get('next') or url_for('main.dashboard')
+    if not nxt.startswith('/') or nxt.startswith('//'):
+        nxt = url_for('main.dashboard')
+    if request.method == 'POST':
+        if request.form.get('audio_ok') == '1':
+            session['sound_ok_at'] = int(time.time())
+            return redirect(nxt)
+        flash('The sound test did not complete. Turn the sound on and try again.', 'error')
+    return render_template('sound_check.html', next=nxt, valid_minutes=SOUND_VALID_SECONDS // 60)
+
+
+@main.route('/sound-status')
+@login_required
+def sound_status():
+    left = _sound_remaining()
+    return jsonify({'ok': left > 0, 'remaining': left})
+
+
+@main.route('/attendance/quick-comment', methods=['POST'])
+@login_required
+def attendance_quick_comment():
+    lead = Lead.query.get_or_404(request.form.get('lead_id', type=int))
+    content = request.form.get('content', '').strip()
+    if lead.assigned_to != current_user.id and lead.added_by != current_user.id and lead.created_by_id != current_user.id:
+        return jsonify({'success': False, 'message': 'Not your lead.'}), 403
+    if len(content) < 3:
+        return jsonify({'success': False, 'message': 'Please write a short comment.'}), 400
+    db.session.add(LeadInteraction(lead_id=lead.id, interaction_type='Note', content=content[:2000],
+                                   created_by_id=current_user.id))
+    db.session.commit()
+    return jsonify({'success': True, 'remaining': len(att.pending_comment_leads(current_user.id))})
+
+
+# ── Attendance (salespeople: login -> mandatory logout, breaks, next-day missed-logout) ──
+
+@main.before_request
+def _attendance_track():
+    if request.endpoint in (None, 'main.login', 'main.logout') or not att.is_tracked(current_user):
+        return
+    try:
+        att.ensure_session(current_user)
+    except Exception:
+        logging.exception('attendance ensure_session failed')
+        db.session.rollback()
+
+
+@main.app_context_processor
+def _attendance_context():
+    if not att.is_tracked(current_user):
+        return {'attendance_tracked': False}
+    warn = None
+    try:
+        warn = (AttendanceSession.query
+                .filter_by(user_id=current_user.id, warning_pending=True)
+                .order_by(AttendanceSession.work_date.desc()).first())
+    except Exception:
+        db.session.rollback()
+    return {'attendance_tracked': True, 'attendance_warning': warn}
+
+
+def _my_open_session():
+    return AttendanceSession.query.filter_by(user_id=current_user.id, status='open') \
+        .order_by(AttendanceSession.id.desc()).first()
+
+
+def _attendance_state(s):
+    br = att._open_break(s.id) if s else None
+    return {
+        'success': True,
+        'open': bool(s),
+        'on_break': bool(br),
+        'break_type': br.break_type if br else None,
+        'break_start': br.start_at.isoformat() + 'Z' if br else None,
+        'idle_limit_seconds': int(att.IDLE_LIMIT.total_seconds()),
+    }
+
+
+@main.route('/attendance/heartbeat', methods=['POST'])
+@login_required
+def attendance_heartbeat():
+    if not att.is_tracked(current_user):
+        return jsonify({'success': True, 'tracked': False})
+    s = _my_open_session() or att.ensure_session(current_user)
+    if (request.get_json(silent=True, force=True) or {}).get('active'):
+        att.record_activity(s)
+    return jsonify(_attendance_state(s))
+
+
+@main.route('/attendance/break/start', methods=['POST'])
+@login_required
+def attendance_break_start():
+    if not att.is_tracked(current_user):
+        return jsonify({'success': False}), 403
+    s = _my_open_session() or att.ensure_session(current_user)
+    btype = 'auto_idle' if (request.get_json(silent=True, force=True) or {}).get('type') == 'auto_idle' else 'manual'
+    att.start_break(s, btype)
+    return jsonify(_attendance_state(s))
+
+
+@main.route('/attendance/break/end', methods=['POST'])
+@login_required
+def attendance_break_end():
+    if not att.is_tracked(current_user):
+        return jsonify({'success': False}), 403
+    s = _my_open_session() or att.ensure_session(current_user)
+    br = att.end_break(s, worked=bool((request.get_json(silent=True, force=True) or {}).get('worked')))
+    state = _attendance_state(s)
+    state['break_minutes'] = round((br.end_at - br.start_at).total_seconds() / 60) if br and br.end_at else 0
+    return jsonify(state)
+
+
+@main.route('/attendance/ack-warning', methods=['POST'])
+@login_required
+def attendance_ack_warning():
+    AttendanceSession.query.filter_by(user_id=current_user.id, warning_pending=True) \
+        .update({'warning_pending': False})
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+def _attendance_rows(sessions):
+    """Group sessions by (user, date) into one row per person per day."""
+    rows = {}
+    for s in sessions:
+        key = (s.user_id, s.work_date)
+        span, brk, net = att.session_minutes(s)
+        r = rows.setdefault(key, {
+            'user_id': s.user_id, 'date': s.work_date, 'first_in': s.login_at, 'last_out': s.logout_at,
+            'span': 0, 'brk': 0, 'net': 0, 'status': s.status, 'logout_type': s.logout_type,
+            'ids': [], 'note': s.admin_note, 'claims': 0,
+        })
+        r['claims'] += s.breaks.filter_by(break_type='idle_worked').count()
+        r['span'] += span; r['brk'] += brk; r['net'] += net
+        r['first_in'] = min(r['first_in'], s.login_at)
+        if s.logout_at and (not r['last_out'] or s.logout_at > r['last_out']):
+            r['last_out'] = s.logout_at
+        if s.status in ('unpaid_leave', 'open'):
+            r['status'] = s.status
+            r['logout_type'] = s.logout_type
+        r['ids'].append(s.id)
+        r['note'] = s.admin_note or r['note']
+    return sorted(rows.values(), key=lambda r: (r['date'], r['user_id']), reverse=True)
+
+
+def _dubai(dt):
+    return dt.replace(tzinfo=_timezone.utc).astimezone(_DUBAI_TZ) if dt else None
+
+
+@main.route('/attendance/my')
+@login_required
+def attendance_my():
+    since = att.dubai_today() - timedelta(days=45)
+    sessions = AttendanceSession.query.filter(
+        AttendanceSession.user_id == current_user.id, AttendanceSession.work_date >= since).all()
+    return render_template('attendance_my.html', rows=_attendance_rows(sessions),
+                           fmt=att.fmt_minutes, dubai=_dubai, users={current_user.id: current_user})
+
+
+@main.route('/attendance')
+@login_required
+def attendance_admin():
+    if not (current_user.is_admin() or current_user.is_sales_manager()):
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.dashboard'))
+    date_from = request.args.get('from') or (att.dubai_today() - timedelta(days=14)).isoformat()
+    date_to = request.args.get('to') or att.dubai_today().isoformat()
+    user_f = request.args.get('user', type=int)
+    status_f = request.args.get('status', '')
+    q = AttendanceSession.query.filter(
+        AttendanceSession.work_date >= date_from, AttendanceSession.work_date <= date_to)
+    if user_f:
+        q = q.filter(AttendanceSession.user_id == user_f)
+    rows = _attendance_rows(q.all())
+    if status_f:
+        rows = [r for r in rows if r['status'] == status_f]
+    tracked = User.query.filter(User.role.in_(att.TRACKED_ROLES)).order_by(User.username).all()
+    users = {u.id: u for u in User.query.all()}
+    today_open = AttendanceSession.query.filter_by(status='open', work_date=att.dubai_today()).all()
+    on_break_ids = {b.user_id for b in AttendanceBreak.query.filter_by(end_at=None).all()}
+    return render_template('attendance_admin.html', rows=rows, users=users, tracked=tracked,
+                           fmt=att.fmt_minutes, dubai=_dubai, date_from=date_from, date_to=date_to,
+                           user_f=user_f, status_f=status_f, today_open=today_open,
+                           on_break_ids=on_break_ids,
+                           unpaid_count=sum(1 for r in rows if r['status'] == 'unpaid_leave'))
+
+
+@main.route('/attendance/review', methods=['POST'])
+@login_required
+def attendance_review():
+    """Admin: excuse a day wrongly marked unpaid leave, or put it back."""
+    if not current_user.is_admin():
+        return jsonify({'success': False, 'message': 'Only admins can review attendance.'}), 403
+    user_id = request.form.get('user_id', type=int)
+    day = request.form.get('date', '')
+    decision = request.form.get('decision')  # excused / unpaid_leave
+    note = request.form.get('note', '').strip()[:300]
+    if decision not in ('excused', 'unpaid_leave') or not user_id:
+        return jsonify({'success': False, 'message': 'Invalid request.'}), 400
+    sessions = AttendanceSession.query.filter(
+        AttendanceSession.user_id == user_id, AttendanceSession.work_date == day,
+        AttendanceSession.status.in_(['unpaid_leave', 'excused'])).all()
+    for s in sessions:
+        s.status = decision
+        s.admin_note = note or None
+        s.reviewed_by_id = current_user.id
+    db.session.commit()
+    return jsonify({'success': True})
 
 _SOURCE_CATEGORY_FILTERS = {
     # Old leads used the fixed 'Website Inquiry' label; newer ones are
@@ -450,7 +703,9 @@ def _leads_view(source_category=None):
     search = request.args.get('search', '')
     status_filter = request.args.get('status', '')
     course_filter = request.args.get('course', '')
-    consultant_filter = request.args.get('consultant', '', type=int) if (current_user.is_admin() or current_user.can_view_all_leads) else 0
+    can_see_all = current_user.is_admin() or current_user.can_view_all_leads
+    unassigned_only = can_see_all and request.args.get('consultant') == 'unassigned'
+    consultant_filter = request.args.get('consultant', '', type=int) if (can_see_all and not unassigned_only) else 0
     source_filter_fn = _SOURCE_CATEGORY_FILTERS.get(source_category)
 
     # ROLE-BASED ACCESS CONTROL FOR LEADS
@@ -458,7 +713,9 @@ def _leads_view(source_category=None):
         query = Lead.query
         if source_filter_fn:
             query = source_filter_fn(query)
-        if consultant_filter:
+        if unassigned_only:
+            query = query.filter(Lead.assigned_to.is_(None))
+        elif consultant_filter:
             query = query.filter_by(assigned_to=consultant_filter)
         if status_filter:
             query = query.filter_by(status=status_filter)
@@ -586,6 +843,8 @@ def _leads_view(source_category=None):
                          status_filter=status_filter,
                          course_filter=course_filter,
                          consultant_filter=consultant_filter,
+                         unassigned_only=unassigned_only,
+                         consultant_param=('unassigned' if unassigned_only else (consultant_filter or '')),
                          consultants=consultants,
                          all_users=all_users,
                          lead_form=lead_form,
@@ -663,6 +922,112 @@ def _normalize_course_loose(text):
     return ' '.join(words)
 
 
+_COURSE_NOISE_WORDS = _COURSE_MATCH_STOPWORDS | {
+    'in', 'at', 'for', 'of', 'to', 'on', 'with', 'from', 'by', 'is', 'are', 'am', 'i', 'he', 'she',
+    'they', 'we', 'me', 'my', 'want', 'wants', 'need', 'needs', 'looking', 'look', 'interested',
+    'join', 'learn', 'learning', 'study', 'about', 'info', 'information', 'details', 'detail',
+    'please', 'pls', 'any', 'certification', 'certificate', 'certified', 'professional', 'best',
+    'top', 'institute', 'center', 'centre', 'dubai', 'uae', 'abu', 'dhabi', 'sharjah', 'ajman',
+    'complete', 'new', 'batch', 'admission', 'enroll', 'enrol', 'fees', 'fee', 'price', 'demo',
+    'ticket', 'free', 'workshop', 'brochure', 'download', 'book',
+}
+
+# Spelling/spacing variants folded to one form before tokenizing (applied to both
+# the visitor's text and real course names, so "SketchUp" == "Sketch Up").
+_COURSE_TEXT_VARIANTS = [
+    (r'\b3\s*d\s*s?\s*max\b', '3ds max'), (r'\bsketchup\b', 'sketch up'),
+    (r'\bsolid\s+works\b', 'solidworks'), (r'\bv\s*ray\b', 'v ray'),
+    (r'\be\s*commerce\b', 'e commerce'), (r'\bpowerbi\b', 'power bi'),
+    (r'\bui\s*/?\s*ux\b', 'ui ux'), (r'\bstaadpro\b', 'staad pro'),
+    (r'\bauto\s+cad\b', 'autocad'), (r'\bprimavera\s*p\s*6\b', 'primavera p6'),
+    (r'\barchitectural\b', 'architecture'), (r'\bstructural\b', 'structure'),
+    (r'\bfusion\s*360\b', 'fusion 360'), (r'\bvector\s*works\b', 'vectorworks'),
+    (r'\bco\s+ordinator\b', 'coordinator'),
+    (r'\b(excel|powerpoint|ms\s+word|ms\s+office)\b', 'microsoft office'), (r'\bqs\b', 'quantity surveying'),
+    (r'\b(photoshop|illustrator|coreldraw|indesign)\b', 'graphic design'),
+]
+
+# When a generic name (e.g. just "Revit" or "AutoCAD") ties between several real
+# courses, this is the one it resolves to. Keyed by normalized real course name.
+_COURSE_TIE_DEFAULTS = {'revit bim', 'autocad 2d and 3d course', 'staad pro course'}
+
+
+def _course_tokens(text):
+    text = (text or '').lower().replace('&', ' and ')
+    text = re.sub(r'[^a-z0-9\s/]', ' ', text)
+    text = text.replace('/', ' ')
+    for pattern, repl in _COURSE_TEXT_VARIANTS:
+        text = re.sub(pattern, repl, text)
+    tokens = []
+    for w in text.split():
+        if w in _COURSE_NOISE_WORDS:
+            continue
+        if len(w) > 5 and w.endswith('ing'):
+            w = w[:-3]
+        elif len(w) > 5 and w.endswith('er'):
+            w = w[:-2]
+        elif len(w) > 3 and w.endswith('s') and not w.endswith('ss'):
+            w = w[:-1]
+        tokens.append(w)
+    return tokens
+
+
+def _course_token_hit(token, pool):
+    if token in pool:
+        return True
+    if len(token) < 5 or not token.isalpha():
+        return False
+    return any(len(t) >= 5 and t.isalpha() and SequenceMatcher(None, token, t).ratio() >= 0.85 for t in pool)
+
+
+def _match_course_by_tokens(text, courses):
+    """Token-level match so "Revit Training in Dubai", "reviti bim course" or
+    "Primvera p6 and iso lead auditor" still find the right course. A course is a
+    candidate when the text names ALL of its keywords, or every keyword in the text
+    belongs to that course. Best score wins; a tie between several real courses
+    (plain "Revit") resolves to the designated default, else stays unmatched."""
+    text_tokens = _course_tokens(text)
+    if not text_tokens:
+        return None
+    text_set = set(text_tokens)
+
+    scored = []
+    for course in courses:
+        core = set(_course_tokens(course.name))
+        if not core:
+            continue
+        matched_core = {c for c in core if _course_token_hit(c, text_set)}
+        if not matched_core:
+            continue
+        matched_text = {t for t in text_set if _course_token_hit(t, core)}
+        coverage = len(matched_core) / len(core)
+        precision = len(matched_text) / len(text_set)
+        if coverage < 1 and precision < 1:
+            continue
+        scored.append((coverage * precision, coverage, course))
+
+    if not scored:
+        return None
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    top = [s for s in scored if abs(s[0] - scored[0][0]) < 1e-9]
+    if len(top) == 1:
+        best = top[0]
+        if best[1] < 1 and _normalize_course_basic(best[2].name) not in _COURSE_TIE_DEFAULTS:
+            # Only part of the course name was typed ("Design", "Web"): accept it only when at
+            # least one typed word belongs to that course alone, never when every word is shared.
+            core = set(_course_tokens(best[2].name))
+            matched = [t for t in core if _course_token_hit(t, text_set)]
+            holders = [c for c in courses
+                       if all(_course_token_hit(t, set(_course_tokens(c.name))) for t in matched)]
+            if len(holders) != 1:
+                return None
+        return best[2]
+    for _, _, course in top:
+        if _normalize_course_basic(course.name) in _COURSE_TIE_DEFAULTS:
+            return course
+    return None
+
+
 def _match_course_by_name(course_text):
     """Resolve a free-typed course name (from a website form or Lead Ads
     question) to a real Course record.
@@ -684,6 +1049,10 @@ def _match_course_by_name(course_text):
     for course in courses:
         if _normalize_course_basic(course.name) == basic_input:
             return course
+
+    token_match = _match_course_by_tokens(course_text, courses)
+    if token_match:
+        return token_match
 
     loose_input = _normalize_course_loose(course_text)
     if not loose_input:
@@ -707,7 +1076,7 @@ def _match_course_by_name(course_text):
     return None
 
 
-def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notify_category=None, course_text=None):
+def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notify_category=None, course_text=None, match_hint=None):
     """Create a Lead from an external source, or merge into an existing one with the same phone."""
     name = (name or 'Website Lead').strip()[:100]
     phone = (phone or '').strip()[:20]
@@ -717,7 +1086,15 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
     if not phone:
         return None  # Lead.phone is required — nothing usable to store
 
-    matched_course = _match_course_by_name(course_text) if course_text else None
+    # Website forms often put the course in the free-text message instead of a course
+    # field, so when there is no course text, try matching the message itself.
+    matched_course = None
+    if course_text:
+        matched_course = _match_course_by_name(course_text)
+    if not matched_course and match_hint:
+        matched_course = _match_course_by_name(match_hint[:150])
+        if matched_course and not course_text:
+            course_text = match_hint.strip()[:150]
     if matched_course:
         course_id = matched_course.id
 
@@ -726,10 +1103,11 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
         stamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
         addition = f"\n\n[{stamp}] New {lead_source} submission received.{(' ' + note) if note else ''}"
         existing.comments = (existing.comments or '') + addition
-        if course_text and not existing.course_interest_id:
+        if not existing.course_interest_id:
             if matched_course:
                 existing.course_interest_id = matched_course.id
-            existing.course_text = course_text
+            if course_text:
+                existing.course_text = course_text
         db.session.commit()
         return existing
 
@@ -752,6 +1130,91 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
     return lead
 
 
+_FORM_META_KEYS = {'form', 'meta', 'form_id', 'form_name', 'referer', 'referer_title', 'queried_id', 'post_id',
+                   'submitted_on', 'page_url', 'user_agent', 'remote_ip', 'date', 'time'}
+_PHONE_RE = re.compile(r'^\+?[\d\s\-().]{7,22}$')
+
+
+def _flatten_form_payload(obj, out=None):
+    """Website form posts arrive in different shapes (plain key/value, nested JSON, or
+    Elementor's {id: {title, value}}). Flatten to {lowercase key or field title: text}."""
+    out = {} if out is None else out
+    if isinstance(obj, dict):
+        if 'value' in obj and isinstance(obj.get('value'), (str, int, float)):
+            for k in (obj.get('id'), obj.get('title'), obj.get('label')):
+                if k:
+                    out.setdefault(str(k).strip().lower(), str(obj['value']).strip())
+            return out
+        for k, v in obj.items():
+            if str(k).lower() in _FORM_META_KEYS:
+                continue
+            if isinstance(v, (str, int, float)) and not isinstance(v, bool):
+                out.setdefault(str(k).strip().lower(), str(v).strip())
+            else:
+                _flatten_form_payload(v, out)
+    elif isinstance(obj, list):
+        for v in obj:
+            _flatten_form_payload(v, out)
+    return out
+
+
+def _parse_website_fields(data):
+    """Pull name/phone/email/message/course out of a website form post. Known field
+    names are tried first; then the VALUES are inspected, so a form whose field ids
+    are mislabelled (e.g. the phone field with id "email", or the course field with
+    id "message") still lands in the right place."""
+    def pick(*keys):
+        for k in keys:
+            for cand in (k, k.replace('_', '-'), k.replace('-', '_'), k.replace('_', ' '), k.replace('-', ' ')):
+                if data.get(cand):
+                    return data[cand]
+        return ''
+
+    def digits(v):
+        return len(re.sub(r'\D', '', v))
+
+    used = set()
+
+    def take(key_names, validator=None):
+        for k in key_names:
+            for cand in (k, k.replace('_', '-'), k.replace('-', '_'), k.replace('_', ' '), k.replace('-', ' ')):
+                v = data.get(cand)
+                if v and (validator is None or validator(v)):
+                    used.add(cand)
+                    return v
+        return ''
+
+    name = take(['name', 'full_name', 'your-name', 'fullname', 'first_name', 'student name'])
+    phone = take(['phone', 'tel', 'phone_number', 'your-phone', 'mobile', 'mobile_number', 'mobile no',
+                  'whatsapp', 'contact_number', 'contact no', 'phone no', 'number'],
+                 lambda v: bool(_PHONE_RE.match(v)) and digits(v) >= 7)
+    email = take(['email', 'your-email', 'email address', 'e-mail'], lambda v: '@' in v)
+    course_text = take(['course', 'course_name', 'course name', 'interested_course', 'which_course',
+                        'select_course', 'subject', 'program', 'programme'])
+    message = take(['message', 'comment', 'comments', 'your-message', 'query', 'enquiry', 'notes'])
+
+    # Value-based fallbacks for mislabelled fields.
+    if not phone:
+        for k, v in data.items():
+            if k not in used and _PHONE_RE.match(v) and digits(v) >= 7:
+                phone = v
+                used.add(k)
+                break
+    if not email:
+        for k, v in data.items():
+            if k not in used and '@' in v and ' ' not in v:
+                email = v
+                used.add(k)
+                break
+    skip = _FORM_META_KEYS | {'id', 'page url'}
+    leftovers = [v for k, v in data.items()
+                 if k not in used and k not in skip and v and not _PHONE_RE.match(v) and '@' not in v and v != name]
+    # A mobile/email typed into the wrong-id field must not be mistaken for the message.
+    message = message if message and not (_PHONE_RE.match(message) and digits(message) >= 7) else ''
+    hint = ' | '.join([m for m in [course_text, message] + leftovers if m])
+    return name, phone, email, message, course_text, hint
+
+
 @main.route('/webhooks/website/<token>/', methods=['POST'])
 def webhook_website(token):
     integration = LeadSourceIntegration.query.filter_by(
@@ -760,21 +1223,10 @@ def webhook_website(token):
     if not integration:
         return jsonify({'status': 'error', 'message': 'invalid or inactive integration'}), 404
 
-    data = request.form.to_dict() if request.form else (request.get_json(silent=True) or {})
-
-    def pick(*keys):
-        for k in keys:
-            for candidate in (k, k.lower(), k.replace('_', '-'), k.replace('-', '_')):
-                if candidate in data and data[candidate]:
-                    return data[candidate]
-        return ''
-
-    name = pick('name', 'full_name', 'your-name', 'your_name', 'fullname')
-    phone = pick('phone', 'tel', 'phone_number', 'your-phone', 'your_phone', 'mobile', 'mobile_number', 'mobile-number', 'whatsapp', 'contact_number', 'contact-number')
-    email = pick('email', 'your-email', 'your_email')
-    message = pick('message', 'comment', 'comments', 'your-message')
-    course_text = pick('course', 'course_name', 'course-name', 'interested_course', 'interested-course',
-                        'which_course', 'which-course', 'select_course', 'select-course', 'subject')
+    raw = request.form.to_dict() if request.form else (request.get_json(silent=True) or {})
+    data = _flatten_form_payload(raw)
+    logging.info('Website webhook "%s" received fields: %s', integration.name, sorted(data.keys()))
+    name, phone, email, message, course_text, match_hint = _parse_website_fields(data)
 
     # _intake_lead tries to resolve the free-typed course name against real
     # Course records (_match_course_by_name); course_text is always kept too
@@ -784,7 +1236,8 @@ def webhook_website(token):
         lead_source=f"Website - {integration.name}"[:50],
         course_id=integration.default_course_id,
         course_text=course_text,
-        note=message,
+        match_hint=match_hint,
+        note=message or match_hint,
         notify_category='website',
     )
     if lead is None:
@@ -1344,42 +1797,104 @@ def bulk_reassign_leads():
     return jsonify({'success': True, 'message': msg, 'reassigned': reassigned})
 
 
+def _assign_rule_query(form):
+    """Unassigned leads matching the Assign Rule criteria. Returns (query, error_message)."""
+    query = Lead.query.filter(Lead.assigned_to.is_(None))
+
+    source_filter_fn = _SOURCE_CATEGORY_FILTERS.get(form.get('lead_type', 'all'))
+    if source_filter_fn:
+        query = source_filter_fn(query)
+
+    course_id = form.get('course_id', type=int)
+    if course_id:
+        query = query.filter(Lead.course_interest_id == course_id)
+
+    status = form.get('status', '').strip()
+    if status:
+        query = query.filter(Lead.status == status)
+
+    for field, op in (('date_from', '>='), ('date_to', '<')):
+        val = form.get(field, '')
+        if not val:
+            continue
+        try:
+            d = datetime.strptime(val, '%Y-%m-%d')
+        except ValueError:
+            return None, 'Invalid "%s".' % field.replace('_', ' ')
+        if op == '>=':
+            query = query.filter(Lead.created_at >= d)
+        else:
+            query = query.filter(Lead.created_at < d + timedelta(days=1))
+    return query, None
+
+
+@main.route('/leads/rematch-courses', methods=['POST'])
+@login_required
+def rematch_lead_courses():
+    """Fill in the course on website/social leads that have none, by matching what the
+    visitor typed (course text, else the first line of their message) against real
+    courses. Only leads with NO course are touched, so nothing already set is changed."""
+    if not current_user.is_admin():
+        return jsonify({'success': False, 'message': 'Only admins can run this.'}), 403
+    apply_changes = request.form.get('apply') == '1'
+
+    leads = Lead.query.filter(Lead.course_interest_id.is_(None), Lead.lead_source.like('Website%')).all()
+    matched, samples = 0, []
+    for lead in leads:
+        text = (lead.course_text or '').strip()
+        if not text:
+            text = ((lead.comments or '').strip().split('\n', 1)[0])[:150]
+        if not text:
+            continue
+        course = _match_course_by_name(text)
+        if not course:
+            continue
+        matched += 1
+        if len(samples) < 8:
+            samples.append(f'"{text[:40]}" -> {course.name}')
+        if apply_changes:
+            lead.course_interest_id = course.id
+    if apply_changes:
+        db.session.commit()
+    return jsonify({'success': True, 'applied': apply_changes, 'checked': len(leads),
+                    'matched': matched, 'samples': samples})
+
+
+@main.route('/leads/assign-rule/preview', methods=['POST'])
+@login_required
+def preview_assign_rule():
+    if not _can_manage_lead_sources():
+        return jsonify({'success': False, 'message': 'Access denied.'}), 403
+    query, err = _assign_rule_query(request.form)
+    if err:
+        return jsonify({'success': False, 'message': err}), 400
+    return jsonify({'success': True, 'count': query.count()})
+
+
 @main.route('/leads/assign-rule', methods=['POST'])
 @login_required
 def run_assign_rule():
-    """Manual, on-demand bulk assignment: assign every currently-unassigned lead matching
-    a source type + date range to one consultant. Run fresh each time — nothing is saved
-    as a recurring/automatic rule."""
+    """Manual, on-demand bulk assignment: assign currently-unassigned leads matching
+    source / course / status / date criteria to one consultant. Run fresh each time -
+    nothing is saved as a recurring/automatic rule."""
     if not _can_manage_lead_sources():
         return jsonify({'success': False, 'message': 'Access denied. Only admins and sales managers can run this.'}), 403
 
-    lead_type   = request.form.get('lead_type', 'all')
-    date_from   = request.form.get('date_from', '')
-    date_to     = request.form.get('date_to', '')
-    to_user_id  = request.form.get('to_user_id', type=int)
-
+    to_user_id = request.form.get('to_user_id', type=int)
     if not to_user_id:
         return jsonify({'success': False, 'message': 'Please select who to assign to.'}), 400
     to_user = User.query.get(to_user_id)
     if not to_user:
         return jsonify({'success': False, 'message': 'User not found.'}), 400
 
-    query = Lead.query.filter(Lead.assigned_to.is_(None))
+    query, err = _assign_rule_query(request.form)
+    if err:
+        return jsonify({'success': False, 'message': err}), 400
 
-    source_filter_fn = _SOURCE_CATEGORY_FILTERS.get(lead_type)
-    if source_filter_fn:
-        query = source_filter_fn(query)
-
-    if date_from:
-        try:
-            query = query.filter(Lead.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
-        except ValueError:
-            return jsonify({'success': False, 'message': 'Invalid "date from".'}), 400
-    if date_to:
-        try:
-            query = query.filter(Lead.created_at < datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1))
-        except ValueError:
-            return jsonify({'success': False, 'message': 'Invalid "date to".'}), 400
+    query = query.order_by(Lead.created_at.asc())
+    max_leads = request.form.get('max_leads', type=int)
+    if max_leads and max_leads > 0:
+        query = query.limit(max_leads)
 
     matched_leads = query.all()
     if not matched_leads:

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}My Attendance{% endblock %}
+{% block breadcrumb %}<span class="current">My Attendance</span>{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+  <div class="page-title">My Attendance</div>
+  <div class="page-subtitle">Last 45 days. Log out every day &mdash; a day left logged in is counted as unpaid leave.</div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0" style="font-size:13px;">
+      <thead>
+        <tr><th>Date</th><th>First login</th><th>Last logout</th><th>Time on system</th><th>Breaks</th><th>Working time</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.date.strftime('%a, %d %b %Y') }}</td>
+          <td>{{ dubai(r.first_in).strftime('%H:%M') }}</td>
+          <td>{% if r.last_out %}{{ dubai(r.last_out).strftime('%H:%M') }}{% else %}&mdash;{% endif %}</td>
+          <td>{{ fmt(r.span) }}</td>
+          <td>{{ fmt(r.brk) }}</td>
+          <td><strong>{{ fmt(r.net) }}</strong></td>
+          <td>
+            {% if r.status == 'open' %}<span class="badge bg-primary">Logged in</span>
+            {% elif r.status == 'closed' %}<span class="badge bg-success">Present{% if r.logout_type == 'curfew' %} (auto 9:30 PM){% endif %}</span>
+            {% elif r.status == 'unpaid_leave' %}<span class="badge bg-danger">Unpaid leave &mdash; did not log out</span>
+            {% elif r.status == 'excused' %}<span class="badge bg-info">Excused{% if r.note %}: {{ r.note }}{% endif %}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No attendance records yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

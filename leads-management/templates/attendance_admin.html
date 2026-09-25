@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Team Attendance{% endblock %}
+{% block breadcrumb %}<span class="current">Team Attendance</span>{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+  <div class="page-title">Team Attendance</div>
+  <div class="page-subtitle">Salespeople must log out daily. Sessions left open past midnight (Dubai) become unpaid leave.</div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="kpi-card"><div class="kpi-value">{{ today_open|length }}</div><div class="kpi-label">Logged in now</div></div></div>
+  <div class="col-md-4"><div class="kpi-card"><div class="kpi-value">{{ on_break_ids|length }}</div><div class="kpi-label">On break now</div></div></div>
+  <div class="col-md-4"><div class="kpi-card"><div class="kpi-value">{{ unpaid_count }}</div><div class="kpi-label">Unpaid-leave days in range</div></div></div>
+</div>
+
+<div class="card mb-3" style="padding:14px 18px;">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-2"><label class="form-label small mb-1">From</label><input type="date" name="from" value="{{ date_from }}" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><label class="form-label small mb-1">To</label><input type="date" name="to" value="{{ date_to }}" class="form-control form-control-sm"></div>
+    <div class="col-md-3"><label class="form-label small mb-1">Person</label>
+      <select name="user" class="form-select form-select-sm">
+        <option value="">Everyone</option>
+        {% for u in tracked %}<option value="{{ u.id }}" {{ 'selected' if user_f == u.id }}>{{ u.username }}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">All</option>
+        {% for v, l in [('open','Logged in'),('closed','Present'),('unpaid_leave','Unpaid leave'),('excused','Excused')] %}
+        <option value="{{ v }}" {{ 'selected' if status_f == v }}>{{ l }}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-3"><button class="btn btn-primary btn-sm"><i class="fas fa-search me-1"></i>Filter</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0" style="font-size:13px;">
+      <thead>
+        <tr><th>Date</th><th>Person</th><th>Login</th><th>Logout</th><th>On system</th><th>Breaks</th><th>Working</th><th>Status</th>{% if current_user.is_admin() %}<th></th>{% endif %}</tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        {% set u = users.get(r.user_id) %}
+        <tr>
+          <td>{{ r.date.strftime('%a, %d %b') }}</td>
+          <td>{{ u.username if u else r.user_id }}</td>
+          <td>{{ dubai(r.first_in).strftime('%H:%M') }}</td>
+          <td>{% if r.last_out %}{{ dubai(r.last_out).strftime('%H:%M') }}{% else %}&mdash;{% endif %}</td>
+          <td>{{ fmt(r.span) }}</td>
+          <td>{{ fmt(r.brk) }}{% if r.claims %}<div class="text-warning" style="font-size:11px;">{{ r.claims }} idle period(s) claimed as work</div>{% endif %}</td>
+          <td><strong>{{ fmt(r.net) }}</strong></td>
+          <td>
+            {% if r.status == 'open' %}<span class="badge bg-primary">Logged in{% if r.user_id in on_break_ids %} (break){% endif %}</span>
+            {% elif r.status == 'closed' %}<span class="badge bg-success">Present{% if r.logout_type == 'curfew' %} (auto 9:30 PM){% endif %}</span>
+            {% elif r.status == 'unpaid_leave' %}<span class="badge bg-danger">Unpaid leave</span>
+            {% elif r.status == 'excused' %}<span class="badge bg-info">Excused</span>{% if r.note %}<div class="text-muted small">{{ r.note }}</div>{% endif %}
+            {% endif %}
+          </td>
+          {% if current_user.is_admin() %}
+          <td>
+            {% if r.status == 'unpaid_leave' %}
+            <button class="btn btn-outline-secondary btn-sm" onclick="reviewDay({{ r.user_id }}, '{{ r.date.isoformat() }}', 'excused')">Excuse</button>
+            {% elif r.status == 'excused' %}
+            <button class="btn btn-outline-danger btn-sm" onclick="reviewDay({{ r.user_id }}, '{{ r.date.isoformat() }}', 'unpaid_leave')">Mark unpaid</button>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-4">No attendance records for this range.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if current_user.is_admin() %}
+<script>
+function reviewDay(userId, day, decision) {
+  let note = '';
+  if (decision === 'excused') {
+    note = prompt('Reason for excusing this day (optional):') ;
+    if (note === null) return;
+  }
+  const fd = new FormData();
+  fd.append('user_id', userId); fd.append('date', day); fd.append('decision', decision); fd.append('note', note);
+  fetch('{{ url_for("main.attendance_review") }}', { method: 'POST', body: fd })
+    .then(r => r.json()).then(d => { if (d.success) location.reload(); else alert(d.message || 'Failed'); });
+}
+</script>
+{% endif %}
+{% endblock %}

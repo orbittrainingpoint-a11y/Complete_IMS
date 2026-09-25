@@ -767,3 +767,35 @@ class WhatsAppMessageLog(db.Model):
     def __repr__(self):
         return f'<WhatsAppMessageLog lead={self.lead_id} status={self.status}>'
 
+
+
+class AttendanceSession(db.Model):
+    """One work day per tracked salesperson: login -> mandatory logout.
+    user_id is a plain Integer (no FK) because the legacy `user` table is MyISAM."""
+    __tablename__ = 'attendance_session'
+    id               = db.Column(db.Integer, primary_key=True)
+    user_id          = db.Column(db.Integer, nullable=False, index=True)
+    work_date        = db.Column(db.Date, nullable=False, index=True)   # Dubai calendar date
+    login_at         = db.Column(db.DateTime, nullable=False)           # UTC
+    last_activity_at = db.Column(db.DateTime, nullable=False)           # UTC, real human activity only
+    logout_at        = db.Column(db.DateTime)                           # UTC
+    # open / closed / unpaid_leave / excused
+    status           = db.Column(db.String(15), default='open', index=True)
+    # manual / curfew / forced_next_day
+    logout_type      = db.Column(db.String(20))
+    warning_pending  = db.Column(db.Boolean, default=False)  # show "you did not log out" popup once
+    admin_note       = db.Column(db.String(300))
+    reviewed_by_id   = db.Column(db.Integer)
+    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
+    breaks = db.relationship('AttendanceBreak', backref='session', lazy='dynamic',
+                             order_by='AttendanceBreak.start_at')
+
+
+class AttendanceBreak(db.Model):
+    __tablename__ = 'attendance_break'
+    id         = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('attendance_session.id'), nullable=False, index=True)
+    user_id    = db.Column(db.Integer, nullable=False)
+    start_at   = db.Column(db.DateTime, nullable=False)   # UTC
+    end_at     = db.Column(db.DateTime)                   # UTC, NULL while the break is running
+    break_type = db.Column(db.String(12), default='manual')  # manual / auto_idle
