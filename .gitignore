@@ -76,3 +76,7 @@ attached_assets/
 *.bin
 *.replit
 .replit
+
+# Local VPS database dumps / config snapshots (contain real student data and secrets)
+vps_snapshots/
+*.sql.gz
