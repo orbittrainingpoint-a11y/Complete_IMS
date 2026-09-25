@@ -446,7 +446,7 @@ def logout():
 
 # ── Sound check: the CRM stays locked until sound is confirmed (login + every 30 min) ──
 SOUND_VALID_SECONDS = 30 * 60
-_SOUND_EXEMPT = {'main.login', 'main.logout', 'main.sound_check', 'main.sound_status', 'main.service_worker', 'static', None}
+_SOUND_EXEMPT = {'main.login', 'main.logout', 'main.sound_check', 'main.sound_challenge', 'main.sound_status', 'main.service_worker', 'static', None}
 
 
 def _sound_remaining():
@@ -467,6 +467,45 @@ def _enforce_sound_check():
     return jsonify({'success': False, 'sound_required': True, 'message': 'Sound check required.'}), 423
 
 
+def _beep_wav(n):
+    """A short WAV with n beeps. The count lives only in the audio (and the server session),
+    so it cannot be read from the page source."""
+    import io, math, struct, wave
+    rate = 22050
+    frames = bytearray()
+
+    def silence(sec):
+        frames.extend(b'\x00\x00' * int(rate * sec))
+
+    def beep(sec, freq=880, amp=0.7):
+        total = int(rate * sec)
+        for i in range(total):
+            fade = min(1.0, i / (rate * 0.015), (total - i) / (rate * 0.015))
+            frames.extend(struct.pack('<h', int(32767 * amp * fade * math.sin(2 * math.pi * freq * i / rate))))
+
+    silence(0.4)
+    for _ in range(n):
+        beep(0.22)
+        silence(0.28)
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(bytes(frames))
+    return buf.getvalue()
+
+
+@main.route('/sound-check/challenge.wav')
+@login_required
+def sound_challenge():
+    n = secrets.randbelow(4) + 2          # 2..5 beeps
+    session['sound_quiz'] = n
+    resp = current_app.response_class(_beep_wav(n), mimetype='audio/wav')
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
 @main.route('/sound-check', methods=['GET', 'POST'])
 @login_required
 def sound_check():
@@ -474,10 +513,34 @@ def sound_check():
     if not nxt.startswith('/') or nxt.startswith('//'):
         nxt = url_for('main.dashboard')
     if request.method == 'POST':
-        if request.form.get('audio_ok') == '1':
+        method = request.form.get('method')
+        passed = False
+        if time.time() < session.get('sound_locked_until', 0):
+            flash('Too many wrong answers. Wait a minute, or use the microphone check.', 'error')
+        elif method == 'mic':
+            # The browser listened for the test tone: it must have been clearly louder than the room.
+            try:
+                delta = float(request.form.get('delta_db', ''))
+            except ValueError:
+                delta = 0.0
+            passed = delta >= 10.0
+            if not passed:
+                flash('We could not hear the test sound. Turn the volume up and unmute, then try again.', 'error')
+        elif method == 'quiz':
+            expected = session.pop('sound_quiz', None)
+            passed = expected is not None and request.form.get('answer', '').strip() == str(expected)
+            if not passed:
+                fails = session.get('sound_fails', 0) + 1
+                session['sound_fails'] = fails
+                if fails >= 3:
+                    session['sound_locked_until'] = time.time() + 60
+                    session['sound_fails'] = 0
+                flash('That was not the right number of beeps. Listen again.', 'error')
+        if passed:
             session['sound_ok_at'] = int(time.time())
+            session.pop('sound_fails', None)
+            session.pop('sound_quiz', None)
             return redirect(nxt)
-        flash('The sound test did not complete. Turn the sound on and try again.', 'error')
     return render_template('sound_check.html', next=nxt, valid_minutes=SOUND_VALID_SECONDS // 60)
 
 
