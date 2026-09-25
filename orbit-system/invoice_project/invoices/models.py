@@ -1287,3 +1287,256 @@ class InstituteSetting(models.Model):
     def get(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TRAINER SCHEDULE & BATCH MANAGEMENT
+# Deleting a Trainer/Course/User must never delete batches, sessions or student
+# batch links, so those foreign keys are SET_NULL (same rule as the other models).
+# ═══════════════════════════════════════════════════════════════════════════
+
+WEEKDAY_CHOICES = [(0, 'Monday'), (1, 'Tuesday'), (2, 'Wednesday'), (3, 'Thursday'),
+                   (4, 'Friday'), (5, 'Saturday'), (6, 'Sunday')]
+
+
+class Trainer(models.Model):
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=30, blank=True)
+    email = models.EmailField(blank=True)
+    specialization = models.CharField(max_length=200, blank=True)
+    courses = models.ManyToManyField('Course', blank=True, related_name='trainers')
+    color = models.CharField(max_length=7, default='#2563eb')
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+    # Optional login: lets a trainer see their own schedule and mark attendance.
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='trainer_record')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class TrainerWorkingHours(models.Model):
+    trainer = models.ForeignKey(Trainer, on_delete=models.CASCADE, related_name='working_hours')
+    weekday = models.PositiveSmallIntegerField(choices=WEEKDAY_CHOICES)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    class Meta:
+        unique_together = ('trainer', 'weekday')
+        ordering = ['weekday']
+
+
+class TrainerLeave(models.Model):
+    trainer = models.ForeignKey(Trainer, on_delete=models.CASCADE, related_name='leaves')
+    date_from = models.DateField()
+    date_to = models.DateField()
+    reason = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['-date_from']
+
+
+class Batch(models.Model):
+    STATUS_CHOICES = [('upcoming', 'Upcoming'), ('ongoing', 'Ongoing'),
+                      ('completed', 'Completed'), ('cancelled', 'Cancelled')]
+    MODE_CHOICES = [('offline', 'Offline'), ('online', 'Online')]
+
+    name = models.CharField(max_length=200)
+    course = models.ForeignKey('Course', on_delete=models.SET_NULL, null=True, blank=True, related_name='batches')
+    trainer = models.ForeignKey(Trainer, on_delete=models.SET_NULL, null=True, blank=True, related_name='batches')
+    start_date = models.DateField()
+    end_date = models.DateField()
+    weekdays = models.CharField(max_length=20, default='0,1,2,3,4')  # e.g. "0,1,2,3,4"
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    mode = models.CharField(max_length=10, choices=MODE_CHOICES, default='offline')
+    venue = models.CharField(max_length=200, blank=True)
+    capacity = models.PositiveIntegerField(default=10)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='upcoming')
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='batches_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['start_date', 'start_time']
+        verbose_name_plural = 'batches'
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def weekday_list(self):
+        return [int(x) for x in self.weekdays.split(',') if x.strip().isdigit()]
+
+    @property
+    def weekday_names(self):
+        names = dict(WEEKDAY_CHOICES)
+        return ', '.join(names[d][:3] for d in self.weekday_list)
+
+
+class BatchSkipDate(models.Model):
+    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='skip_dates')
+    date = models.DateField()
+    reason = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        unique_together = ('batch', 'date')
+        ordering = ['date']
+
+
+class BatchStudent(models.Model):
+    STATUS_CHOICES = [('active', 'Active'), ('dropped', 'Dropped'), ('completed', 'Completed')]
+    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='students')
+    registration = models.ForeignKey('Registration', on_delete=models.CASCADE, related_name='batch_links')
+    course = models.ForeignKey('Course', on_delete=models.SET_NULL, null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('batch', 'registration')
+
+
+class ClassSession(models.Model):
+    """One-off session outside any batch: private class, make-up, demo, workshop."""
+    TYPE_CHOICES = [('private', 'Private class'), ('makeup', 'Make-up class'),
+                    ('demo', 'Demo class'), ('workshop', 'Workshop'), ('other', 'Other')]
+    STATUS_CHOICES = [('scheduled', 'Scheduled'), ('completed', 'Completed'),
+                      ('cancelled', 'Cancelled'), ('no_show', 'No show')]
+    trainer = models.ForeignKey(Trainer, on_delete=models.SET_NULL, null=True, blank=True, related_name='sessions')
+    course = models.ForeignKey('Course', on_delete=models.SET_NULL, null=True, blank=True)
+    session_type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='private')
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    registration = models.ForeignKey('Registration', on_delete=models.SET_NULL, null=True, blank=True, related_name='class_sessions')
+    student_name = models.CharField(max_length=150, blank=True)
+    mode = models.CharField(max_length=10, choices=Batch.MODE_CHOICES, default='offline')
+    venue = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='scheduled')
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sessions_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['date', 'start_time']
+
+
+class SchedulingSetting(models.Model):
+    """Single-row settings for the trainer scheduling module (managed by admins)."""
+    POLICY_CHOICES = [('block', 'Block (admin override only)'),
+                      ('confirm', 'Warn and require confirmation'),
+                      ('allow', 'Allow silently')]
+    default_interval = models.PositiveSmallIntegerField(default=30, help_text='Individual teaching interval (minutes): 15/30/45/60')
+    max_concurrent_individuals = models.PositiveSmallIntegerField(default=3, help_text='Students a trainer can rotate between at the same time')
+    batch_batch_policy = models.CharField(max_length=8, choices=POLICY_CHOICES, default='block')
+    batch_individual_policy = models.CharField(max_length=8, choices=POLICY_CHOICES, default='confirm')
+    working_hours_policy = models.CharField(max_length=8, choices=POLICY_CHOICES, default='confirm')
+    auto_extend = models.BooleanField(default=True, help_text='Add make-up sessions at the end when a session is cancelled or missed')
+    low_hours_threshold = models.PositiveSmallIntegerField(default=120, help_text='Alert when remaining training is at or below this many minutes')
+    absence_alert_count = models.PositiveSmallIntegerField(default=3, help_text='Flag a student after this many missed sessions')
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class ScheduleRule(models.Model):
+    """The recurring instruction (trainer + student/batch + days + time + hours).
+    Calendar occurrences are generated from it and can then be changed one by one
+    without touching the rule or the history."""
+    TYPE_CHOICES = [('individual', 'Individual'), ('batch', 'Batch')]
+    STATUS_CHOICES = [('active', 'Active'), ('paused', 'Paused'), ('cancelled', 'Cancelled'), ('completed', 'Completed')]
+
+    trainer = models.ForeignKey(Trainer, on_delete=models.PROTECT, related_name='rules')  # never without a trainer
+    schedule_type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='individual')
+    registration = models.ForeignKey('Registration', on_delete=models.SET_NULL, null=True, blank=True, related_name='schedule_rules')
+    batch = models.ForeignKey(Batch, on_delete=models.SET_NULL, null=True, blank=True, related_name='rules')
+    course = models.ForeignKey('Course', on_delete=models.SET_NULL, null=True, blank=True, related_name='schedule_rules')
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    end_date_manual = models.BooleanField(default=False)
+    weekdays = models.CharField(max_length=20)
+    start_time = models.TimeField()
+    session_minutes = models.PositiveIntegerField(default=60)        # attendance window (individual) / duration (batch)
+    teaching_interval = models.PositiveSmallIntegerField(default=30)  # individual rotation slot
+    total_minutes = models.PositiveIntegerField(default=0)           # required training
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    auto_extend = models.BooleanField(default=True)
+    pause_date = models.DateField(null=True, blank=True)
+    pause_reason = models.CharField(max_length=200, blank=True)
+    pause_notes = models.TextField(blank=True)
+    expected_resume = models.DateField(null=True, blank=True)
+    resume_date = models.DateField(null=True, blank=True)
+    paused_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    cancel_date = models.DateField(null=True, blank=True)
+    cancel_reason = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='rules_created')
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    @property
+    def weekday_list(self):
+        return [int(x) for x in self.weekdays.split(',') if x.strip().isdigit()]
+
+    @property
+    def weekday_names(self):
+        names = dict(WEEKDAY_CHOICES)
+        return ', '.join(names[d][:3] for d in self.weekday_list)
+
+    @property
+    def subject(self):
+        if self.schedule_type == 'batch':
+            return self.batch.name if self.batch else 'Batch'
+        if self.registration:
+            return f'{self.registration.first_name} {self.registration.last_name}'.strip()
+        return 'Student'
+
+    def __str__(self):
+        return f'{self.subject} / {self.trainer}'
+
+
+class ScheduleOccurrence(models.Model):
+    STATUS_CHOICES = [('scheduled', 'Scheduled'), ('completed', 'Completed'), ('absent', 'Absent'),
+                      ('cancelled', 'Cancelled'), ('paused', 'Paused'), ('rescheduled', 'Rescheduled')]
+    rule = models.ForeignKey(ScheduleRule, on_delete=models.CASCADE, related_name='occurrences')
+    trainer = models.ForeignKey(Trainer, on_delete=models.PROTECT, related_name='occurrences')
+    date = models.DateField(db_index=True)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='scheduled', db_index=True)
+    delivered_minutes = models.PositiveIntegerField(default=0)
+    actual_start = models.TimeField(null=True, blank=True)
+    actual_end = models.TimeField(null=True, blank=True)
+    attendance = models.CharField(max_length=10, blank=True)
+    note = models.TextField(blank=True)
+    is_exception = models.BooleanField(default=False)
+    original_date = models.DateField(null=True, blank=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['date', 'start_time']
+        indexes = [models.Index(fields=['trainer', 'date'], name='invoices_sc_trainer_2c1a7e_idx')]
+
+
+class ScheduleAudit(models.Model):
+    """Append-only history of schedule changes (never edited or deleted)."""
+    rule = models.ForeignKey(ScheduleRule, on_delete=models.CASCADE, related_name='audit')
+    occurrence = models.ForeignKey(ScheduleOccurrence, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    action = models.CharField(max_length=30)
+    detail = models.TextField(blank=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']

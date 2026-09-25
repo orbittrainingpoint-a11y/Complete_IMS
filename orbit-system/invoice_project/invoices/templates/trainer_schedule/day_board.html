@@ -1,0 +1,60 @@
+{% extends 'base_generic.html' %}
+{% block title %}Daily Trainer Board{% endblock %}
+{% block breadcrumb_label %}<span class="current">Daily Board</span>{% endblock %}
+{% block extra_css %}
+<style>
+.db-row { display:grid; grid-template-columns:170px 1fr 130px; align-items:center; border-bottom:1px solid var(--border); }
+.db-track { position:relative; height:60px; margin:6px 0; background:#f8fafc; border-radius:8px; overflow:hidden; }
+.db-seg { position:absolute; top:0; bottom:0; } .db-seg.free { background:rgba(16,185,129,.16); } .db-seg.partial { background:rgba(245,158,11,.14); } .db-seg.full { background:rgba(239,68,68,.12); }
+.db-line { position:absolute; top:0; bottom:0; border-left:1px dashed #e2e8f0; }
+.db-ev { position:absolute; border-radius:6px; color:#fff; font-size:10px; padding:2px 5px; overflow:hidden; text-decoration:none; z-index:2; line-height:1.2; border:1px solid rgba(255,255,255,.5); }
+.db-ev.ghost { background:#fff !important; color:#92400e; border:1px dashed #f59e0b; z-index:1; }
+.db-off { position:absolute; inset:0; z-index:3; background:repeating-linear-gradient(45deg,#e5e7eb 0 8px,#f1f5f9 8px 16px); display:flex; align-items:center; justify-content:center; font-size:11px; color:#64748b; font-weight:700; }
+.db-head { display:grid; grid-template-columns:170px 1fr 130px; font-size:11px; color:var(--text-muted); }
+.db-hours { position:relative; height:18px; } .db-hours span { position:absolute; transform:translateX(-50%); }
+.list-row { display:flex; gap:10px; padding:5px 10px; border-bottom:1px solid #f1f5f9; font-size:13px; }
+.list-row.free { background:rgba(16,185,129,.08); color:#047857; font-weight:700; } .list-row.batch { background:rgba(37,99,235,.07); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between flex-wrap gap-2"><div><div class="page-title"><i class="fas fa-table me-2 text-primary"></i>Daily Trainer Board</div>
+  <div class="page-subtitle">Everyone's day at a glance - see who is teaching whom, and where capacity is free.</div></div></div>
+{% include 'trainer_schedule/_nav.html' with active='board' %}
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+  <a class="btn btn-outline-secondary btn-sm" href="?date={{ prev|date:'Y-m-d' }}&mode={{ mode }}"><i class="fas fa-chevron-left"></i></a>
+  <input type="date" value="{{ date|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:160px;" onchange="location='?mode={{ mode }}&date='+this.value">
+  <a class="btn btn-outline-secondary btn-sm" href="?date={{ next|date:'Y-m-d' }}&mode={{ mode }}"><i class="fas fa-chevron-right"></i></a>
+  <a class="btn btn-outline-secondary btn-sm" href="?date={{ today|date:'Y-m-d' }}&mode={{ mode }}">Today</a><strong class="ms-2">{{ date|date:"l, d F Y" }}</strong>
+  <div class="ms-auto btn-group"><a class="btn btn-sm {% if mode != 'list' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?date={{ date|date:'Y-m-d' }}&mode=timeline">Timeline</a>
+    <a class="btn btn-sm {% if mode == 'list' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?date={{ date|date:'Y-m-d' }}&mode=list">List</a></div>
+</div>
+
+{% if mode == 'list' %}
+<div class="row g-3">{% for r in rows %}
+  <div class="col-md-6 col-xl-4"><div class="ts-card p-0" style="border-top:4px solid {{ r.t.color }};overflow:hidden;">
+    <div class="p-3 pb-2"><a href="{% url 'trainer_week' r.t.pk %}?view=day&date={{ date|date:'Y-m-d' }}" style="font-weight:800;">{{ r.t.name }}</a>
+      <span class="ts-pill pill-{% if r.st.util < 30 %}paused{% elif r.st.util <= 80 %}free{% else %}busy{% endif %} float-end">{{ r.st.util }}% load</span>
+      <div class="text-muted" style="font-size:12px;">{{ r.st.sessions }} session{{ r.st.sessions|pluralize }} &middot; {{ r.st.free_min }} min fully free</div></div>
+    {% if r.day.off %}<div class="list-row text-muted">Day off</div>{% elif r.day.leave %}<div class="list-row" style="background:#fef3c7;">UNAVAILABLE - on leave</div>{% endif %}
+    {% for l in r.listing %}<div class="list-row {{ l.kind }}"><span style="width:96px;flex-shrink:0;">{{ l.label }}</span>
+      <span>{% if l.who %}{{ l.who }}{% if l.others %}<span class="text-muted"> +{{ l.others|length }} rotating</span>{% endif %}{% else %}AVAILABLE{% endif %}</span></div>{% empty %}<div class="list-row text-muted">No capacity today.</div>{% endfor %}
+  </div></div>{% empty %}<div class="col-12"><div class="ts-card text-center text-muted">No active trainers.</div></div>{% endfor %}</div>
+{% else %}
+<div class="ts-card">
+  <div class="db-head"><div></div><div class="db-hours">{% for h in hour_marks %}<span style="left:{{ h.left }}%;">{{ h.label }}</span>{% endfor %}</div><div class="text-end">Capacity</div></div>
+  {% for r in rows %}
+  <div class="db-row">
+    <div style="padding-right:8px;"><a href="{% url 'trainer_week' r.t.pk %}?view=day&date={{ date|date:'Y-m-d' }}" style="font-weight:700;font-size:13px;"><span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:{{ r.t.color }};"></span> {{ r.t.name }}</a>
+      <div class="text-muted" style="font-size:11px;">{{ r.t.specialization|truncatechars:24 }}</div></div>
+    <div class="db-track">
+      {% if r.day.off %}<div class="db-off">day off</div>{% elif r.day.leave %}<div class="db-off" style="background:repeating-linear-gradient(45deg,#fef3c7 0 8px,#fde68a 8px 16px);color:#92400e;">UNAVAILABLE - LEAVE</div>{% endif %}
+      {% for s in r.day.segments %}{% if s.state != 'batch' %}<div class="db-seg {{ s.state }}" style="left:{{ s.top }}%;width:{{ s.height }}%;"></div>{% endif %}{% endfor %}
+      {% for h in hour_marks %}<div class="db-line" style="left:{{ h.left }}%;"></div>{% endfor %}
+      {% for e in r.day.events %}<a class="db-ev {% if e.ghost %}ghost{% endif %}" href="{% url 'trainer_week' r.t.pk %}?view=day&date={{ date|date:'Y-m-d' }}" style="left:{{ e.top }}%;width:{{ e.height }}%;top:calc({{ e.lane }} * 100% / {{ e.lanes }} + 2px);height:calc(100% / {{ e.lanes }} - 4px);{% if not e.ghost %}background:{{ r.t.color }};{% endif %}" title="{{ e.title }} {{ e.label }} - {{ e.status_label }}"><b>{{ e.title|truncatechars:16 }}</b></a>{% endfor %}
+    </div>
+    <div class="text-end" style="font-size:11px;"><div class="text-muted">{{ r.st.util }}% load</div>{% if r.day.free %}<span class="ts-pill pill-free">{{ r.day.free|length }} free slot{{ r.day.free|length|pluralize }}</span><div class="text-muted">{{ r.free_label }}</div>{% else %}<span class="text-muted">-</span>{% endif %}</div>
+  </div>{% empty %}<div class="text-center text-muted py-4">No active trainers.</div>{% endfor %}
+</div>
+<div class="text-muted mt-2" style="font-size:12px;">Green = fully free, amber = some students rotating (room left), red = rotation full. Dashed = paused/cancelled (slot freed).</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends 'base_generic.html' %}
+{% block title %}Find Free Trainer{% endblock %}
+{% block breadcrumb_label %}<span class="current">Find Free Trainer</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-magnifying-glass me-2 text-primary"></i>Find a Free Trainer</div>
+  <div class="page-subtitle">Pick a date and time - see who is free, in working hours and not on leave.</div></div>
+{% include 'trainer_schedule/_nav.html' with active='find' %}
+<form method="get" class="row g-2 mb-3 align-items-end">
+  <div class="col-md-3"><label class="ts-label">Date</label><input type="date" name="date" required value="{{ q.date }}" class="form-control form-control-sm"></div>
+  <div class="col-md-2"><label class="ts-label">From</label><input type="time" name="start_time" required min="10:00" max="21:00" value="{{ q.start_time }}" class="form-control form-control-sm"></div>
+  <div class="col-md-2"><label class="ts-label">To</label><input type="time" name="end_time" required min="10:00" max="21:00" value="{{ q.end_time }}" class="form-control form-control-sm"></div>
+  <div class="col-md-2"><label class="ts-label">Type</label><select name="kind" class="form-select form-select-sm"><option value="individual" {% if kind == 'individual' %}selected{% endif %}>Individual</option><option value="batch" {% if kind == 'batch' %}selected{% endif %}>Batch</option></select></div>
+  <div class="col-md-3"><label class="ts-label">Course (optional)</label><select name="course" class="form-select form-select-sm"><option value="">Any</option>
+    {% for c in courses %}<option value="{{ c.pk }}" {% if q.course == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><button class="btn btn-primary btn-sm">Search</button></div>
+</form>
+{% if error %}<div class="ts-alert-err">{{ error }}</div>{% endif %}
+{% if searched %}
+<div class="row g-3">{% for r in results %}
+  <div class="col-md-6 col-xl-4"><div class="ts-card" style="border-top:4px solid {{ r.trainer.color }};">
+    <div style="font-weight:700;">{{ r.trainer.name }} {% if r.teaches %}<span class="ts-pill pill-free">teaches this course</span>{% endif %}</div>
+    <div class="text-muted" style="font-size:12px;">{{ r.trainer.specialization }}</div>
+    <div class="mt-2" style="font-size:12px;">Load that day: <b>{{ r.util }}%</b>{% if r.overlap %} &middot; <span style="color:#b45309;">{{ r.overlap }} student{{ r.overlap|pluralize }} already rotating in that slot</span>{% else %} &middot; <span style="color:#047857;">slot is empty</span>{% endif %}</div>
+    {% for i in r.info %}<div class="ts-alert-info mt-2 mb-0" style="font-size:12px;">{{ i }}</div>{% endfor %}
+    {% for w in r.warnings %}<div class="ts-alert-warn mt-2 mb-0">{{ w }}</div>{% endfor %}
+    <div class="d-flex gap-2 mt-3"><a href="{% url 'trainer_week' r.trainer.pk %}" class="btn btn-outline-secondary btn-sm">Schedule</a>
+      {% if can_create %}<a href="{% url 'schedule_create' %}?trainer={{ r.trainer.pk }}&date={{ q.date }}&start_time={{ q.start_time }}&schedule_type={{ kind }}" class="btn btn-primary btn-sm">Create schedule</a>{% endif %}</div>
+  </div></div>
+{% empty %}<div class="col-12"><div class="ts-card text-center text-muted py-4">Nobody is free for that slot.</div></div>{% endfor %}</div>
+{% endif %}
+{% endblock %}

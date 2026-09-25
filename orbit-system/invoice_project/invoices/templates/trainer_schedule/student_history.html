@@ -1,0 +1,20 @@
+{% extends 'base_generic.html' %}
+{% block title %}Schedule history - {{ reg.first_name }}{% endblock %}
+{% block breadcrumb_label %}<span class="current">Schedule history</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">{{ reg.first_name }} {{ reg.last_name }} <span class="text-muted" style="font-size:14px;">{{ reg.registration_number }}</span></div>
+  <div class="page-subtitle">Training schedule history - creation, pauses, resumes, time changes and completion.</div></div>
+{% include 'trainer_schedule/_nav.html' with active='' %}
+<div class="row g-3">
+  <div class="col-lg-5">{% for r in rules %}<div class="ts-card mb-2">
+    <div class="d-flex justify-content-between"><a href="{% url 'rule_detail' r.pk %}" style="font-weight:700;">{{ r.course.name|default:"Course" }}</a><span class="ts-pill pill-{{ r.status }}">{{ r.get_status_display }}</span></div>
+    <div class="text-muted" style="font-size:12px;">with {{ r.trainer.name }} &middot; {{ r.weekday_names }} {{ r.start_time|time:"H:i" }} &middot; from {{ r.start_date|date:"d M Y" }}</div>
+    <div class="ts-bar my-1"><i class="u-ok" style="width:{{ r.h.pct }}%;"></i></div>
+    <div style="font-size:12px;">Required {{ r.total_minutes }} min &middot; Delivered {{ r.h.delivered }} &middot; Remaining <b>{{ r.h.remaining }}</b> &middot; Absent {{ r.h.absent }}</div></div>
+  {% empty %}<div class="ts-card text-muted">No schedules for this student yet.</div>{% endfor %}</div>
+  <div class="col-lg-7"><div class="ts-card"><label class="ts-label">Timeline</label>
+    {% for a in audit %}<div class="d-flex gap-2 border-bottom py-1" style="font-size:12.5px;"><span class="text-muted" style="width:120px;flex-shrink:0;">{{ a.created_at|date:"d M Y H:i" }}</span>
+      <div><span class="ts-pill pill-off">{{ a.action|cut:"_"|title }}</span> {{ a.detail }} <span class="text-muted">- {{ a.user.username|default:"system" }}</span></div></div>
+    {% empty %}<div class="text-muted">Nothing recorded yet.</div>{% endfor %}</div></div>
+</div>
+{% endblock %}

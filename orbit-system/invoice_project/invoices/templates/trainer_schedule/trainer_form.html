@@ -1,0 +1,40 @@
+{% extends 'base_generic.html' %}
+{% block title %}{% if trainer %}Edit{% else %}New{% endif %} Trainer{% endblock %}
+{% block breadcrumb_label %}<span class="current">{% if trainer %}Edit{% else %}New{% endif %} Trainer</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">{% if trainer %}Edit {{ trainer.name }}{% else %}Add Trainer{% endif %}</div>
+  <div class="page-subtitle">Working hours decide when the trainer can be booked (10:00 - 21:00).</div></div>
+{% include 'trainer_schedule/_nav.html' with active='trainers' %}
+<form method="post" class="row g-3">{% csrf_token %}
+  <div class="col-lg-6"><div class="ts-card">
+    <div class="mb-3"><label class="ts-label">Name *</label><input name="name" required class="form-control" value="{{ trainer.name|default:'' }}"></div>
+    <div class="row g-2 mb-3">
+      <div class="col-6"><label class="ts-label">Phone</label><input name="phone" class="form-control" value="{{ trainer.phone|default:'' }}"></div>
+      <div class="col-6"><label class="ts-label">Email</label><input name="email" type="email" class="form-control" value="{{ trainer.email|default:'' }}"></div>
+    </div>
+    <div class="mb-3"><label class="ts-label">Specialization</label><input name="specialization" class="form-control" value="{{ trainer.specialization|default:'' }}" placeholder="e.g. Revit, BIM, Interior"></div>
+    <div class="mb-3"><label class="ts-label">Calendar colour</label>
+      <div class="d-flex gap-2 flex-wrap">{% for c in colors %}
+        <label><input type="radio" name="color" value="{{ c }}" {% if trainer.color == c or not trainer and forloop.first %}checked{% endif %}>
+        <span style="display:inline-block;width:22px;height:22px;border-radius:6px;background:{{ c }};vertical-align:middle;"></span></label>{% endfor %}</div></div>
+    <div class="mb-3"><label class="ts-label">Notes</label><textarea name="notes" rows="2" class="form-control">{{ trainer.notes|default:'' }}</textarea></div>
+    <div class="form-check"><input class="form-check-input" type="checkbox" name="is_active" id="act" {% if not trainer or trainer.is_active %}checked{% endif %}><label class="form-check-label" for="act">Active</label></div>
+  </div></div>
+  <div class="col-lg-6">
+    <div class="ts-card mb-3"><label class="ts-label">Working hours</label>
+      {% for h in hours %}
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <div class="form-check" style="width:120px;"><input class="form-check-input" type="checkbox" name="wd_{{ h.d }}" id="wd{{ h.d }}" {% if h.on %}checked{% endif %}><label class="form-check-label" for="wd{{ h.d }}">{{ h.name }}</label></div>
+        <input type="time" name="ws_{{ h.d }}" value="{{ h.start }}" min="10:00" max="21:00" class="form-control form-control-sm" style="width:120px;">
+        <span>to</span>
+        <input type="time" name="we_{{ h.d }}" value="{{ h.end }}" min="10:00" max="21:00" class="form-control form-control-sm" style="width:120px;">
+      </div>{% endfor %}
+    </div>
+    <div class="ts-card"><label class="ts-label">Courses this trainer teaches</label>
+      <div style="max-height:260px;overflow:auto;" class="row g-1">
+        {% for c in courses %}<div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="courses" value="{{ c.pk }}" id="c{{ c.pk }}" {% if c.pk in selected %}checked{% endif %}><label class="form-check-label" style="font-size:13px;" for="c{{ c.pk }}">{{ c.name }}</label></div></div>{% endfor %}
+      </div></div>
+  </div>
+  <div class="col-12 d-flex gap-2"><button class="btn btn-primary">Save trainer</button><a href="{% url 'trainer_list' %}" class="btn btn-outline-secondary">Cancel</a></div>
+</form>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends 'base_generic.html' %}
+{% block title %}Trainer Utilization{% endblock %}
+{% block breadcrumb_label %}<span class="current">Utilization</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-chart-simple me-2 text-primary"></i>Trainer Utilization &amp; Alerts</div>
+  <div class="page-subtitle">How trainer working time is being used, and what needs management attention.</div></div>
+{% include 'trainer_schedule/_nav.html' with active='util' %}
+<form method="get" class="row g-2 mb-3 align-items-end">
+  <div class="col-md-2"><label class="ts-label">From</label><input type="date" name="from" value="{{ d0|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  <div class="col-md-2"><label class="ts-label">To</label><input type="date" name="to" value="{{ d1|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  <div class="col-md-2"><button class="btn btn-primary btn-sm">Update</button></div>
+  <div class="col-md-6 text-end text-muted" style="font-size:12px;">Load counts a rotating student as a share of the trainer's capacity ({{ avg_util }}% average); a batch fills it completely.</div>
+</form>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-4"><div class="ts-card h-100"><label class="ts-label">Needs attention</label>
+    {% if att.absences or att.low_hours or att.leave_clash or att.unmarked %}
+      {% if att.unmarked %}<div class="ts-alert-warn py-2"><i class="fas fa-clipboard-check me-1"></i><a href="{% url 'pending_sessions' %}"><b>{{ att.unmarked }}</b> past session(s)</a> have no attendance recorded.</div>{% endif %}
+      {% for a in att.absences %}<div class="ts-alert-err py-2"><i class="fas fa-user-xmark me-1"></i><a href="{% url 'rule_detail' a.rule.pk %}"><b>{{ a.rule.subject }}</b></a> missed {{ a.streak }} sessions in a row ({{ a.rule.trainer.name }}) - consider pausing to free the slots.</div>{% endfor %}
+      {% for a in att.low_hours %}<div class="ts-alert-warn py-2"><i class="fas fa-hourglass-end me-1"></i><a href="{% url 'rule_detail' a.rule.pk %}"><b>{{ a.rule.subject }}</b></a> has {{ a.remaining }} min of training left.</div>{% endfor %}
+      {% for a in att.leave_clash %}<div class="ts-alert-warn py-2"><i class="fas fa-plane-departure me-1"></i>{{ a.leave.trainer.name }} on leave {{ a.leave.date_from|date:"d M" }}-{{ a.leave.date_to|date:"d M" }} with <b>{{ a.count }}</b> scheduled session(s) - reschedule them.</div>{% endfor %}
+    {% else %}<div class="text-success"><i class="fas fa-check-circle me-1"></i>Nothing needs attention.</div>{% endif %}</div></div>
+  <div class="col-lg-8"><div class="row g-2 h-100">
+    <div class="col-6 col-md-3"><div class="ts-card"><span class="ts-label">Working</span><b style="font-size:20px;">{{ fmt|default:"" }}{{ tot.working }}</b><div class="text-muted" style="font-size:11px;">min</div></div></div>
+    <div class="col-6 col-md-3"><div class="ts-card"><span class="ts-label">Batch</span><b style="font-size:20px;">{{ tot_f.batch }}</b><div class="text-muted" style="font-size:11px;">scheduled</div></div></div>
+    <div class="col-6 col-md-3"><div class="ts-card"><span class="ts-label">Individual</span><b style="font-size:20px;">{{ tot_f.student_min }}</b><div class="text-muted" style="font-size:11px;">student hours</div></div></div>
+    <div class="col-6 col-md-3"><div class="ts-card"><span class="ts-label">Delivered</span><b style="font-size:20px;color:#047857;">{{ tot_f.delivered }}</b><div class="text-muted" style="font-size:11px;">delivered</div></div></div>
+  </div></div>
+</div>
+
+<div class="ts-card p-0"><div class="table-responsive"><table class="table table-hover mb-0" style="font-size:13px;">
+  <thead><tr><th>Trainer</th><th class="text-end">Working</th><th class="text-end">Batch</th><th class="text-end">Individual (student hrs)</th><th class="text-end">Fully free</th><th class="text-end">Partly free</th><th class="text-end">Delivered</th><th class="text-end">Cancelled</th><th class="text-end">Paused</th><th class="text-end">Absent</th><th style="width:150px;">Load</th></tr></thead>
+  <tbody>{% for r in rows %}<tr>
+    <td><a href="{% url 'trainer_week' r.trainer.pk %}?view=week&date={{ d0|date:'Y-m-d' }}"><b>{{ r.trainer.name }}</b></a></td>
+    <td class="text-end">{{ r.working_f }}</td><td class="text-end">{{ r.batch_f }}</td><td class="text-end">{{ r.student_f }}</td>
+    <td class="text-end" style="color:#047857;"><b>{{ r.free_f }}</b></td><td class="text-end" style="color:#b45309;">{{ r.partial_f }}</td>
+    <td class="text-end">{{ r.delivered_f }}</td><td class="text-end">{{ r.cancelled }}</td><td class="text-end">{{ r.paused }}</td><td class="text-end">{{ r.absent }}</td>
+    <td>{{ r.util }}%<div class="ts-bar"><i class="{% if r.util < 30 %}u-low{% elif r.util <= 80 %}u-ok{% else %}u-high{% endif %}" style="width:{{ r.util }}%;"></i></div></td></tr>
+  {% empty %}<tr><td colspan="11" class="text-center text-muted py-4">No trainers.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

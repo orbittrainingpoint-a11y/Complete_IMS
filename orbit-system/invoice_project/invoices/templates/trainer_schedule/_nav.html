@@ -1,0 +1,32 @@
+<style>
+.ts-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px; align-items:center; }
+.ts-tabs a { padding:7px 14px; border-radius:10px; font-size:13px; font-weight:600; text-decoration:none;
+             border:1px solid var(--border); color:var(--text-muted); background:#fff; }
+.ts-tabs a.on { background:var(--primary); color:#fff; border-color:var(--primary); }
+.ts-tabs a.cta { background:#059669; color:#fff; border-color:#059669; margin-left:auto; }
+.ts-card { border:1px solid var(--border); border-radius:14px; background:#fff; padding:16px; }
+.ts-pill { display:inline-block; font-size:11px; font-weight:700; padding:2px 10px; border-radius:20px; }
+.pill-free { background:rgba(16,185,129,.12); color:#047857; } .pill-busy { background:rgba(239,68,68,.12); color:#b91c1c; }
+.pill-leave { background:rgba(245,158,11,.15); color:#b45309; } .pill-off { background:rgba(100,116,139,.12); color:#475569; }
+.pill-upcoming, .pill-scheduled, .pill-active { background:rgba(37,99,235,.1); color:#1d4ed8; } .pill-ongoing, .pill-completed-ok { background:rgba(16,185,129,.12); color:#047857; }
+.pill-completed { background:rgba(16,185,129,.14); color:#065f46; } .pill-cancelled, .pill-absent { background:rgba(239,68,68,.1); color:#b91c1c; }
+.pill-paused { background:rgba(245,158,11,.18); color:#92400e; } .pill-rescheduled { background:rgba(124,58,237,.12); color:#5b21b6; }
+.ts-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted); display:block; margin-bottom:4px; }
+.ts-alert-err { background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.3); color:#991b1b; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:10px; }
+.ts-alert-warn { background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.35); color:#92400e; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:10px; }
+.ts-alert-info { background:rgba(37,99,235,.07); border:1px solid rgba(37,99,235,.25); color:#1e40af; border-radius:10px; padding:8px 14px; font-size:13px; margin-bottom:10px; }
+.ts-bar { height:6px; border-radius:4px; background:#e5e7eb; overflow:hidden; } .ts-bar i { display:block; height:100%; }
+.u-low { background:#f59e0b; } .u-ok { background:#10b981; } .u-high { background:#ef4444; }
+</style>
+<div class="ts-tabs">
+  <a href="{% url 'trainer_list' %}" class="{% if active == 'trainers' %}on{% endif %}"><i class="fas fa-chalkboard-teacher me-1"></i>Trainers</a>
+  <a href="{% url 'trainer_day_board' %}" class="{% if active == 'board' %}on{% endif %}"><i class="fas fa-table me-1"></i>Daily Board</a>
+  <a href="{% url 'batch_list' %}" class="{% if active == 'batches' %}on{% endif %}"><i class="fas fa-users me-1"></i>Batches</a>
+  <a href="{% url 'session_list' %}" class="{% if active == 'sessions' %}on{% endif %}"><i class="fas fa-user-clock me-1"></i>One-off Sessions</a>
+  <a href="{% url 'waiting_list' %}" class="{% if active == 'waiting' %}on{% endif %}"><i class="fas fa-hourglass-half me-1"></i>Students Waiting</a>
+  <a href="{% url 'find_trainer' %}" class="{% if active == 'find' %}on{% endif %}"><i class="fas fa-magnifying-glass me-1"></i>Find Free Trainer</a>
+  <a href="{% url 'pending_sessions' %}" class="{% if active == 'pending' %}on{% endif %}"><i class="fas fa-clipboard-check me-1"></i>To Mark</a>
+  <a href="{% url 'trainer_utilization' %}" class="{% if active == 'util' %}on{% endif %}"><i class="fas fa-chart-simple me-1"></i>Utilization</a>
+  {% if user.is_superuser or user.profile.role == 'admin' %}<a href="{% url 'scheduling_settings' %}" class="{% if active == 'settings' %}on{% endif %}"><i class="fas fa-gear me-1"></i>Settings</a>{% endif %}
+  <a href="{% url 'schedule_create' %}" class="cta"><i class="fas fa-plus me-1"></i>Create Schedule</a>
+</div>

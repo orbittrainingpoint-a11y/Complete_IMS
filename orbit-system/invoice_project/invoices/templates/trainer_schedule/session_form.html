@@ -1,0 +1,54 @@
+{% extends 'base_generic.html' %}
+{% block title %}{% if sess %}Edit{% else %}New{% endif %} Session{% endblock %}
+{% block breadcrumb_label %}<span class="current">{% if sess %}Edit{% else %}New{% endif %} Session</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">{% if sess %}Edit session{% else %}New individual session{% endif %}</div>
+  <div class="page-subtitle">One-off class: private, make-up, demo or workshop.</div></div>
+{% include 'trainer_schedule/_nav.html' with active='sessions' %}
+{% for e in errors %}<div class="ts-alert-err"><i class="fas fa-ban me-1"></i>{{ e }}</div>{% endfor %}
+{% for w in warnings %}<div class="ts-alert-warn"><i class="fas fa-triangle-exclamation me-1"></i>{{ w }}</div>{% endfor %}
+<form method="post" class="ts-card" style="max-width:760px;">{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+  <div class="row g-2 mb-3">
+    <div class="col-md-6"><label class="ts-label">Trainer *</label><select name="trainer" id="s_trainer" class="form-select" required>
+      <option value="">-</option>{% for t in trainers %}<option value="{{ t.pk }}" {% if v.trainer|stringformat:"s" == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="ts-label">Type</label><select name="session_type" class="form-select">
+      {% for k, l in types %}<option value="{{ k }}" {% if v.session_type == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="row g-2 mb-3">
+    <div class="col-md-4"><label class="ts-label">Date *</label><input type="date" name="date" id="s_date" required class="form-control" value="{{ v.date }}"></div>
+    <div class="col-md-4"><label class="ts-label">Start *</label><input type="time" name="start_time" id="s_st" min="10:00" max="21:00" class="form-control" value="{{ v.start_time }}"></div>
+    <div class="col-md-4"><label class="ts-label">End *</label><input type="time" name="end_time" id="s_et" min="10:00" max="21:00" class="form-control" value="{{ v.end_time }}"></div>
+  </div>
+  <div id="live"></div>
+  <div class="row g-2 mb-3">
+    <div class="col-md-6"><label class="ts-label">Course</label><select name="course" class="form-select"><option value="">-</option>
+      {% for c in courses %}<option value="{{ c.pk }}" {% if v.course|stringformat:"s" == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="ts-label">Student name</label><input name="student_name" class="form-control" value="{{ v.student_name }}"></div>
+  </div>
+  <div class="row g-2 mb-3">
+    <div class="col-md-4"><label class="ts-label">Mode</label><select name="mode" class="form-select"><option value="offline" {% if v.mode == 'offline' %}selected{% endif %}>Offline</option><option value="online" {% if v.mode == 'online' %}selected{% endif %}>Online</option></select></div>
+    <div class="col-md-4"><label class="ts-label">Venue / link</label><input name="venue" class="form-control" value="{{ v.venue }}"></div>
+    <div class="col-md-4"><label class="ts-label">Status</label><select name="status" class="form-select">{% for k, l in statuses %}<option value="{{ k }}" {% if v.status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="mb-3"><label class="ts-label">Notes</label><textarea name="notes" rows="2" class="form-control">{{ v.notes }}</textarea></div>
+  {% if confirm %}<div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="confirm_warnings" id="cw" value="1"><label class="form-check-label" for="cw">I understand the warnings - save anyway</label></div>{% endif %}
+  <button class="btn btn-primary">Save session</button> <a href="{% url 'session_list' %}" class="btn btn-outline-secondary">Cancel</a>
+</form>
+<script>
+(function () {
+  const live = document.getElementById('live');
+  function check() {
+    if (!s_trainer.value || !s_date.value || !s_st.value || !s_et.value) { live.innerHTML = ''; return; }
+    const p = new URLSearchParams({ kind: 'session', trainer: s_trainer.value, date: s_date.value, start_time: s_st.value,
+      end_time: s_et.value, exclude_session: '{{ sess.pk|default:"" }}' });
+    fetch('{% url "schedule_conflicts" %}?' + p).then(r => r.json()).then(d => {
+      live.innerHTML = d.errors.map(e => '<div class="ts-alert-err">' + e + '</div>').join('') +
+        d.warnings.map(w => '<div class="ts-alert-warn">' + w + '</div>').join('') +
+        (!d.errors.length && !d.warnings.length ? '<div class="text-success mb-2" style="font-size:13px;"><i class="fas fa-check-circle me-1"></i>Trainer is free.</div>' : '');
+    });
+  }
+  ['s_trainer', 's_date', 's_st', 's_et'].forEach(id => document.getElementById(id).addEventListener('change', check));
+  check();
+})();
+</script>
+{% endblock %}

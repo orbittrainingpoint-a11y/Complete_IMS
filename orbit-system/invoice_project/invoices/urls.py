@@ -1,5 +1,8 @@
 from django.urls import path
+from django.views.generic import RedirectView
 from . import views
+from . import trainer_schedule as ts
+from . import schedule_views as sv
 
 
 
@@ -128,7 +131,7 @@ urlpatterns = [
     path('invoice/<int:pk>/payments/', views.invoice_payments, name='invoice_payments'),
     path('invoice/<int:pk>/payments/add/', views.add_invoice_payment, name='add_invoice_payment'),
     # Training schedule
-    path('schedule/', views.training_schedule_list, name='training_schedule_list'),
+    path('schedule/', RedirectView.as_view(pattern_name='trainer_list', permanent=False), name='training_schedule_list'),
     path('schedule/create/', views.training_schedule_create, name='training_schedule_create'),
     path('schedule/<int:pk>/edit/', views.training_schedule_edit, name='training_schedule_edit'),
     path('schedule/<int:pk>/delete/', views.training_schedule_delete, name='training_schedule_delete'),
@@ -165,4 +168,43 @@ urlpatterns = [
     path('corporate-companies/<int:pk>/dashboard-url/', views.corporate_company_get_dashboard_url, name='corporate_company_get_dashboard_url'),
     path('company-dashboard/<str:token>/', views.company_dashboard_portal, name='company_dashboard_portal'),
     path('corporate-companies/legacy/', views.corporate_legacy_registrations, name='corporate_legacy_registrations'),
+    # Trainer schedule, batches and individual sessions
+    path('trainers/', ts.trainer_list, name='trainer_list'),
+    path('trainers/new/', ts.trainer_form, name='trainer_create'),
+    path('trainers/<int:pk>/', sv.trainer_calendar, name='trainer_week'),
+    path('trainers/<int:pk>/edit/', ts.trainer_form, name='trainer_edit'),
+    path('trainers/<int:pk>/toggle-active/', ts.trainer_deactivate, name='trainer_toggle_active'),
+    path('trainers/<int:pk>/leave/add/', ts.trainer_leave_add, name='trainer_leave_add'),
+    path('trainers/<int:pk>/leave/<int:leave_id>/delete/', ts.trainer_leave_delete, name='trainer_leave_delete'),
+    path('trainer-board/', ts.day_board, name='trainer_day_board'),
+    path('batches/', ts.batch_list, name='batch_list'),
+    path('batches/new/', ts.batch_form, name='batch_create'),
+    path('batches/<int:pk>/', ts.batch_detail, name='batch_detail'),
+    path('batches/<int:pk>/edit/', ts.batch_form, name='batch_edit'),
+    path('batches/<int:pk>/students/add/', ts.batch_add_students, name='batch_add_students'),
+    path('batches/<int:pk>/students/<int:link_id>/', ts.batch_student_update, name='batch_student_update'),
+    path('batches/<int:pk>/skip/', ts.batch_skip, name='batch_skip'),
+    path('batches/<int:pk>/status/', ts.batch_status, name='batch_status'),
+    path('sessions/', ts.session_list, name='session_list'),
+    path('sessions/new/', ts.session_form, name='session_create'),
+    path('sessions/<int:pk>/edit/', ts.session_form, name='session_edit'),
+    path('sessions/<int:pk>/status/', ts.session_status, name='session_status'),
+    path('waiting-students/', ts.waiting_list, name='waiting_list'),
+    path('find-trainer/', ts.find_trainer, name='find_trainer'),
+    path('api/schedule-conflicts/', ts.check_conflicts, name='schedule_conflicts'),
+    path('schedules/new/', sv.schedule_create, name='schedule_create'),
+    path('schedules/preview/', sv.schedule_preview, name='schedule_preview'),
+    path('api/student-search/', sv.student_search, name='schedule_student_search'),
+    path('schedules/<int:pk>/', sv.rule_detail, name='rule_detail'),
+    path('schedules/<int:pk>/edit/', sv.rule_edit, name='rule_edit'),
+    path('schedules/<int:pk>/pause/', sv.rule_pause, name='rule_pause'),
+    path('schedules/<int:pk>/resume/', sv.rule_resume, name='rule_resume'),
+    path('schedules/<int:pk>/cancel/', sv.rule_cancel, name='rule_cancel'),
+    path('schedules/<int:pk>/extend/', sv.rule_extend, name='rule_extend'),
+    path('schedule-sessions/<int:pk>/action/', sv.occurrence_action, name='occurrence_action'),
+    path('students/<int:reg_pk>/schedule-history/', sv.student_history, name='student_schedule_history'),
+    path('scheduling/settings/', sv.scheduling_settings, name='scheduling_settings'),
+    path('trainer-utilization/', sv.utilization, name='trainer_utilization'),
+    path('schedule-pending/', sv.pending_sessions, name='pending_sessions'),
+    path('schedule-pending/bulk/', sv.pending_bulk, name='pending_bulk'),
 ]

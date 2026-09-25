@@ -1,0 +1,39 @@
+{% extends 'base_generic.html' %}
+{% block title %}Edit schedule{% endblock %}
+{% block breadcrumb_label %}<span class="current">Edit schedule</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">Edit schedule - {{ rule.subject }}</div>
+  <div class="page-subtitle">{{ rule.get_schedule_type_display }} with {{ rule.trainer.name }}. Changes apply from the date you choose; completed sessions are never rewritten.</div></div>
+{% include 'trainer_schedule/_nav.html' with active='' %}
+{% for e in errors %}<div class="ts-alert-err">{{ e }}</div>{% endfor %}
+{% if prev %}
+  {% for m in prev.res.errors %}<div class="ts-alert-err"><i class="fas fa-ban me-1"></i>{{ m }}</div>{% endfor %}
+  {% for m in prev.res.confirms %}<div class="ts-alert-warn"><i class="fas fa-triangle-exclamation me-1"></i>{{ m }}</div>{% endfor %}
+  {% for m in prev.res.info %}<div class="ts-alert-info">{{ m }}</div>{% endfor %}
+  <div class="ts-alert-info"><b>{{ prev.sessions }}</b> new session(s) would be created{% if prev.last %}, the last on <b>{{ prev.last|date:"D d M Y" }}</b>{% endif %}. {{ hours.remaining }} min of training remain.</div>
+{% endif %}
+<form method="post" class="row g-3">{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+  <div class="col-lg-7"><div class="ts-card">
+    <div class="row g-2">
+      <div class="col-md-4"><label class="ts-label">Apply changes from</label><input type="date" name="effective" value="{{ v.effective|default:today|date:'Y-m-d' }}" class="form-control"></div>
+      <div class="col-md-4"><label class="ts-label">Start time</label><input type="time" name="start_time" value="{{ v.start_time|default:rule.start_time|time:'H:i' }}" class="form-control" required></div>
+      <div class="col-md-4"><label class="ts-label">{% if rule.batch %}Session length (h){% else %}Attendance window (h){% endif %}</label><input type="number" step="0.25" name="session_hours" value="{{ v.session_hours|default:'' }}" placeholder="{{ rule.session_minutes }} min" class="form-control" required></div>
+    </div>
+    <div class="mt-3"><label class="ts-label">Training days</label><div class="d-flex flex-wrap gap-3">{% for d, n in weekdays %}<div class="form-check"><input class="form-check-input" type="checkbox" name="weekdays" value="{{ d }}" id="e{{ d }}" {% if d in sel_days %}checked{% endif %}><label class="form-check-label" for="e{{ d }}">{{ n }}</label></div>{% endfor %}</div></div>
+    <div class="row g-2 mt-2">
+      <div class="col-md-4"><label class="ts-label">Total training hours</label><input type="number" step="0.5" name="total_hours" value="{{ v.total_hours|default:'' }}" placeholder="{{ rule.total_minutes }} min" class="form-control" required></div>
+      {% if not rule.batch %}<div class="col-md-4"><label class="ts-label">Teaching interval (min)</label><select name="teaching_interval" class="form-select"><option value="15" {% if rule.teaching_interval|stringformat:"s" == "15" %}selected{% endif %}>15 minutes</option><option value="30" {% if rule.teaching_interval|stringformat:"s" == "30" %}selected{% endif %}>30 minutes</option><option value="45" {% if rule.teaching_interval|stringformat:"s" == "45" %}selected{% endif %}>45 minutes</option><option value="60" {% if rule.teaching_interval|stringformat:"s" == "60" %}selected{% endif %}>60 minutes</option></select></div>{% endif %}
+      <div class="col-md-4"><label class="ts-label">End date (optional, manual)</label><input type="date" name="end_date" value="{{ v.end_date|default:'' }}" class="form-control"></div>
+      {% if is_admin %}<div class="col-md-6"><label class="ts-label">Trainer</label><select name="trainer" class="form-select">{% for t in trainers %}<option value="{{ t.pk }}" {% if t.pk == rule.trainer_id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>{% endif %}
+      <div class="col-12 form-check ms-1"><input class="form-check-input" type="checkbox" name="auto_extend" value="1" id="ae" {% if rule.auto_extend %}checked{% endif %}><label class="form-check-label" for="ae">Add make-up sessions automatically when a session is missed or cancelled</label></div>
+    </div>
+    <div class="mt-2"><label class="ts-label">Notes</label><textarea name="notes" rows="2" class="form-control">{{ rule.notes }}</textarea></div>
+    {% if prev and prev.res.confirms %}<div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="confirm_ok" value="1" id="cok"><label class="form-check-label" for="cok"><b>I confirm these exceptions</b></label></div>{% endif %}
+    {% if prev and prev.res.errors and is_admin %}<div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="override" value="1" id="ovr"><label class="form-check-label" for="ovr"><b>Admin override</b></label></div>{% endif %}
+    <div class="mt-3 d-flex gap-2"><button name="stage" value="review" class="btn btn-outline-primary">Check changes</button><button name="stage" value="confirm" class="btn btn-success">Save changes</button><a href="{% url 'rule_detail' rule.pk %}" class="btn btn-outline-secondary">Cancel</a></div>
+  </div></div>
+  <div class="col-lg-5"><div class="ts-card"><label class="ts-label">Where things stand</label>
+    <div style="font-size:13px;">Required <b>{{ hours.required }} min</b> &middot; Delivered <b>{{ hours.delivered }} min</b> &middot; Remaining <b>{{ hours.remaining }} min</b></div>
+    <div class="text-muted mt-2" style="font-size:12px;">Future scheduled sessions are replaced from the chosen date using the new pattern. Completed, absent, cancelled and paused sessions stay exactly as they are, and every change is logged in the schedule history.</div></div></div>
+</form>
+{% endblock %}

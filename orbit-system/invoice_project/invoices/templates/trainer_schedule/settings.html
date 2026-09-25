@@ -1,0 +1,24 @@
+{% extends 'base_generic.html' %}
+{% block title %}Scheduling Settings{% endblock %}
+{% block breadcrumb_label %}<span class="current">Scheduling Settings</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-gear me-2 text-primary"></i>Scheduling Settings</div>
+  <div class="page-subtitle">Rules for the individual rotation model, batches and alerts. Admin only.</div></div>
+{% include 'trainer_schedule/_nav.html' with active='settings' %}
+<form method="post" class="ts-card" style="max-width:820px;">{% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-6"><label class="ts-label">Individual teaching interval</label><select name="default_interval" class="form-select"><option value="15" {% if s.default_interval|stringformat:"s" == "15" %}selected{% endif %}>15 minutes</option><option value="30" {% if s.default_interval|stringformat:"s" == "30" %}selected{% endif %}>30 minutes</option><option value="45" {% if s.default_interval|stringformat:"s" == "45" %}selected{% endif %}>45 minutes</option><option value="60" {% if s.default_interval|stringformat:"s" == "60" %}selected{% endif %}>60 minutes</option></select>
+      <div class="text-muted" style="font-size:12px;">How long the trainer teaches one student before rotating to the next.</div></div>
+    <div class="col-md-6"><label class="ts-label">Students a trainer can rotate between</label><input type="number" min="1" max="12" name="max_concurrent_individuals" value="{{ s.max_concurrent_individuals }}" class="form-control">
+      <div class="text-muted" style="font-size:12px;">At this many overlapping students the rotation is "full"; fewer means "partly free".</div></div>
+    <div class="col-md-6"><label class="ts-label">Batch vs Batch overlap</label><select name="batch_batch_policy" class="form-select">{% for v, l in policies %}<option value="{{ v }}" {% if s.batch_batch_policy == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="ts-label">Batch vs Individual overlap</label><select name="batch_individual_policy" class="form-select">{% for v, l in policies %}<option value="{{ v }}" {% if s.batch_individual_policy == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="ts-label">Outside trainer working hours</label><select name="working_hours_policy" class="form-select">{% for v, l in policies %}<option value="{{ v }}" {% if s.working_hours_policy == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" name="auto_extend" value="1" id="ae" {% if s.auto_extend %}checked{% endif %}><label class="form-check-label" for="ae">Add make-up sessions automatically after a missed or cancelled session</label></div></div>
+    <div class="col-md-6"><label class="ts-label">Low remaining hours alert (minutes)</label><input type="number" min="0" name="low_hours_threshold" value="{{ s.low_hours_threshold }}" class="form-control"></div>
+    <div class="col-md-6"><label class="ts-label">Flag a student after this many missed sessions in a row</label><input type="number" min="1" name="absence_alert_count" value="{{ s.absence_alert_count }}" class="form-control"></div>
+  </div>
+  <div class="text-muted mt-3" style="font-size:12px;">Individual + individual overlap is always allowed - that is Orbit's rotating model. Admins can override blocked conflicts case by case.</div>
+  <button class="btn btn-primary mt-3">Save settings</button>
+</form>
+{% endblock %}

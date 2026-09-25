@@ -1,0 +1,21 @@
+{% extends 'base_generic.html' %}
+{% block title %}Sessions to mark{% endblock %}
+{% block breadcrumb_label %}<span class="current">Sessions to mark</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-clipboard-check me-2 text-primary"></i>Sessions waiting for attendance</div>
+  <div class="page-subtitle">These sessions have already happened but nobody recorded them. Delivered and remaining hours only move once they are marked.</div></div>
+{% include 'trainer_schedule/_nav.html' with active='pending' %}
+{% if can_manage %}<form method="get" class="mb-3 d-flex gap-2"><select name="trainer" class="form-select form-select-sm" style="max-width:260px;" onchange="this.form.submit()"><option value="">All trainers</option>
+  {% for t in trainers %}<option value="{{ t.pk }}" {% if trainer.pk == t.pk %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></form>{% endif %}
+<form method="post" action="{% url 'pending_bulk' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ next_url }}">
+<div class="d-flex gap-2 mb-2"><button name="action" value="completed" class="btn btn-success btn-sm">Mark selected completed</button>
+  <button name="action" value="absent" class="btn btn-outline-danger btn-sm">Mark selected absent</button>
+  <label class="ms-auto small"><input type="checkbox" onclick="document.querySelectorAll('.pc').forEach(c => c.checked = this.checked)"> select all</label></div>
+<div class="ts-card p-0"><div class="table-responsive"><table class="table table-hover mb-0" style="font-size:13px;">
+  <thead><tr><th></th><th>Date</th><th>Time</th><th>Trainer</th><th>Student / batch</th><th>Course</th></tr></thead><tbody>
+  {% for o in occs %}<tr><td><input type="checkbox" class="pc" name="occ" value="{{ o.pk }}"></td>
+    <td>{{ o.date|date:"D d M" }}</td><td>{{ o.start_time|time:"H:i" }}-{{ o.end_time|time:"H:i" }}</td><td>{{ o.trainer.name }}</td>
+    <td><a href="{% url 'rule_detail' o.rule_id %}">{{ o.rule.subject }}</a> <span class="text-muted">{{ o.rule.get_schedule_type_display }}</span></td><td>{{ o.rule.course.name|default:"-" }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-center text-success py-4"><i class="fas fa-check-circle me-1"></i>Everything that has happened is marked.</td></tr>{% endfor %}</tbody></table></div></div>
+</form>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends 'base_generic.html' %}
+{% block title %}Individual Sessions{% endblock %}
+{% block breadcrumb_label %}<span class="current">Individual Sessions</span>{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between flex-wrap gap-2">
+  <div><div class="page-title"><i class="fas fa-user-clock me-2 text-primary"></i>Individual Sessions</div>
+    <div class="page-subtitle">Private, make-up, demo and workshop sessions outside a batch.</div></div>
+  {% if can_manage %}<a href="{% url 'session_create' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>New Session</a>{% endif %}
+</div>
+{% include 'trainer_schedule/_nav.html' with active='sessions' %}
+<form method="get" class="row g-2 mb-3 align-items-end">
+  <div class="col-md-2"><label class="ts-label">From</label><input type="date" name="from" value="{{ d1|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  <div class="col-md-2"><label class="ts-label">To</label><input type="date" name="to" value="{{ d2|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  <div class="col-md-3"><label class="ts-label">Trainer</label><select name="trainer" class="form-select form-select-sm"><option value="">All</option>
+    {% for t in trainers %}<option value="{{ t.pk }}" {% if trainer_f == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><button class="btn btn-primary btn-sm">Filter</button></div>
+</form>
+<div class="ts-card p-0"><div class="table-responsive"><table class="table table-hover mb-0" style="font-size:13px;">
+  <thead><tr><th>Date</th><th>Time</th><th>Trainer</th><th>Type</th><th>Student / course</th><th>Status</th><th></th></tr></thead>
+  <tbody>{% for s in sessions %}<tr>
+    <td>{{ s.date|date:"D d M Y" }}</td><td>{{ s.start_time|time:"H:i" }} - {{ s.end_time|time:"H:i" }}</td>
+    <td>{% if s.trainer %}{{ s.trainer.name }}{% else %}<span class="text-danger">-</span>{% endif %}</td>
+    <td>{{ s.get_session_type_display }} <span class="text-muted">&middot; {{ s.get_mode_display }}</span></td>
+    <td>{{ s.student_name|default:"-" }}<div class="text-muted" style="font-size:11px;">{{ s.course.name|default:"" }}</div></td>
+    <td><span class="ts-pill pill-{% if s.status == 'completed' %}completed{% elif s.status == 'cancelled' or s.status == 'no_show' %}cancelled{% else %}upcoming{% endif %}">{{ s.get_status_display }}</span></td>
+    <td class="text-end">{% if can_manage %}<a href="{% url 'session_edit' s.pk %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+      {% if s.status == 'scheduled' %}<form method="post" action="{% url 'session_status' s.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="status" value="completed"><button class="btn btn-outline-success btn-sm">Done</button></form>{% endif %}{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No sessions in this range.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

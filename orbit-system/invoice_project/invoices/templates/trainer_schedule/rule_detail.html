@@ -1,0 +1,127 @@
+{% extends 'base_generic.html' %}
+{% block title %}{{ rule.subject }} - Schedule{% endblock %}
+{% block breadcrumb_label %}<span class="current">Schedule details</span>{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between flex-wrap gap-2">
+  <div><div class="page-title">{{ rule.subject }} <span class="ts-pill pill-{{ rule.status }}">{{ rule.get_status_display }}</span></div>
+    <div class="page-subtitle">{{ rule.get_schedule_type_display }} schedule with <a href="{% url 'trainer_week' rule.trainer.pk %}">{{ rule.trainer.name }}</a>{% if rule.course %} &middot; {{ rule.course.name }}{% endif %}</div></div>
+  <div class="d-flex gap-2 flex-wrap align-items-start">
+    <a href="{% url 'trainer_week' rule.trainer.pk %}?view=week" class="btn btn-outline-primary btn-sm">Trainer calendar</a>
+    {% if rule.registration %}<a href="{% url 'student_schedule_history' rule.registration.pk %}" class="btn btn-outline-secondary btn-sm">Student history</a>{% endif %}
+    {% if can_manage %}
+      <a href="{% url 'rule_edit' rule.pk %}" class="btn btn-outline-secondary btn-sm">Edit schedule</a>
+      {% if rule.status == 'active' %}<button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#pauseModal"><i class="fas fa-pause me-1"></i>Pause</button>
+        <form method="post" action="{% url 'rule_extend' rule.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-outline-success btn-sm" title="Add sessions so all remaining hours are scheduled">Extend to cover remaining</button></form>{% endif %}
+      {% if rule.status == 'paused' %}<button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#resumeModal"><i class="fas fa-play me-1"></i>Resume</button>{% endif %}
+      {% if rule.status in 'active,paused' %}<button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal">Cancel future</button>{% endif %}
+    {% endif %}
+  </div>
+</div>
+{% include 'trainer_schedule/_nav.html' with active='' %}
+
+{% if rule.status == 'paused' %}<div class="ts-alert-warn"><i class="fas fa-pause-circle me-1"></i><b>Paused</b> from {{ rule.pause_date|date:"d M Y" }}: {{ rule.pause_reason }}.
+  {% if rule.expected_resume %} Expected resume {{ rule.expected_resume|date:"d M Y" }}.{% endif %} Future slots are free for other students; the remaining <b>{{ hf.remaining }}</b> are kept.</div>
+{% elif rule.status == 'cancelled' %}<div class="ts-alert-err"><b>Cancelled</b> from {{ rule.cancel_date|date:"d M Y" }}: {{ rule.cancel_reason }}. History is kept.</div>
+{% elif rule.status == 'completed' %}<div class="ts-alert-info"><i class="fas fa-check-circle me-1"></i>Training completed - all required hours delivered.</div>{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="ts-card"><span class="ts-label">Required</span><div style="font-size:22px;font-weight:800;">{{ hf.required }}</div><div class="text-muted" style="font-size:12px;">course requirement</div></div></div>
+  <div class="col-6 col-md-3"><div class="ts-card"><span class="ts-label">Scheduled</span><div style="font-size:22px;font-weight:800;">{{ hf.scheduled }}</div><div class="text-muted" style="font-size:12px;">{{ h.sessions_total }} sessions</div></div></div>
+  <div class="col-6 col-md-3"><div class="ts-card"><span class="ts-label">Delivered</span><div style="font-size:22px;font-weight:800;color:#047857;">{{ hf.delivered }}</div><div class="text-muted" style="font-size:12px;">{{ h.sessions_done }} sessions done</div></div></div>
+  <div class="col-6 col-md-3"><div class="ts-card"><span class="ts-label">Remaining</span><div style="font-size:22px;font-weight:800;color:#b45309;">{{ hf.remaining }}</div><div class="text-muted" style="font-size:12px;">{% if h.unscheduled %}{{ hf.unscheduled }} not scheduled yet{% else %}all scheduled{% endif %}</div></div></div>
+</div>
+<div class="ts-bar mb-3" style="height:10px;"><i class="u-ok" style="width:{{ h.pct }}%;"></i></div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="ts-card mb-3"><label class="ts-label">Schedule details</label>
+      <table class="table table-sm mb-0" style="font-size:13px;"><tbody>
+        <tr><td class="text-muted">Trainer</td><td>{{ rule.trainer.name }}</td></tr>
+        <tr><td class="text-muted">{% if rule.batch %}Batch{% else %}Student{% endif %}</td><td>{{ rule.subject }}{% if rule.registration %}<div class="text-muted">{{ rule.registration.registration_number }} &middot; {{ rule.registration.phone_no }}</div>{% endif %}</td></tr>
+        <tr><td class="text-muted">Course</td><td>{{ rule.course.name|default:"-" }}</td></tr>
+        <tr><td class="text-muted">Type</td><td>{{ rule.get_schedule_type_display }}</td></tr>
+        <tr><td class="text-muted">Days</td><td>{{ rule.weekday_names }}</td></tr>
+        <tr><td class="text-muted">Start date</td><td>{{ rule.start_date|date:"d M Y" }}</td></tr>
+        <tr><td class="text-muted">Start time</td><td>{{ rule.start_time|time:"H:i" }}</td></tr>
+        <tr><td class="text-muted">{% if rule.batch %}Session duration{% else %}Attendance window{% endif %}</td><td>{{ rule.session_minutes }} min</td></tr>
+        {% if not rule.batch %}<tr><td class="text-muted">Teaching interval</td><td>{{ rule.teaching_interval }} min</td></tr>{% endif %}
+        <tr><td class="text-muted">Expected end</td><td>{{ rule.end_date|date:"d M Y"|default:"-" }}{% if rule.end_date_manual %} <span class="text-muted">(manual)</span>{% endif %}</td></tr>
+        <tr><td class="text-muted">Auto make-up</td><td>{{ rule.auto_extend|yesno:"On,Off" }}</td></tr>
+        <tr><td class="text-muted">Created</td><td>{{ rule.created_at|date:"d M Y" }}{% if rule.created_by %} by {{ rule.created_by.username }}{% endif %}</td></tr></tbody></table>
+      {% if rule.notes %}<div class="mt-2 text-muted" style="font-size:12px;">{{ rule.notes }}</div>{% endif %}</div>
+    {% if roster %}<div class="ts-card mb-3"><label class="ts-label">Batch students ({{ roster|length }})</label>{% for l in roster %}<div style="font-size:13px;">{{ l.registration.first_name }} {{ l.registration.last_name }} <span class="text-muted">{{ l.registration.registration_number }}</span></div>{% endfor %}</div>{% endif %}
+    {% if others %}<div class="ts-card"><label class="ts-label">Other schedules for this student</label>{% for o in others %}<div style="font-size:13px;"><a href="{% url 'rule_detail' o.pk %}">{{ o.course.name|default:"-" }} with {{ o.trainer.name }}</a> <span class="ts-pill pill-{{ o.status }}">{{ o.get_status_display }}</span></div>{% endfor %}</div>{% endif %}
+  </div>
+
+  <div class="col-lg-8">
+    <div class="ts-card mb-3"><label class="ts-label">Sessions ({{ occs|length }})</label>
+      <div class="table-responsive" style="max-height:480px;overflow:auto;"><table class="table table-sm table-hover mb-0" style="font-size:13px;">
+        <thead><tr><th>Date</th><th>Time</th><th>Status</th><th>Delivered</th><th>Note</th><th></th></tr></thead><tbody>
+        {% for o in occs %}<tr class="{% if o.date == today %}table-primary{% endif %}">
+          <td>{{ o.date|date:"D d M Y" }}{% if o.original_date %}<div class="text-muted" style="font-size:11px;">moved from {{ o.original_date|date:"d M" }}</div>{% endif %}</td>
+          <td>{{ o.start_time|time:"H:i" }}-{{ o.end_time|time:"H:i" }}</td>
+          <td><span class="ts-pill pill-{{ o.status }}">{{ o.get_status_display }}</span></td>
+          <td>{% if o.status == 'completed' %}{{ o.delivered_minutes }} min{% else %}-{% endif %}</td>
+          <td class="text-muted">{{ o.note|truncatechars:40 }}</td>
+          <td class="text-end">
+            {% if can_manage or is_own %}{% if o.status == 'scheduled' or o.status == 'rescheduled' %}
+              <form method="post" action="{% url 'occurrence_action' o.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ next_url }}"><input type="hidden" name="action" value="completed"><button class="btn btn-outline-success btn-sm py-0" title="Mark completed">&#10003;</button></form>
+              <form method="post" action="{% url 'occurrence_action' o.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ next_url }}"><input type="hidden" name="action" value="absent"><button class="btn btn-outline-danger btn-sm py-0" title="Mark absent">&#10007;</button></form>{% endif %}{% endif %}
+            {% if can_manage %}{% if o.status == 'scheduled' or o.status == 'rescheduled' %}
+              <button class="btn btn-outline-warning btn-sm py-0" title="Reschedule" onclick="resched({{ o.pk }}, '{{ o.date|date:'Y-m-d' }}', '{{ o.start_time|time:'H:i' }}')">&#8644;</button>
+              <form method="post" action="{% url 'occurrence_action' o.pk %}" class="d-inline" onsubmit="return confirm('Cancel this session?');">{% csrf_token %}<input type="hidden" name="next" value="{{ next_url }}"><input type="hidden" name="action" value="cancelled"><button class="btn btn-outline-secondary btn-sm py-0" title="Cancel session">&#8856;</button></form>
+            {% elif o.status in 'paused,cancelled,absent' and rule.status == 'active' %}
+              <form method="post" action="{% url 'occurrence_action' o.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ next_url }}"><input type="hidden" name="action" value="scheduled"><button class="btn btn-outline-primary btn-sm py-0" title="Restore to scheduled">&#8635;</button></form>{% endif %}{% endif %}
+          </td></tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No sessions.</td></tr>{% endfor %}</tbody></table></div>
+      {% if can_manage %}<div class="text-muted mt-2" style="font-size:12px;">&#10003; completed &middot; &#10007; absent &middot; &#8644; reschedule &middot; &#8856; cancel. Absent/cancelled sessions add a make-up session at the end when auto make-up is on. History is never overwritten.</div>{% endif %}</div>
+    <div class="ts-card"><label class="ts-label">History / audit trail</label>
+      {% for a in audit %}<div class="d-flex gap-2 border-bottom py-1" style="font-size:12.5px;"><span class="text-muted" style="width:120px;flex-shrink:0;">{{ a.created_at|date:"d M Y H:i" }}</span>
+        <div><span class="ts-pill pill-off">{{ a.action|cut:"_"|title }}</span> {{ a.detail }} <span class="text-muted">- {{ a.user.username|default:"system" }}</span></div></div>
+      {% empty %}<div class="text-muted">No history yet.</div>{% endfor %}</div>
+  </div>
+</div>
+
+{% if can_manage %}
+<div class="modal fade" id="pauseModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><form method="post" action="{% url 'rule_pause' rule.pk %}" class="modal-content" style="border-radius:14px;">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ next_url }}"><div class="modal-header"><h5 class="modal-title">Pause schedule</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <p class="text-muted" style="font-size:13px;">Future sessions from the pause date are released so the trainer's slots can be given to another student. Delivered and remaining hours stay on record.</p>
+    <label class="ts-label">Pause from</label><input type="date" name="pause_date" value="{{ today|date:'Y-m-d' }}" class="form-control mb-2">
+    <label class="ts-label">Reason *</label><select name="reason" class="form-select mb-2"><option>Student not attending</option><option>Student request / travel</option><option>Payment pending</option><option>Trainer unavailable</option><option>Other</option></select>
+    <label class="ts-label">Notes</label><textarea name="notes" rows="2" class="form-control mb-2"></textarea>
+    <label class="ts-label">Expected resume date (optional)</label><input type="date" name="expected_resume" class="form-control"></div>
+  <div class="modal-footer"><button class="btn btn-warning">Pause schedule</button></div></form></div></div>
+
+<div class="modal fade" id="resumeModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><form method="post" action="{% url 'rule_resume' rule.pk %}" class="modal-content" style="border-radius:14px;">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ next_url }}"><div class="modal-header"><h5 class="modal-title">Resume schedule</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><p class="text-muted" style="font-size:13px;">Continues from the remaining <b>{{ hf.remaining }}</b>. Change the days/time if the student now needs a different pattern (leave blank to keep).</p>
+    <div class="row g-2"><div class="col-md-4"><label class="ts-label">Resume on</label><input type="date" name="start_date" value="{{ today|date:'Y-m-d' }}" class="form-control"></div>
+      <div class="col-md-4"><label class="ts-label">New start time</label><input type="time" name="start_time" value="{{ rule.start_time|time:'H:i' }}" class="form-control"></div>
+      <div class="col-md-4"><label class="ts-label">Session length (h)</label><input type="number" step="0.25" name="session_hours" placeholder="{{ rule.session_minutes }} min" class="form-control"></div>
+      <div class="col-12"><label class="ts-label">Days (tick to change; none = keep {{ rule.weekday_names }})</label><div class="d-flex flex-wrap gap-3">{% for d, n in weekdays %}<div class="form-check"><input class="form-check-input" type="checkbox" name="weekdays" value="{{ d }}" id="rw{{ d }}"><label class="form-check-label" for="rw{{ d }}">{{ n|slice:":3" }}</label></div>{% endfor %}</div></div>
+      {% if is_admin %}<div class="col-md-6"><label class="ts-label">Trainer</label><select name="trainer" class="form-select"><option value="">Keep {{ rule.trainer.name }}</option>{% for t in trainers %}<option value="{{ t.pk }}">{{ t.name }}</option>{% endfor %}</select></div>{% endif %}
+      <div class="col-12 form-check ms-1"><input class="form-check-input" type="checkbox" name="confirm_ok" value="1" id="rc"><label class="form-check-label" for="rc" style="font-size:13px;">Confirm exceptions if the new slots overlap (batch/individual, rotation limit)</label></div>
+      {% if is_admin %}<div class="col-12 form-check ms-1"><input class="form-check-input" type="checkbox" name="override" value="1" id="ro"><label class="form-check-label" for="ro" style="font-size:13px;">Admin override of blocking conflicts</label></div>{% endif %}</div></div>
+  <div class="modal-footer"><button class="btn btn-success">Resume &amp; generate sessions</button></div></form></div></div>
+
+<div class="modal fade" id="cancelModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><form method="post" action="{% url 'rule_cancel' rule.pk %}" class="modal-content" style="border-radius:14px;">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ next_url }}"><div class="modal-header"><h5 class="modal-title">Cancel future schedule</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><p class="text-muted" style="font-size:13px;">Future sessions are cancelled and the slots become available. Completed sessions and history are kept.</p>
+    <label class="ts-label">Cancel from</label><input type="date" name="cancel_date" value="{{ today|date:'Y-m-d' }}" class="form-control mb-2"><label class="ts-label">Reason</label><input name="reason" class="form-control"></div>
+  <div class="modal-footer"><button class="btn btn-danger">Cancel future sessions</button></div></form></div></div>
+
+<div class="modal fade" id="reschedModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><form method="post" id="reschedForm" class="modal-content" style="border-radius:14px;">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ next_url }}"><input type="hidden" name="action" value="reschedule">
+  <div class="modal-header"><h5 class="modal-title">Reschedule session</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><div class="row g-2"><div class="col-6"><label class="ts-label">New date</label><input type="date" name="new_date" id="rsDate" class="form-control" required></div>
+    <div class="col-6"><label class="ts-label">New start</label><input type="time" name="new_start" id="rsStart" class="form-control" required></div>
+    <div class="col-12"><label class="ts-label">Applies to</label><select name="scope" class="form-select"><option value="one">This occurrence only</option><option value="future">This and future occurrences</option></select></div>
+    <div class="col-12"><input name="note" class="form-control" placeholder="Reason (optional)"></div>
+    <div class="col-12 form-check ms-1"><input class="form-check-input" type="checkbox" name="confirm_ok" value="1" id="rsc"><label class="form-check-label" for="rsc" style="font-size:13px;">Confirm exceptions if the new slot conflicts</label></div></div></div>
+  <div class="modal-footer"><button class="btn btn-warning">Move session</button></div></form></div></div>
+<script>
+function resched(id, d, t) { document.getElementById('reschedForm').action = '/schedule-sessions/' + id + '/action/'; rsDate.value = d; rsStart.value = t; new bootstrap.Modal(document.getElementById('reschedModal')).show(); }
+</script>
+{% endif %}
+{% endblock %}

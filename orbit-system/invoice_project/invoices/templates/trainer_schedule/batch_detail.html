@@ -1,0 +1,54 @@
+{% extends 'base_generic.html' %}
+{% block title %}{{ batch.name }}{% endblock %}
+{% block breadcrumb_label %}<span class="current">{{ batch.name }}</span>{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between flex-wrap gap-2">
+  <div><div class="page-title">{{ batch.name }} <span class="ts-pill pill-{{ batch.status }}">{{ batch.get_status_display }}</span></div>
+    <div class="page-subtitle">{{ batch.course.name|default:"No course" }} &middot; {{ batch.get_mode_display }}{% if batch.venue %} &middot; {{ batch.venue }}{% endif %}</div></div>
+  {% if can_manage %}<div class="d-flex gap-2 align-items-start">
+    <a href="{% url 'batch_edit' batch.pk %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+    <form method="post" action="{% url 'batch_status' batch.pk %}" onsubmit="return confirm('Cancel this batch? It disappears from the trainer calendar.');">{% csrf_token %}
+      <input type="hidden" name="status" value="cancelled"><button class="btn btn-outline-danger btn-sm">Cancel batch</button></form></div>{% endif %}
+</div>
+{% include 'trainer_schedule/_nav.html' with active='batches' %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="ts-card mb-3">
+      <label class="ts-label">Trainer</label>
+      {% if batch.trainer %}<a href="{% url 'trainer_week' batch.trainer.pk %}" style="font-weight:700;">{{ batch.trainer.name }}</a>{% else %}<span class="text-danger">Not assigned</span>{% endif %}
+      <label class="ts-label mt-3">Schedule</label>{{ batch.weekday_names }}, {{ batch.start_time|time:"H:i" }} - {{ batch.end_time|time:"H:i" }}
+      <label class="ts-label mt-3">Dates</label>{{ batch.start_date|date:"d M Y" }} to {{ batch.end_date|date:"d M Y" }}
+      <label class="ts-label mt-3">Progress</label>{{ done_sessions }} of {{ total_sessions }} sessions done
+      {% if rule %}<div class="mt-1"><a href="{% url 'rule_detail' rule.pk %}">Open full schedule (pause / hours / history)</a></div>{% endif %}
+      {% if hours %}<div class="text-muted" style="font-size:12px;">Delivered {{ hours.delivered }} min of {{ hours.required }} min</div>{% endif %}
+      <label class="ts-label mt-3">Seats</label>{{ active_count }} / {{ batch.capacity }} filled &middot; <strong>{{ seats_left }} left</strong>
+      {% if batch.notes %}<label class="ts-label mt-3">Notes</label>{{ batch.notes }}{% endif %}
+    </div>
+    <div class="ts-card mb-3"><label class="ts-label">Next sessions</label>
+      {% for o in upcoming %}<div style="font-size:13px;">{{ o.date|date:"D d M Y" }} <span class="text-muted">{{ o.start_time|time:"H:i" }}-{{ o.end_time|time:"H:i" }}</span></div>{% empty %}<div class="text-muted" style="font-size:13px;">No upcoming sessions.</div>{% endfor %}</div>
+    <div class="ts-card"><label class="ts-label">Holidays / skipped dates</label>
+      {% for s in skip %}<div class="d-flex justify-content-between" style="font-size:13px;">{{ s.date|date:"D d M Y" }} <span class="text-muted">{{ s.reason }}</span>
+        {% if can_manage %}<form method="post" action="{% url 'batch_skip' batch.pk %}">{% csrf_token %}<input type="hidden" name="delete" value="{{ s.pk }}"><button class="btn btn-link btn-sm text-danger p-0">remove</button></form>{% endif %}</div>{% empty %}<div class="text-muted" style="font-size:13px;">None.</div>{% endfor %}
+      {% if can_manage %}<form method="post" action="{% url 'batch_skip' batch.pk %}" class="row g-1 mt-2">{% csrf_token %}
+        <div class="col-5"><input type="date" name="date" required class="form-control form-control-sm"></div>
+        <div class="col-5"><input name="reason" placeholder="Reason" class="form-control form-control-sm"></div>
+        <div class="col-2"><button class="btn btn-outline-secondary btn-sm">Skip</button></div></form>{% endif %}</div>
+  </div>
+  <div class="col-lg-8">
+    <div class="ts-card mb-3"><label class="ts-label">Students in this batch ({{ active_count }})</label>
+      <div class="table-responsive"><table class="table table-sm mb-0" style="font-size:13px;"><tbody>
+      {% for s in roster %}<tr><td>{{ s.registration.first_name }} {{ s.registration.last_name }}<div class="text-muted" style="font-size:11px;">{{ s.registration.registration_number }} &middot; {{ s.registration.phone_no }}</div></td>
+        <td><span class="badge bg-{% if s.status == 'active' %}success{% elif s.status == 'completed' %}secondary{% else %}danger{% endif %}">{{ s.get_status_display }}</span></td>
+        <td class="text-end">{% if can_manage %}<form method="post" action="{% url 'batch_student_update' batch.pk s.pk %}" class="d-inline">{% csrf_token %}
+          <select name="action" class="form-select form-select-sm d-inline-block" style="width:auto;" onchange="this.form.submit()"><option value="">Change...</option><option value="active">Active</option><option value="completed">Completed</option><option value="dropped">Dropped</option><option value="remove">Remove from batch</option></select></form>{% endif %}</td></tr>
+      {% empty %}<tr><td class="text-muted">No students yet.</td></tr>{% endfor %}</tbody></table></div></div>
+    {% if can_manage and batch.course %}
+    <div class="ts-card"><label class="ts-label">Students waiting for {{ batch.course.name }} (not in any batch yet)</label>
+      {% if waiting %}<form method="post" action="{% url 'batch_add_students' batch.pk %}">{% csrf_token %}
+        <div style="max-height:260px;overflow:auto;">{% for rc in waiting %}<div class="form-check"><input class="form-check-input" type="checkbox" name="reg" value="{{ rc.registration.pk }}" id="r{{ rc.pk }}">
+          <label class="form-check-label" for="r{{ rc.pk }}" style="font-size:13px;">{{ rc.registration.first_name }} {{ rc.registration.last_name }} <span class="text-muted">&middot; {{ rc.registration.registration_number }} &middot; {{ rc.registration.get_class_type_display }} &middot; joined {{ rc.registration.date|date:"d M" }}</span></label></div>{% endfor %}</div>
+        <button class="btn btn-primary btn-sm mt-2" {% if seats_left == 0 %}disabled{% endif %}>Add selected to batch ({{ seats_left }} seats left)</button></form>
+      {% else %}<div class="text-muted" style="font-size:13px;">Nobody is waiting for this course.</div>{% endif %}</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

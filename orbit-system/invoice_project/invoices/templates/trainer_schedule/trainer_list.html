@@ -1,0 +1,55 @@
+{% extends 'base_generic.html' %}
+{% block title %}Trainers{% endblock %}
+{% block breadcrumb_label %}<span class="current">Trainers</span>{% endblock %}
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <div>
+    <div class="page-title"><i class="fas fa-chalkboard-teacher me-2 text-primary"></i>Trainer Schedules</div>
+    <div class="page-subtitle">Capacity, students and batches per trainer. Today: {{ today|date:"D, d M Y" }}</div>
+  </div>
+  {% if can_manage %}<a href="{% url 'trainer_create' %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Trainer</a>{% endif %}
+</div>
+{% include 'trainer_schedule/_nav.html' with active='trainers' %}
+
+<div class="row g-3">
+  {% for r in rows %}{% with s=r.snap %}
+  <div class="col-md-6 col-xl-4">
+    <div class="ts-card h-100" style="border-top:4px solid {{ r.t.color }};">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div style="font-weight:800;font-size:16px;">{{ r.t.name }}</div>
+          <div class="text-muted" style="font-size:12px;">{{ r.t.specialization|default:"" }}{% if r.t.phone %} &middot; {{ r.t.phone }}{% endif %}</div>
+        </div>
+        <span class="ts-pill pill-{{ r.status.0 }}">{{ r.status.1 }}</span>
+      </div>
+      <div class="row g-2 text-center mt-2" style="font-size:12px;">
+        <div class="col-3"><div style="font-size:20px;font-weight:800;">{{ s.today_count }}</div>today</div>
+        <div class="col-3"><div style="font-size:20px;font-weight:800;">{{ s.active_students }}</div>students</div>
+        <div class="col-3"><div style="font-size:20px;font-weight:800;">{{ s.active_batches }}</div>batches</div>
+        <div class="col-3"><div style="font-size:20px;font-weight:800;color:#047857;">{{ s.free_slots }}</div>free slots</div>
+      </div>
+      <div class="mt-2" style="font-size:12px;"><strong>Today:</strong>
+        {% for l in r.today_labels %}<div class="text-muted">{{ l }}</div>{% empty %}<span class="text-muted">nothing scheduled</span>{% endfor %}</div>
+      <div class="mt-1" style="font-size:12px;"><strong>Available:</strong> {% if r.free_today %}{{ r.free_today|join:", " }}{% else %}<span class="text-muted">no fully free slot today</span>{% endif %}</div>
+      <div class="mt-2" style="font-size:12px;"><strong>Week utilization:</strong> {{ r.util }}%
+        <div class="ts-bar"><i class="{% if r.util < 30 %}u-low{% elif r.util <= 80 %}u-ok{% else %}u-high{% endif %}" style="width:{{ r.util }}%;"></i></div></div>
+      <div class="row g-1 mt-2 text-muted" style="font-size:11px;">
+        <div class="col-4">Scheduled<br><b class="text-dark">{{ r.hs }}</b></div>
+        <div class="col-4">Delivered<br><b class="text-dark">{{ r.hd }}</b></div>
+        <div class="col-4">Remaining<br><b class="text-dark">{{ r.hr }}</b></div>
+      </div>
+      <div class="d-flex gap-1 mt-3 flex-wrap">
+        <a href="{% url 'trainer_week' r.t.pk %}" class="btn btn-primary btn-sm">View Schedule</a>
+        {% if can_create %}<a href="{% url 'schedule_create' %}?trainer={{ r.t.pk }}" class="btn btn-outline-success btn-sm">Create Schedule</a>{% endif %}
+        {% if can_manage %}<a href="{% url 'trainer_edit' r.t.pk %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+        <form method="post" action="{% url 'trainer_toggle_active' r.t.pk %}" class="ms-auto" onsubmit="return confirm('Deactivate this trainer? History is kept.');">{% csrf_token %}
+          <button class="btn btn-outline-danger btn-sm">Deactivate</button></form>{% endif %}
+      </div>
+    </div>
+  </div>{% endwith %}
+  {% empty %}
+  <div class="col-12"><div class="ts-card text-center text-muted py-5">No trainers yet.{% if can_manage %} Click <strong>Add Trainer</strong> to start.{% endif %}</div></div>
+  {% endfor %}
+</div>
+{% if inactive %}<div class="text-muted mt-3" style="font-size:12px;">{{ inactive }} inactive trainer(s) hidden.</div>{% endif %}
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends 'base_generic.html' %}
+{% block title %}{% if batch %}Edit{% else %}New{% endif %} Batch{% endblock %}
+{% block breadcrumb_label %}<span class="current">{% if batch %}Edit{% else %}New{% endif %} Batch</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">{% if batch %}Edit {{ batch.name }}{% else %}New Batch{% endif %}</div>
+  <div class="page-subtitle">The trainer's calendar is checked automatically for clashes, leave and working hours.</div></div>
+{% include 'trainer_schedule/_nav.html' with active='batches' %}
+{% for e in errors %}<div class="ts-alert-err"><i class="fas fa-ban me-1"></i>{{ e }}</div>{% endfor %}
+{% for w in warnings %}<div class="ts-alert-warn"><i class="fas fa-triangle-exclamation me-1"></i>{{ w }}</div>{% endfor %}
+<form method="post" id="bf" class="row g-3">{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+  <div class="col-lg-7"><div class="ts-card">
+    <div class="row g-2 mb-3">
+      <div class="col-md-6"><label class="ts-label">Course</label><select name="course" class="form-select">
+        <option value="">-</option>{% for c in courses %}<option value="{{ c.pk }}" {% if v.course|stringformat:"s" == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-6"><label class="ts-label">Trainer</label><select name="trainer" id="f_trainer" class="form-select">
+        <option value="">Not assigned yet</option>{% for t in trainers %}<option value="{{ t.pk }}" {% if v.trainer|stringformat:"s" == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="mb-3"><label class="ts-label">Batch name (optional)</label><input name="name" class="form-control" value="{{ v.name }}" placeholder="auto: Course - start date - time"></div>
+    <div class="row g-2 mb-3">
+      <div class="col-6"><label class="ts-label">Start date *</label><input type="date" name="start_date" id="f_sd" required class="form-control" value="{{ v.start_date }}"></div>
+      <div class="col-6"><label class="ts-label">End date *</label><input type="date" name="end_date" id="f_ed" required class="form-control" value="{{ v.end_date }}"></div>
+    </div>
+    <div class="mb-3"><label class="ts-label">Class days *</label><div class="d-flex flex-wrap gap-3">
+      {% for d, n in weekdays %}<div class="form-check"><input class="form-check-input wd" type="checkbox" name="weekdays" value="{{ d }}" id="d{{ d }}" {% if d in sel_days %}checked{% endif %}><label class="form-check-label" for="d{{ d }}">{{ n|slice:":3" }}</label></div>{% endfor %}</div></div>
+    <div class="row g-2 mb-3">
+      <div class="col-6"><label class="ts-label">Daily start *</label><input type="time" name="start_time" id="f_st" min="10:00" max="21:00" class="form-control" value="{{ v.start_time }}"></div>
+      <div class="col-6"><label class="ts-label">Daily end *</label><input type="time" name="end_time" id="f_et" min="10:00" max="21:00" class="form-control" value="{{ v.end_time }}"></div>
+    </div>
+    <div id="live"></div>
+  </div></div>
+  <div class="col-lg-5"><div class="ts-card">
+    <div class="row g-2 mb-3">
+      <div class="col-6"><label class="ts-label">Mode</label><select name="mode" class="form-select"><option value="offline" {% if v.mode == 'offline' %}selected{% endif %}>Offline</option><option value="online" {% if v.mode == 'online' %}selected{% endif %}>Online</option></select></div>
+      <div class="col-6"><label class="ts-label">Capacity</label><input type="number" min="1" name="capacity" class="form-control" value="{{ v.capacity }}"></div>
+    </div>
+    <div class="mb-3"><label class="ts-label">Venue / room / link</label><input name="venue" class="form-control" value="{{ v.venue }}"></div>
+    {% if batch %}<div class="mb-3"><label class="ts-label">Status</label><select name="status" class="form-select">
+      <option value="upcoming" {% if v.status == 'upcoming' %}selected{% endif %}>Upcoming</option><option value="ongoing" {% if v.status == 'ongoing' %}selected{% endif %}>Ongoing</option>
+      <option value="completed" {% if v.status == 'completed' %}selected{% endif %}>Completed</option><option value="cancelled" {% if v.status == 'cancelled' %}selected{% endif %}>Cancelled</option></select></div>{% endif %}
+    <div class="mb-3"><label class="ts-label">Notes</label><textarea name="notes" rows="3" class="form-control">{{ v.notes }}</textarea></div>
+    {% if is_admin and errors %}<div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="override" value="1" id="ovr"><label class="form-check-label" for="ovr">Admin override of the blocking conflict</label></div>{% endif %}
+    {% if confirm %}<div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="confirm_warnings" id="cw" value="1"><label class="form-check-label" for="cw">I understand the warnings - save anyway</label></div>{% endif %}
+    <button class="btn btn-primary">Save batch</button> <a href="{% url 'batch_list' %}" class="btn btn-outline-secondary">Cancel</a>
+  </div></div>
+</form>
+<script>
+(function () {
+  const live = document.getElementById('live');
+  function check() {
+    const days = [...document.querySelectorAll('.wd:checked')].map(x => x.value).join(',');
+    const p = new URLSearchParams({ kind: 'batch', trainer: f_trainer.value, start_date: f_sd.value, end_date: f_ed.value,
+      weekdays: days, start_time: f_st.value, end_time: f_et.value, exclude_batch: '{{ batch.pk|default:"" }}' });
+    if (!f_trainer.value || !f_sd.value || !f_ed.value || !f_st.value || !f_et.value) { live.innerHTML = ''; return; }
+    fetch('{% url "schedule_conflicts" %}?' + p).then(r => r.json()).then(d => {
+      live.innerHTML = d.errors.map(e => '<div class="ts-alert-err">' + e + '</div>').join('') +
+        d.warnings.map(w => '<div class="ts-alert-warn">' + w + '</div>').join('') +
+        (!d.errors.length && !d.warnings.length ? '<div class="text-success" style="font-size:13px;"><i class="fas fa-check-circle me-1"></i>Trainer is free for this slot.</div>' : '');
+    });
+  }
+  ['f_trainer','f_sd','f_ed','f_st','f_et'].forEach(id => document.getElementById(id).addEventListener('change', check));
+  document.querySelectorAll('.wd').forEach(x => x.addEventListener('change', check));
+  check();
+})();
+</script>
+{% endblock %}

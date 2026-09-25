@@ -1,0 +1,47 @@
+{% extends 'base_generic.html' %}
+{% block title %}Students Waiting{% endblock %}
+{% block breadcrumb_label %}<span class="current">Students Waiting</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-hourglass-half me-2 text-primary"></i>Students Waiting for a Batch</div>
+  <div class="page-subtitle">Enrolled students not in any batch yet. Put them in an open batch, or create a batch with a free trainer.</div></div>
+{% include 'trainer_schedule/_nav.html' with active='waiting' %}
+<form method="get" class="row g-2 mb-3 align-items-end">
+  <div class="col-md-4"><label class="ts-label">Course</label><select name="course" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">All courses</option>
+    {% for c in courses %}<option value="{{ c.pk }}" {% if course_f == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="ts-label">Enrolled in last</label><select name="days" class="form-select form-select-sm" onchange="this.form.submit()">
+    <option value="30" {% if days == 30 %}selected{% endif %}>30 days</option><option value="60" {% if days == 60 %}selected{% endif %}>60 days</option>
+    <option value="90" {% if days == 90 %}selected{% endif %}>90 days</option><option value="180" {% if days == 180 %}selected{% endif %}>6 months</option><option value="365" {% if days == 365 %}selected{% endif %}>1 year</option></select></div>
+  <div class="col-md-3"><span class="ts-pill pill-busy">{{ total }} student(s) waiting</span></div>
+</form>
+{% for card in cards %}
+<div class="ts-card mb-3">
+  <div class="d-flex justify-content-between flex-wrap gap-2 mb-2"><div style="font-weight:700;font-size:15px;">{{ card.course.name }} <span class="text-muted" style="font-size:12px;">({{ card.items|length }} waiting)</span></div>
+    {% if can_manage %}<a href="{% url 'batch_create' %}?course={{ card.course.pk }}" class="btn btn-outline-primary btn-sm">Create new batch</a>{% endif %}</div>
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <form method="post" class="assign-form">{% csrf_token %}
+        <div style="max-height:220px;overflow:auto;">{% for rc in card.items %}<div class="form-check"><input class="form-check-input" type="checkbox" name="reg" value="{{ rc.registration.pk }}" id="w{{ rc.pk }}">
+          <label class="form-check-label" for="w{{ rc.pk }}" style="font-size:13px;">{{ rc.registration.first_name }} {{ rc.registration.last_name }}
+          <span class="text-muted">&middot; {{ rc.registration.registration_number }} &middot; {{ rc.registration.get_class_type_display }} &middot; {{ rc.registration.date|date:"d M" }}</span>
+          {% if can_create %}<a class="ms-2" style="font-size:12px;" href="{% url 'schedule_create' %}?registration={{ rc.registration.pk }}&course={{ rc.course.pk }}&schedule_type=individual">schedule individually</a>{% endif %}</label></div>{% endfor %}</div>
+        {% if can_manage and card.batches %}
+        <div class="d-flex gap-2 mt-2"><select class="form-select form-select-sm batch-pick" style="max-width:320px;">{% for b in card.batches %}
+          <option value="{% url 'batch_add_students' b.pk %}">{{ b.name|truncatechars:34 }} ({{ b.seats }} seats)</option>{% endfor %}</select>
+          <button class="btn btn-primary btn-sm">Assign selected</button></div>
+        {% elif can_manage %}<div class="text-muted mt-2" style="font-size:12px;">No open batch with free seats for this course.</div>{% endif %}
+      </form>
+    </div>
+    <div class="col-lg-5"><label class="ts-label">Trainers for this course</label>
+      {% for tr in card.trainers %}<div style="font-size:13px;"><a href="{% url 'trainer_week' tr.t.pk %}">{{ tr.t.name }}</a>
+        <span class="text-muted">free today: {% if tr.free_today %}{{ tr.free_today|join:", " }}{% else %}none{% endif %}{% if tr.partial_today %} &middot; room to rotate: {{ tr.partial_today|join:", " }}{% endif %} &middot; {{ tr.util }}% load</span></div>
+      {% empty %}<div class="text-muted" style="font-size:13px;">No trainer is marked for this course yet.</div>{% endfor %}
+      <a href="{% url 'find_trainer' %}?course={{ card.course.pk }}" class="btn btn-link btn-sm p-0 mt-1">Find a free slot &rarr;</a></div>
+  </div>
+</div>
+{% empty %}<div class="ts-card text-center text-muted py-5">Nobody is waiting - every enrolled student in this period is already in a batch.</div>{% endfor %}
+<script>
+document.querySelectorAll('.assign-form').forEach(f => f.addEventListener('submit', () => {
+  const pick = f.querySelector('.batch-pick'); if (pick) f.action = pick.value;
+}));
+</script>
+{% endblock %}

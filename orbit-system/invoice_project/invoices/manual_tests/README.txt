@@ -1,0 +1,1 @@
+These are scenario checks that run against the LOCAL dev database (they create ZZ-prefixed test data and delete it afterwards). Run with the project's venv python, e.g. python manual_tests/<file>.py. Never point them at production.
