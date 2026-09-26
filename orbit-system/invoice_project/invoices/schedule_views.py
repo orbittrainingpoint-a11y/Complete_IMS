@@ -529,9 +529,6 @@ def scheduling_settings(request):
 
 @login_required
 def utilization(request):
-    if not can_manage(request.user):
-        messages.error(request, 'Only admins and centre managers can view utilization reports.')
-        return redirect('trainer_list')
     today = eng.dubai_today()
     d0 = parse_date(request.GET.get('from'), today - dt.timedelta(days=today.weekday()))
     d1 = parse_date(request.GET.get('to'), d0 + dt.timedelta(days=6))

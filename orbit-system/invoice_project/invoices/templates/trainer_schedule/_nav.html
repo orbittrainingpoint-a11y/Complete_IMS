@@ -25,8 +25,8 @@
   <a href="{% url 'session_list' %}" class="{% if active == 'sessions' %}on{% endif %}"><i class="fas fa-user-clock me-1"></i>One-off Sessions</a>
   <a href="{% url 'waiting_list' %}" class="{% if active == 'waiting' %}on{% endif %}"><i class="fas fa-hourglass-half me-1"></i>Students Waiting</a>
   <a href="{% url 'find_trainer' %}" class="{% if active == 'find' %}on{% endif %}"><i class="fas fa-magnifying-glass me-1"></i>Find Free Trainer</a>
-  <a href="{% url 'pending_sessions' %}" class="{% if active == 'pending' %}on{% endif %}"><i class="fas fa-clipboard-check me-1"></i>To Mark</a>
+  {% if user.is_superuser or user.profile.role == 'admin' or user.profile.role == 'sales_manager' or user.trainer_record %}<a href="{% url 'pending_sessions' %}" class="{% if active == 'pending' %}on{% endif %}"><i class="fas fa-clipboard-check me-1"></i>To Mark</a>{% endif %}
   <a href="{% url 'trainer_utilization' %}" class="{% if active == 'util' %}on{% endif %}"><i class="fas fa-chart-simple me-1"></i>Utilization</a>
   {% if user.is_superuser or user.profile.role == 'admin' %}<a href="{% url 'scheduling_settings' %}" class="{% if active == 'settings' %}on{% endif %}"><i class="fas fa-gear me-1"></i>Settings</a>{% endif %}
-  <a href="{% url 'schedule_create' %}" class="cta"><i class="fas fa-plus me-1"></i>Create Schedule</a>
+  {% if user.is_superuser or user.profile.role == 'admin' or user.profile.role == 'sales_manager' %}<a href="{% url 'schedule_create' %}" class="cta"><i class="fas fa-plus me-1"></i>Create Schedule</a>{% else %}<span class="cta" style="margin-left:auto;font-size:12px;color:#64748b;"><i class="fas fa-eye me-1"></i>View only</span>{% endif %}
 </div>

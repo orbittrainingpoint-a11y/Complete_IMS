@@ -38,8 +38,8 @@ def can_manage(user):
 
 
 def can_create(user):
-    """Sales may also create schedules, but cannot change history or override conflicts."""
-    return role_of(user) in ('admin', 'sales_manager', 'sales_executive')
+    """Everyone can VIEW trainer schedules; only admin and sales manager can create or edit."""
+    return can_manage(user)
 
 
 def is_admin_role(user):

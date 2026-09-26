@@ -143,7 +143,7 @@ try:
     t.user = trainer_u; t.save()
     sc = DjClient(); sc.force_login(sales); sc.defaults['HTTP_HOST'] = 'localhost'
     tc = DjClient(); tc.force_login(trainer_u); tc.defaults['HTTP_HOST'] = 'localhost'
-    check('sales can open create form', sc.get('/schedules/new/').status_code == 200)
+    check('sales (view-only) cannot open the create form', sc.get('/schedules/new/').status_code == 302)
     r = sc.post(f'/schedules/{rule_a.pk}/pause/', dict(pause_date=today.isoformat(), reason='x'))
     rule_a.refresh_from_db(); check('sales cannot pause', rule_a.status == 'active')
     r = sc.get('/scheduling/settings/'); check('sales cannot open settings', r.status_code == 302)
