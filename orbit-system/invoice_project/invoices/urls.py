@@ -192,6 +192,7 @@ urlpatterns = [
     path('waiting-students/', ts.waiting_list, name='waiting_list'),
     path('find-trainer/', ts.find_trainer, name='find_trainer'),
     path('api/schedule-conflicts/', ts.check_conflicts, name='schedule_conflicts'),
+    path('schedules/', sv.schedule_list, name='schedule_list'),
     path('schedules/new/', sv.schedule_create, name='schedule_create'),
     path('schedules/preview/', sv.schedule_preview, name='schedule_preview'),
     path('api/student-search/', sv.student_search, name='schedule_student_search'),

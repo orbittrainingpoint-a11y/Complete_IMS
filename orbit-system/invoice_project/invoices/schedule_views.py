@@ -306,6 +306,7 @@ def rule_detail(request, pk):
     return render(request, 'trainer_schedule/rule_detail.html', {
         'rule': rule, 'h': h, 'hf': {k: fmt_hours(h[k]) for k in ('required', 'scheduled', 'delivered', 'remaining', 'unscheduled')}, 'occs': occs, 'audit': rule.audit.select_related('user')[:60], 'roster': roster, 'today': today,
         'next_upcoming': next((o for o in occs if o.date >= today and o.status in eng.ACTIVE_FUTURE), None),
+        'trace': eng.rule_trace(rule, today),
         'can_manage': can_manage(request.user), 'is_admin': is_admin_role(request.user),
         'is_own': bool(mine and mine.pk == rule.trainer_id), 'fmt': fmt_hours, 'trainers': Trainer.objects.filter(is_active=True),
         'weekdays': WEEKDAY_CHOICES, 'next_url': request.get_full_path(),
@@ -577,3 +578,69 @@ def pending_bulk(request):
         done += 1
     messages.success(request, f'{done} session(s) marked {action}.')
     return redirect(safe_next(request, '/schedule-pending/'))
+
+
+# ── trace every schedule in one place ───────────────────────────────────────
+
+@login_required
+def schedule_list(request):
+    from django.core.paginator import Paginator
+    from django.db.models import Count, Q
+    import csv
+    from django.http import HttpResponse
+    g = request.GET
+    q = (g.get('q') or '').strip()
+    status = g.get('status', 'active')
+    stype = g.get('type', '')
+    sort = g.get('sort', 'next')
+    mine = own_trainer(request.user)
+    qs = ScheduleRule.objects.select_related('trainer', 'registration', 'batch', 'course').prefetch_related('occurrences')
+    if mine and not can_manage(request.user):
+        qs = qs.filter(trainer=mine)
+    if g.get('trainer'):
+        qs = qs.filter(trainer_id=g['trainer'])
+    if g.get('course'):
+        qs = qs.filter(course_id=g['course'])
+    if stype in ('individual', 'batch'):
+        qs = qs.filter(schedule_type=stype)
+    if q:
+        qs = qs.filter(Q(registration__first_name__icontains=q) | Q(registration__last_name__icontains=q) |
+                       Q(registration__registration_number__icontains=q) | Q(registration__phone_no__icontains=q) |
+                       Q(batch__name__icontains=q) | Q(trainer__name__icontains=q) | Q(course__name__icontains=q))
+    counts = {row['status']: row['n'] for row in qs.order_by().values('status').annotate(n=Count('id'))}
+    counts['all'] = sum(counts.values())
+    if status in ('active', 'paused', 'completed', 'cancelled'):
+        qs = qs.filter(status=status)
+    today = eng.dubai_today()
+    rows = []
+    for r in qs:
+        h = eng.rule_hours(r)
+        tr = eng.rule_trace(r, today)
+        rows.append({'r': r, 'h': h, 't': tr, 'remaining_f': fmt_hours(h['remaining']),
+                     'next_key': tr['next'].date if tr['next'] else dt.date.max})
+    keys = {'next': lambda x: x['next_key'], 'name': lambda x: x['r'].subject.lower(),
+            'progress': lambda x: -x['h']['pct'], 'remaining': lambda x: -x['h']['remaining'],
+            'trainer': lambda x: x['r'].trainer.name.lower(), 'recent': lambda x: -x['r'].updated_at.timestamp()}
+    rows.sort(key=keys.get(sort, keys['next']))
+    if g.get('export') == '1' and can_manage(request.user):
+        resp = HttpResponse(content_type='text/csv')
+        resp['Content-Disposition'] = 'attachment; filename="trainer_schedules.csv"'
+        w = csv.writer(resp)
+        w.writerow(['Student/Batch', 'Reg no.', 'Type', 'Course', 'Trainer', 'Days', 'Start time', 'Status', 'Required (min)',
+                    'Delivered (min)', 'Remaining (min)', 'Next session', 'Last session', 'Absences'])
+        for x in rows:
+            r = x['r']
+            w.writerow([r.subject, r.registration.registration_number if r.registration else '', r.get_schedule_type_display(),
+                        r.course.name if r.course else '', r.trainer.name, r.weekday_names, r.start_time.strftime('%H:%M'),
+                        r.get_status_display(), x['h']['required'], x['h']['delivered'], x['h']['remaining'],
+                        x['t']['next'].date.isoformat() if x['t']['next'] else '', x['t']['last'].date.isoformat() if x['t']['last'] else '',
+                        x['h']['absent']])
+        return resp
+    page = Paginator(rows, 40).get_page(g.get('page'))
+    from urllib.parse import urlencode
+    keep = urlencode({k: v for k, v in g.items() if k not in ('page', 'export') and v})
+    return render(request, 'trainer_schedule/schedule_list.html', {
+        'page': page, 'q': q, 'status': status, 'stype': stype, 'sort': sort, 'counts': counts, 'keep': keep,
+        'trainer_f': g.get('trainer', ''), 'course_f': g.get('course', ''),
+        'trainers': Trainer.objects.filter(is_active=True), 'courses': Course.objects.order_by('name'),
+        'can_manage': can_manage(request.user), 'today': today})

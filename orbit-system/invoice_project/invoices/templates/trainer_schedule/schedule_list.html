@@ -1,0 +1,55 @@
+{% extends 'base_generic.html' %}
+{% block title %}All Schedules{% endblock %}
+{% block breadcrumb_label %}<span class="current">All Schedules</span>{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between flex-wrap gap-2"><div><div class="page-title"><i class="fas fa-list-check me-2 text-primary"></i>All Schedules</div>
+  <div class="page-subtitle">Find any student's or batch's schedule, see where it stands and what happens next.</div></div>
+  {% if can_manage %}<a class="btn btn-outline-secondary btn-sm align-self-start" href="?{{ keep }}{% if keep %}&{% endif %}export=1"><i class="fas fa-file-csv me-1"></i>Export CSV</a>{% endif %}</div>
+{% include 'trainer_schedule/_nav.html' with active='schedules' %}
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a class="ts-tab sm {% if status == 'active' %}on{% endif %}" href="?status=active&q={{ q|urlencode }}"><i class="fas fa-play"></i>Active <span class="ts-badge">{{ counts.active|default:0 }}</span></a>
+  <a class="ts-tab sm {% if status == 'paused' %}on{% endif %}" href="?status=paused&q={{ q|urlencode }}"><i class="fas fa-pause"></i>Paused <span class="ts-badge warn">{{ counts.paused|default:0 }}</span></a>
+  <a class="ts-tab sm {% if status == 'completed' %}on{% endif %}" href="?status=completed&q={{ q|urlencode }}"><i class="fas fa-check"></i>Completed <span class="ts-badge">{{ counts.completed|default:0 }}</span></a>
+  <a class="ts-tab sm {% if status == 'cancelled' %}on{% endif %}" href="?status=cancelled&q={{ q|urlencode }}"><i class="fas fa-ban"></i>Cancelled <span class="ts-badge">{{ counts.cancelled|default:0 }}</span></a>
+  <a class="ts-tab sm {% if status == 'all' %}on{% endif %}" href="?status=all&q={{ q|urlencode }}"><i class="fas fa-layer-group"></i>All <span class="ts-badge">{{ counts.all|default:0 }}</span></a>
+</div>
+<form method="get" class="row g-2 mb-3 align-items-end">
+  <input type="hidden" name="status" value="{{ status }}">
+  <div class="col-md-3"><input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Student, reg. no., phone, batch..."></div>
+  <div class="col-md-2"><select name="trainer" class="form-select form-select-sm"><option value="">All trainers</option>{% for t in trainers %}<option value="{{ t.pk }}" {% if trainer_f == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><select name="course" class="form-select form-select-sm"><option value="">All courses</option>{% for c in courses %}<option value="{{ c.pk }}" {% if course_f == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><select name="type" class="form-select form-select-sm"><option value="">Individual + Batch</option><option value="individual" {% if stype == 'individual' %}selected{% endif %}>Individual</option><option value="batch" {% if stype == 'batch' %}selected{% endif %}>Batch</option></select></div>
+  <div class="col-md-2 d-flex gap-1"><select name="sort" class="form-select form-select-sm">
+    <option value="next" {% if sort == 'next' %}selected{% endif %}>Next session</option><option value="name" {% if sort == 'name' %}selected{% endif %}>Name</option>
+    <option value="trainer" {% if sort == 'trainer' %}selected{% endif %}>Trainer</option><option value="progress" {% if sort == 'progress' %}selected{% endif %}>Progress</option>
+    <option value="remaining" {% if sort == 'remaining' %}selected{% endif %}>Hours left</option><option value="recent" {% if sort == 'recent' %}selected{% endif %}>Recently changed</option></select>
+    <button class="btn btn-primary btn-sm">Go</button></div>
+</form>
+
+<div class="ts-card p-0"><div class="table-responsive"><table class="table table-hover mb-0 align-middle" style="font-size:13px;">
+  <thead><tr><th>Student / batch</th><th>Trainer &amp; course</th><th>Pattern</th><th style="min-width:170px;">Progress</th><th>Next session</th><th>Last session</th><th>Status</th></tr></thead>
+  <tbody>{% for x in page %}{% with r=x.r %}
+    <tr style="cursor:pointer;" onclick="location='{% url 'rule_detail' r.pk %}'">
+      <td><a href="{% url 'rule_detail' r.pk %}" style="font-weight:700;">{{ r.subject }}</a>
+        <div class="text-muted" style="font-size:11px;">{{ r.get_schedule_type_display }}{% if r.registration %} &middot; {{ r.registration.registration_number }}{% endif %}</div></td>
+      <td>{{ r.trainer.name }}<div class="text-muted" style="font-size:11px;">{{ r.course.name|default:"-" }}</div></td>
+      <td>{{ r.weekday_names }}<div class="text-muted" style="font-size:11px;">{{ r.start_time|time:"H:i" }} &middot; {{ r.session_minutes }} min</div></td>
+      <td><div class="d-flex justify-content-between" style="font-size:11px;"><b>{{ x.h.pct }}%</b><span class="text-muted">{{ x.remaining_f }} left</span></div>
+        <div class="ts-bar my-1"><i class="u-ok" style="width:{{ x.h.pct }}%;"></i></div>
+        {% include 'trainer_schedule/_strip.html' with strip=x.t.strip more=x.t.strip_more %}</td>
+      <td>{% if x.t.next %}<b>{{ x.t.next.date|date:"D d M" }}</b><div class="text-muted" style="font-size:11px;">{{ x.t.next.start_time|time:"H:i" }}{% if x.t.next.date == today %} &middot; <span class="text-success">today</span>{% endif %}</div>{% else %}<span class="text-muted">-</span>{% endif %}
+        {% if x.t.overdue %}<div><span class="ts-pill pill-busy" style="font-size:10px;">{{ x.t.overdue }} to mark</span></div>{% endif %}</td>
+      <td>{% if x.t.last %}{{ x.t.last.date|date:"d M" }}<div style="font-size:11px;"><span class="ts-pill pill-{{ x.t.last.status }}" style="font-size:10px;">{{ x.t.last.get_status_display }}</span></div>{% else %}<span class="text-muted">-</span>{% endif %}
+        {% if x.h.absent %}<div class="text-danger" style="font-size:11px;">{{ x.h.absent }} absent</div>{% endif %}</td>
+      <td><span class="ts-pill pill-{{ r.status }}">{{ r.get_status_display }}</span></td></tr>{% endwith %}
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-5">No schedules match. Try another status tab or clear the search.</td></tr>{% endfor %}</tbody></table></div></div>
+
+<div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+  <div class="legend text-muted" style="font-size:11px;"><span class="ts-dot completed"></span> completed &nbsp;<span class="ts-dot absent"></span> absent &nbsp;<span class="ts-dot scheduled"></span> upcoming &nbsp;<span class="ts-dot paused"></span> paused &nbsp;<span class="ts-dot cancelled"></span> cancelled &nbsp;<span class="ts-dot now"></span> today &nbsp;&middot; hover a square for its date</div>
+  {% if page.paginator.num_pages > 1 %}<div class="btn-group btn-group-sm">
+    {% if page.has_previous %}<a class="btn btn-outline-secondary" href="?{{ keep }}&page={{ page.previous_page_number }}">&laquo; Prev</a>{% endif %}
+    <span class="btn btn-outline-secondary disabled">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn btn-outline-secondary" href="?{{ keep }}&page={{ page.next_page_number }}">Next &raquo;</a>{% endif %}</div>{% endif %}
+</div>
+{% endblock %}

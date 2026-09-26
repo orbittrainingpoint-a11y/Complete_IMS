@@ -1,0 +1,1 @@
+<div class="ts-strip">{% for d in strip %}<span class="ts-dot {{ d.status }} {% if d.today %}now{% endif %}" title="{{ d.label }}"></span>{% endfor %}{% if more %}<span class="text-muted" style="font-size:10px;">+{{ more }}</span>{% endif %}</div>

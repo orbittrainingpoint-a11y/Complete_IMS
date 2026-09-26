@@ -1,9 +1,22 @@
 <style>
-.ts-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px; align-items:center; }
-.ts-tabs a { padding:7px 14px; border-radius:10px; font-size:13px; font-weight:600; text-decoration:none;
-             border:1px solid var(--border); color:var(--text-muted); background:#fff; }
-.ts-tabs a.on { background:var(--primary); color:#fff; border-color:var(--primary); }
-.ts-tabs a.cta { background:#059669; color:#fff; border-color:#059669; margin-left:auto; }
+.ts-nav { position:sticky; top:0; z-index:30; background:var(--bg,#f1f5f9); padding:8px 0 10px; margin-bottom:14px; }
+.ts-row { display:flex; gap:6px; align-items:center; overflow-x:auto; white-space:nowrap; scrollbar-width:thin; padding-bottom:2px; }
+.ts-row + .ts-row { margin-top:8px; }
+.ts-tab { display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:11px; font-size:13px; font-weight:700; text-decoration:none;
+          border:1px solid var(--border); color:#475569; background:#fff; transition:.15s; flex-shrink:0; }
+.ts-tab i { font-size:13px; opacity:.8; } .ts-tab:hover { border-color:var(--primary); color:var(--primary); }
+.ts-tab.on { background:var(--primary); color:#fff; border-color:var(--primary); box-shadow:0 3px 10px rgba(37,99,235,.28); } .ts-tab.on i { opacity:1; }
+.ts-tab.sm { padding:5px 11px; font-size:12px; font-weight:600; border-radius:9px; }
+.ts-tab.cta { background:#059669; color:#fff; border-color:#059669; margin-left:auto; } .ts-tab.cta:hover { color:#fff; filter:brightness(1.08); }
+.ts-badge { font-size:10px; font-weight:800; min-width:18px; text-align:center; padding:1px 6px; border-radius:20px; background:rgba(15,23,42,.1); color:#334155; }
+.ts-tab.on .ts-badge { background:rgba(255,255,255,.25); color:#fff; } .ts-badge.warn { background:#f59e0b; color:#fff; } .ts-badge.red { background:#ef4444; color:#fff; }
+.ts-search { position:relative; flex:1; min-width:210px; max-width:420px; margin-left:auto; }
+.ts-search input { width:100%; border:1px solid var(--border); border-radius:11px; padding:7px 12px 7px 34px; font-size:13px; background:#fff; }
+.ts-search i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:12px; }
+.ts-strip { display:flex; flex-wrap:wrap; gap:3px; align-items:center; }
+.ts-dot { width:11px; height:11px; border-radius:3px; display:inline-block; background:#cbd5e1; } .ts-dot.now { outline:2px solid #0f172a; outline-offset:1px; }
+.ts-dot.completed { background:#10b981; } .ts-dot.absent { background:#ef4444; } .ts-dot.scheduled, .ts-dot.rescheduled { background:#93c5fd; }
+.ts-dot.paused { background:#fbbf24; } .ts-dot.cancelled { background:#e2e8f0; border:1px dashed #94a3b8; }
 .ts-card { border:1px solid var(--border); border-radius:14px; background:#fff; padding:16px; }
 .ts-pill { display:inline-block; font-size:11px; font-weight:700; padding:2px 10px; border-radius:20px; }
 .pill-free { background:rgba(16,185,129,.12); color:#047857; } .pill-busy { background:rgba(239,68,68,.12); color:#b91c1c; }
@@ -18,15 +31,5 @@
 .ts-bar { height:6px; border-radius:4px; background:#e5e7eb; overflow:hidden; } .ts-bar i { display:block; height:100%; }
 .u-low { background:#f59e0b; } .u-ok { background:#10b981; } .u-high { background:#ef4444; }
 </style>
-<div class="ts-tabs">
-  <a href="{% url 'trainer_list' %}" class="{% if active == 'trainers' %}on{% endif %}"><i class="fas fa-chalkboard-teacher me-1"></i>Trainers</a>
-  <a href="{% url 'trainer_day_board' %}" class="{% if active == 'board' %}on{% endif %}"><i class="fas fa-table me-1"></i>Daily Board</a>
-  <a href="{% url 'batch_list' %}" class="{% if active == 'batches' %}on{% endif %}"><i class="fas fa-users me-1"></i>Batches</a>
-  <a href="{% url 'session_list' %}" class="{% if active == 'sessions' %}on{% endif %}"><i class="fas fa-user-clock me-1"></i>One-off Sessions</a>
-  <a href="{% url 'waiting_list' %}" class="{% if active == 'waiting' %}on{% endif %}"><i class="fas fa-hourglass-half me-1"></i>Students Waiting</a>
-  <a href="{% url 'find_trainer' %}" class="{% if active == 'find' %}on{% endif %}"><i class="fas fa-magnifying-glass me-1"></i>Find Free Trainer</a>
-  {% if user.is_superuser or user.profile.role == 'admin' or user.profile.role == 'sales_manager' or user.trainer_record %}<a href="{% url 'pending_sessions' %}" class="{% if active == 'pending' %}on{% endif %}"><i class="fas fa-clipboard-check me-1"></i>To Mark</a>{% endif %}
-  <a href="{% url 'trainer_utilization' %}" class="{% if active == 'util' %}on{% endif %}"><i class="fas fa-chart-simple me-1"></i>Utilization</a>
-  {% if user.is_superuser or user.profile.role == 'admin' %}<a href="{% url 'scheduling_settings' %}" class="{% if active == 'settings' %}on{% endif %}"><i class="fas fa-gear me-1"></i>Settings</a>{% endif %}
-  {% if user.is_superuser or user.profile.role == 'admin' or user.profile.role == 'sales_manager' %}<a href="{% url 'schedule_create' %}" class="cta"><i class="fas fa-plus me-1"></i>Create Schedule</a>{% else %}<span class="cta" style="margin-left:auto;font-size:12px;color:#64748b;"><i class="fas fa-eye me-1"></i>View only</span>{% endif %}
-</div>
+{% load schedule_tags %}
+{% schedule_nav active %}

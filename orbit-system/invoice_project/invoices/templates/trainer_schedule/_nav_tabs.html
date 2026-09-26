@@ -1,0 +1,20 @@
+<div class="ts-nav">
+  <div class="ts-row">
+    <a href="{% url 'schedule_list' %}" class="ts-tab {% if active == 'schedules' %}on{% endif %}"><i class="fas fa-list-check"></i>All Schedules <span class="ts-badge">{{ counts.active }}</span></a>
+    <a href="{% url 'trainer_list' %}" class="ts-tab {% if active == 'trainers' %}on{% endif %}"><i class="fas fa-chalkboard-teacher"></i>Trainers</a>
+    <a href="{% url 'trainer_day_board' %}" class="ts-tab {% if active == 'board' %}on{% endif %}"><i class="fas fa-table"></i>Daily Board</a>
+    <a href="{% url 'batch_list' %}" class="ts-tab {% if active == 'batches' %}on{% endif %}"><i class="fas fa-users"></i>Batches</a>
+    <a href="{% url 'session_list' %}" class="ts-tab {% if active == 'sessions' %}on{% endif %}"><i class="fas fa-user-clock"></i>One-off</a>
+    <form action="{% url 'schedule_list' %}" method="get" class="ts-search"><i class="fas fa-magnifying-glass"></i>
+      <input name="q" value="{{ q }}" placeholder="Trace a student, reg. no., batch, trainer or course..." autocomplete="off"><input type="hidden" name="status" value="all"></form>
+    {% if can_edit %}<a href="{% url 'schedule_create' %}" class="ts-tab cta"><i class="fas fa-plus"></i>Create Schedule</a>{% else %}<span class="ts-tab cta" style="background:#e2e8f0;border-color:#e2e8f0;color:#64748b;"><i class="fas fa-eye"></i>View only</span>{% endif %}
+  </div>
+  <div class="ts-row">
+    <a href="{% url 'find_trainer' %}" class="ts-tab sm {% if active == 'find' %}on{% endif %}"><i class="fas fa-magnifying-glass"></i>Find Free Trainer</a>
+    <a href="{% url 'waiting_list' %}" class="ts-tab sm {% if active == 'waiting' %}on{% endif %}"><i class="fas fa-hourglass-half"></i>Students Waiting</a>
+    {% if can_edit or is_trainer %}<a href="{% url 'pending_sessions' %}" class="ts-tab sm {% if active == 'pending' %}on{% endif %}"><i class="fas fa-clipboard-check"></i>To Mark {% if counts.to_mark %}<span class="ts-badge red">{{ counts.to_mark }}</span>{% endif %}</a>{% endif %}
+    <a href="{% url 'schedule_list' %}?status=paused" class="ts-tab sm"><i class="fas fa-pause"></i>Paused {% if counts.paused %}<span class="ts-badge warn">{{ counts.paused }}</span>{% endif %}</a>
+    <a href="{% url 'trainer_utilization' %}" class="ts-tab sm {% if active == 'util' %}on{% endif %}"><i class="fas fa-chart-simple"></i>Utilization</a>
+    {% if is_admin %}<a href="{% url 'scheduling_settings' %}" class="ts-tab sm {% if active == 'settings' %}on{% endif %}"><i class="fas fa-gear"></i>Settings</a>{% endif %}
+  </div>
+</div>

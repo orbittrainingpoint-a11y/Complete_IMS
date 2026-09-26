@@ -149,6 +149,19 @@ def rule_hours(rule, today=None):
             'pct': round(min(100, delivered / rule.total_minutes * 100)) if rule.total_minutes else 0}
 
 
+def rule_trace(rule, today=None):
+    """Everything needed to follow a schedule at a glance: a strip of coloured session dots,
+    the next upcoming session and the last one that happened. Works on prefetched occurrences."""
+    today = today or dubai_today()
+    occs = sorted(rule.occurrences.all(), key=lambda o: (o.date, o.start_time))
+    strip = [{'status': o.status, 'label': f'{o.date:%a %d %b} {o.start_time:%H:%M} - {STATUS_LABEL.get(o.status, o.status)}',
+              'today': o.date == today} for o in occs]
+    nxt = next((o for o in occs if o.status in ACTIVE_FUTURE and o.date >= today), None)
+    last = next((o for o in reversed(occs) if o.status in ('completed', 'absent')), None)
+    overdue = sum(1 for o in occs if o.status in ACTIVE_FUTURE and o.date < today)
+    return {'strip': strip[:80], 'strip_more': max(0, len(strip) - 80), 'next': nxt, 'last': last, 'overdue': overdue}
+
+
 def _touch_end_date(rule):
     if rule.end_date_manual:
         return

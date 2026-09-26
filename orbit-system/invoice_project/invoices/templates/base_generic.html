@@ -693,7 +693,7 @@
     <div class="nav-section">
         <div class="nav-section-label">Training</div>
         <div class="nav-item">
-            <a href="{% url 'trainer_list' %}" class="nav-link {% if request.resolver_match.url_name in 'trainer_list,trainer_create,trainer_edit,trainer_week,trainer_day_board,batch_list,batch_create,batch_edit,batch_detail,session_list,session_create,session_edit,waiting_list,find_trainer,schedule_create,rule_detail,rule_edit,trainer_utilization,scheduling_settings,student_schedule_history' %}active{% endif %}">
+            <a href="{% url 'trainer_list' %}" class="nav-link {% if request.resolver_match.url_name in 'schedule_list,trainer_list,trainer_create,trainer_edit,trainer_week,trainer_day_board,batch_list,batch_create,batch_edit,batch_detail,session_list,session_create,session_edit,waiting_list,find_trainer,schedule_create,rule_detail,rule_edit,trainer_utilization,scheduling_settings,student_schedule_history' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-chalkboard-teacher"></i></span> Trainers &amp; Batches
             </a>
         </div>

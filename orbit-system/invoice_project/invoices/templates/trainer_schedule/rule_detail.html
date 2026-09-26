@@ -6,7 +6,8 @@
   <div><div class="page-title">{{ rule.subject }} <span class="ts-pill pill-{{ rule.status }}">{{ rule.get_status_display }}</span></div>
     <div class="page-subtitle">{{ rule.get_schedule_type_display }} schedule with <a href="{% url 'trainer_week' rule.trainer.pk %}">{{ rule.trainer.name }}</a>{% if rule.course %} &middot; {{ rule.course.name }}{% endif %}</div></div>
   <div class="d-flex gap-2 flex-wrap align-items-start">
-    <a href="{% url 'trainer_week' rule.trainer.pk %}?view=week" class="btn btn-outline-primary btn-sm">Trainer calendar</a>
+    <a href="{% url 'schedule_list' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>All schedules</a>
+    <a href="{% url 'trainer_week' rule.trainer.pk %}?view=week{% if trace.next %}&date={{ trace.next.date|date:'Y-m-d' }}{% endif %}" class="btn btn-outline-primary btn-sm">Trainer calendar</a>
     {% if rule.registration %}<a href="{% url 'student_schedule_history' rule.registration.pk %}" class="btn btn-outline-secondary btn-sm">Student history</a>{% endif %}
     {% if can_manage %}
       <a href="{% url 'rule_edit' rule.pk %}" class="btn btn-outline-secondary btn-sm">Edit schedule</a>
@@ -17,7 +18,7 @@
     {% endif %}
   </div>
 </div>
-{% include 'trainer_schedule/_nav.html' with active='' %}
+{% include 'trainer_schedule/_nav.html' with active='schedules' %}
 
 {% if rule.status == 'paused' %}<div class="ts-alert-warn"><i class="fas fa-pause-circle me-1"></i><b>Paused</b> from {{ rule.pause_date|date:"d M Y" }}: {{ rule.pause_reason }}.
   {% if rule.expected_resume %} Expected resume {{ rule.expected_resume|date:"d M Y" }}.{% endif %} Future slots are free for other students; the remaining <b>{{ hf.remaining }}</b> are kept.</div>
@@ -30,7 +31,16 @@
   <div class="col-6 col-md-3"><div class="ts-card"><span class="ts-label">Delivered</span><div style="font-size:22px;font-weight:800;color:#047857;">{{ hf.delivered }}</div><div class="text-muted" style="font-size:12px;">{{ h.sessions_done }} sessions done</div></div></div>
   <div class="col-6 col-md-3"><div class="ts-card"><span class="ts-label">Remaining</span><div style="font-size:22px;font-weight:800;color:#b45309;">{{ hf.remaining }}</div><div class="text-muted" style="font-size:12px;">{% if h.unscheduled %}{{ hf.unscheduled }} not scheduled yet{% else %}all scheduled{% endif %}</div></div></div>
 </div>
-<div class="ts-bar mb-3" style="height:10px;"><i class="u-ok" style="width:{{ h.pct }}%;"></i></div>
+<div class="ts-bar mb-2" style="height:10px;"><i class="u-ok" style="width:{{ h.pct }}%;"></i></div>
+<div class="ts-card mb-3 py-2 px-3">
+  <div class="row g-2 align-items-center">
+    <div class="col-md-4" style="font-size:13px;"><span class="ts-label mb-0">Next session</span>{% if trace.next %}<b>{{ trace.next.date|date:"l d M" }}</b> at {{ trace.next.start_time|time:"H:i" }}{% if trace.next.date == today %} <span class="ts-pill pill-free">today</span>{% endif %}{% else %}<span class="text-muted">none scheduled</span>{% endif %}</div>
+    <div class="col-md-4" style="font-size:13px;"><span class="ts-label mb-0">Last session</span>{% if trace.last %}<b>{{ trace.last.date|date:"D d M" }}</b> <span class="ts-pill pill-{{ trace.last.status }}">{{ trace.last.get_status_display }}</span>{% else %}<span class="text-muted">none yet</span>{% endif %}</div>
+    <div class="col-md-4" style="font-size:13px;"><span class="ts-label mb-0">Attention</span>{% if trace.overdue %}<span class="ts-pill pill-busy">{{ trace.overdue }} past session(s) not marked</span>{% elif h.absent %}<span class="ts-pill pill-paused">{{ h.absent }} absent so far</span>{% else %}<span class="text-success">on track</span>{% endif %}</div>
+  </div>
+  <div class="mt-2">{% include 'trainer_schedule/_strip.html' with strip=trace.strip more=trace.strip_more %}</div>
+  <div class="text-muted mt-1" style="font-size:11px;"><span class="ts-dot completed"></span> completed &nbsp;<span class="ts-dot absent"></span> absent &nbsp;<span class="ts-dot scheduled"></span> upcoming &nbsp;<span class="ts-dot paused"></span> paused &nbsp;<span class="ts-dot cancelled"></span> cancelled &nbsp;<span class="ts-dot now"></span> today</div>
+</div>
 
 <div class="row g-3">
   <div class="col-lg-4">
