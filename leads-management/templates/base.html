@@ -854,29 +854,40 @@
 {% if attendance_tracked %}
 <script>
 (function () {
-    const IDLE_MS = 15 * 60 * 1000;
-    let lastInput = Date.now(), activeSinceBeat = true, onBreak = false, breakStart = null, timerId = null;
+    // Break = no mouse / keyboard movement for 20 minutes. Where the browser supports it (Chrome, Edge)
+    // this uses the system-wide Idle Detection API, so working in another tab, the ERP or any other
+    // program counts as being active. Other browsers fall back to page activity and never count time
+    // while the tab is in the background or not focused.
+    const IDLE_MS = 20 * 60 * 1000;
+    let lastInput = Date.now(), lastShare = 0, activeSinceBeat = true, onBreak = false, breakStart = null, timerId = null;
+    let detectorOn = false, sysState = 'active';
     const modal = new bootstrap.Modal(document.getElementById('breakModal'));
 
-    ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(ev =>
-        window.addEventListener(ev, () => { lastInput = Date.now(); activeSinceBeat = true; }, { passive: true }));
+    function mark() {
+        const n = Date.now(); lastInput = n; activeSinceBeat = true;
+        if (n - lastShare > 15000) { lastShare = n; try { localStorage.setItem('orbit_att_input', String(n)); } catch (e) {} }
+    }
+    ['mousemove', 'keydown', 'click', 'scroll', 'wheel', 'touchstart'].forEach(ev => window.addEventListener(ev, mark, { passive: true }));
+    window.addEventListener('storage', ev => {
+        if (ev.key === 'orbit_att_input') { lastInput = Math.max(lastInput, +ev.newValue || 0); activeSinceBeat = true; }
+        if (ev.key === 'orbit_att_ping') beat();
+    });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) lastInput = Date.now(); });
 
     function post(url, body) {
         return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(body || {}), credentials: 'same-origin' })
             .then(r => r.json());
     }
-    function fmt(ms) {
-        const s = Math.max(0, Math.floor(ms / 1000));
-        return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-    }
+    const fmt = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+
     function showBreak(state) {
         onBreak = true;
         breakStart = new Date(state.break_start).getTime();
         const auto = state.break_type === 'auto_idle';
         document.getElementById('breakTitle').textContent = auto ? 'Break started automatically' : 'You are on a break';
         document.getElementById('breakReason').textContent = auto
-            ? 'You were inactive for 15 minutes, so that time is counted as a break.'
+            ? 'No mouse or keyboard movement for ' + (IDLE_MS / 60000) + ' minutes, so that time is counted as a break.'
             : 'Enjoy your break. Click below when you are back.';
         modal.show();
         clearInterval(timerId);
@@ -889,15 +900,13 @@
         if (!state.on_break && onBreak) { onBreak = false; clearInterval(timerId); modal.hide(); }
     }
     function ping() { try { localStorage.setItem('orbit_att_ping', String(Date.now())); } catch (e) {} }
-    window.addEventListener('storage', ev => { if (ev.key === 'orbit_att_ping') beat(); });
 
     document.getElementById('startBreakBtn').addEventListener('click', () =>
         post('/attendance/break/start', { type: 'manual' }).then(s => { applyState(s); ping(); }));
 
     function endBreak(worked) {
         return post('/attendance/break/end', { worked: !!worked }).then(state => {
-            onBreak = false; clearInterval(timerId); modal.hide();
-            lastInput = Date.now(); activeSinceBeat = true;
+            onBreak = false; clearInterval(timerId); modal.hide(); mark();
             if (state && state.break_minutes !== undefined) {
                 const t = document.createElement('div');
                 t.className = 'alert alert-success position-fixed';
@@ -911,18 +920,58 @@
     document.getElementById('endBreakBtn').addEventListener('click', () => endBreak(false));
     document.getElementById('workedBtn').addEventListener('click', () => endBreak(true));
 
+    function startAutoBreak() {
+        if (!onBreak) post('/attendance/break/start', { type: 'auto_idle', idle_seconds: IDLE_MS / 1000 }).then(s => { applyState(s); ping(); });
+    }
+
+    // While the tab is hidden or the window is not focused the page cannot see the mouse, so it is
+    // assumed the person is working elsewhere (another tab, the ERP, another program).
+    function assumedElsewhere() { return document.hidden || !document.hasFocus(); }
+
     function beat() {
-        const active = !onBreak && activeSinceBeat;
+        const active = !onBreak && (detectorOn ? sysState === 'active' : (activeSinceBeat || assumedElsewhere()));
         activeSinceBeat = false;
         post('/attendance/heartbeat', { active: active }).then(applyState).catch(() => {});
     }
     beat();
     setInterval(beat, 60 * 1000);
 
+    // Fallback idle check (only when the system-wide detector is not running)
     setInterval(() => {
-        if (!onBreak && Date.now() - lastInput >= IDLE_MS)
-            post('/attendance/break/start', { type: 'auto_idle' }).then(applyState);
+        if (!detectorOn && !onBreak && !assumedElsewhere() && Date.now() - lastInput >= IDLE_MS) startAutoBreak();
     }, 30 * 1000);
+
+    // ── system-wide idle detection (Chrome / Edge) ──
+    let banner = null;
+    function showEnable(state) {
+        if (banner) return;
+        banner = document.createElement('div');
+        banner.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2500;max-width:340px;background:#0f1b2d;color:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:13px;';
+        banner.innerHTML = state === 'denied'
+            ? '<b>Activity detection is blocked.</b><div class="mt-1" style="opacity:.85">Allow "Idle detection" for this site in the browser address-bar lock menu so working in other tabs is not counted as a break.</div>'
+            : '<b>Enable activity detection</b><div class="mt-1 mb-2" style="opacity:.85">So working in another tab, the ERP or another program is not counted as a break, allow the browser to see when you are active (no keystrokes or screen are recorded).</div><button class="btn btn-primary btn-sm" id="enIdle">Enable</button> <button class="btn btn-link btn-sm text-white-50" id="enLater">Later</button>';
+        document.body.appendChild(banner);
+        const en = document.getElementById('enIdle');
+        if (en) en.onclick = async () => { try { if (await IdleDetector.requestPermission() === 'granted') { banner.remove(); banner = null; startDetector(); } } catch (e) {} };
+        const later = document.getElementById('enLater'); if (later) later.onclick = () => { banner.remove(); };
+    }
+    async function startDetector() {
+        try {
+            const d = new IdleDetector();
+            d.addEventListener('change', () => {
+                sysState = d.userState;
+                if (sysState === 'active') activeSinceBeat = true; else startAutoBreak();
+            });
+            await d.start({ threshold: IDLE_MS });
+            detectorOn = true;
+        } catch (e) { detectorOn = false; }
+    }
+    (async function initDetector() {
+        if (!('IdleDetector' in window)) return;
+        let st = 'prompt';
+        try { st = (await navigator.permissions.query({ name: 'idle-detection' })).state; } catch (e) {}
+        if (st === 'granted') startDetector(); else showEnable(st);
+    })();
 
     const ack = document.getElementById('ackMissedLogoutBtn');
     if (ack) {

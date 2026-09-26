@@ -28,6 +28,34 @@ def service_worker():
     return response
 
 
+
+# ── The ERP tabs also report activity here (same site, different origin), so working in the
+#    ERP counts as being present. Only the heartbeat endpoint is opened, only to these origins.
+_ATT_ORIGINS = {o.strip() for o in os.environ.get(
+    'ATTENDANCE_CORS_ORIGINS', 'https://orbittraining.online,http://localhost:8000,http://127.0.0.1:8000').split(',') if o.strip()}
+
+
+def _att_cors(resp):
+    origin = request.headers.get('Origin', '')
+    if origin in _ATT_ORIGINS:
+        resp.headers['Access-Control-Allow-Origin'] = origin
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        resp.headers['Vary'] = 'Origin'
+    return resp
+
+
+@main.before_request
+def _att_cors_preflight():
+    if request.method == 'OPTIONS' and request.path == '/attendance/heartbeat':
+        return _att_cors(current_app.response_class('', 204))
+
+
+@main.after_request
+def _att_cors_headers(resp):
+    return _att_cors(resp) if request.path == '/attendance/heartbeat' else resp
+
 # ── Daily 9:30 PM (Dubai) curfew — every non-admin gets logged out until the next day ──
 # Fixed UTC+4 offset (not zoneinfo/tzdata) — UAE has no DST, and this avoids depending on
 # an IANA tzdata package that isn't always present on Windows.
@@ -627,8 +655,13 @@ def attendance_break_start():
     if not att.is_tracked(current_user):
         return jsonify({'success': False}), 403
     s = _my_open_session() or att.ensure_session(current_user)
-    btype = 'auto_idle' if (request.get_json(silent=True, force=True) or {}).get('type') == 'auto_idle' else 'manual'
-    att.start_break(s, btype)
+    payload = request.get_json(silent=True, force=True) or {}
+    btype = 'auto_idle' if payload.get('type') == 'auto_idle' else 'manual'
+    try:
+        idle_s = int(payload.get('idle_seconds') or 0) or None
+    except (TypeError, ValueError):
+        idle_s = None
+    att.start_break(s, btype, idle_s)
     return jsonify(_attendance_state(s))
 
 

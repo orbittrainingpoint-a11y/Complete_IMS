@@ -37,7 +37,9 @@ def sidebar_data(request):
     except Exception:
         overdue_count = 0
 
+    from django.conf import settings as _settings
     return {
+        'crm_url': getattr(_settings, 'CRM_URL', ''),
         'sidebar_overdue_count': overdue_count,
         'is_admin': is_admin,
         'user_role': role,

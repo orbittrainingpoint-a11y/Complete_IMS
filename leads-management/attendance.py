@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from extensions import db
 from models import AttendanceSession, AttendanceBreak
 
-IDLE_LIMIT = timedelta(minutes=15)
+IDLE_LIMIT = timedelta(minutes=20)   # no movement for this long counts as a break
 TRACKED_ROLES = ('consultant', 'sales_manager')
 DUBAI_TZ = timezone(timedelta(hours=4))
 
@@ -124,13 +124,17 @@ def record_activity(session):
     db.session.commit()
 
 
-def start_break(session, break_type):
-    """Manual breaks start now; idle breaks start from the last real activity so the
-    15 idle minutes are counted as break time."""
+def start_break(session, break_type, idle_seconds=None):
+    """Manual breaks start now. Idle breaks start when the person stopped moving: the last
+    real activity, or `idle_seconds` ago if the browser reported system-wide idleness."""
     if _open_break(session.id):
         return _open_break(session.id)
     now = datetime.utcnow()
-    start = session.last_activity_at if break_type == 'auto_idle' else now
+    start = now
+    if break_type == 'auto_idle':
+        start = session.last_activity_at
+        if idle_seconds:
+            start = max(start, now - timedelta(seconds=int(idle_seconds)))
     br = AttendanceBreak(session_id=session.id, user_id=session.user_id,
                          start_at=min(start, now), break_type=break_type)
     db.session.add(br)

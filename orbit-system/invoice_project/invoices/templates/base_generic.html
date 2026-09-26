@@ -1048,6 +1048,23 @@
     loadNotifications();
     setInterval(loadNotifications, 60000);
 </script>
+{% if user.is_authenticated and crm_url %}
+<script id="orbit-att-erp">
+(function () {
+    // Working in the ERP counts as being present: report activity to the CRM attendance tracker
+    // (only staff who are tracked there are affected; everyone else just gets a quiet no-op).
+    var CRM = "{{ crm_url }}".replace(/\/$/, ''), last = 0;
+    function beat() {
+        var n = Date.now(); if (n - last < 45000) return; last = n;
+        fetch(CRM + '/attendance/heartbeat', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                                               body: JSON.stringify({ active: true, source: 'erp' }) })
+            .then(function (r) { if (!r.ok || r.redirected) last = n + 10 * 60 * 1000; })
+            .catch(function () { last = n + 10 * 60 * 1000; });
+    }
+    ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(function (ev) { window.addEventListener(ev, beat, { passive: true }); });
+})();
+</script>
+{% endif %}
 {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -42,7 +42,8 @@ const $ = id => document.getElementById(id);
 const warn = t => { $('msg').textContent = t; $('msg').style.display = t ? '' : 'none'; };
 const setIcon = (cls, icon) => { $('ico').className = 'icon ' + cls; $('icoI').className = 'fas ' + icon; };
 $('showQuiz').onclick = () => { $('quizBox').style.display = ''; };
-$('playQuiz').onclick = () => { const a = $('aud'); a.src = '{{ url_for("main.sound_challenge") }}?t=' + Date.now(); a.volume = 1; a.play().catch(e => warn('Your browser blocked sound: ' + e.message)); };
+$('playQuiz').onclick = () => {
+  try { if ('IdleDetector' in window) IdleDetector.requestPermission(); } catch (e) {} const a = $('aud'); a.src = '{{ url_for("main.sound_challenge") }}?t=' + Date.now(); a.volume = 1; a.play().catch(e => warn('Your browser blocked sound: ' + e.message)); };
 
 function bandMax(an, buf, lo, hi, rate) {
   an.getFloatFrequencyData(buf);
@@ -53,6 +54,7 @@ function bandMax(an, buf, lo, hi, rate) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 $('start').onclick = async () => {
+  try { if ('IdleDetector' in window) await IdleDetector.requestPermission(); } catch (e) {}
   warn(''); $('start').disabled = true; $('status').textContent = 'Asking for microphone access...';
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { warn('This browser cannot run the sound check. Use the listening check below or a current Chrome/Edge.'); $('start').disabled = false; $('quizBox').style.display = ''; return; }
