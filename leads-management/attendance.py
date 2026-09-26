@@ -4,6 +4,8 @@ and next-day "did not log out" handling (day becomes unpaid leave unless an admi
 Rules live here (not in routes.py) so the request hooks and the background scheduler
 apply exactly the same logic.
 """
+import ipaddress
+import time
 from datetime import datetime, timedelta, timezone
 
 from extensions import db
@@ -12,6 +14,46 @@ from models import AttendanceSession, AttendanceBreak
 IDLE_LIMIT = timedelta(minutes=20)   # no movement for this long counts as a break
 TRACKED_ROLES = ('consultant', 'sales_manager')
 DUBAI_TZ = timezone(timedelta(hours=4))
+
+
+_net_cache = {'t': 0.0, 'nets': None}
+
+
+def office_networks(force=False):
+    """Parsed office networks (cached 30 s). Empty list = the office check is switched off."""
+    if not force and _net_cache['nets'] is not None and time.time() - _net_cache['t'] < 30:
+        return _net_cache['nets']
+    nets = []
+    try:
+        from models import OfficeNetwork
+        for n in OfficeNetwork.query.all():
+            try:
+                nets.append(ipaddress.ip_network((n.cidr or '').strip(), strict=False))
+            except ValueError:
+                continue
+    except Exception:
+        db.session.rollback()
+    _net_cache.update({'t': time.time(), 'nets': nets})
+    return nets
+
+
+def client_ip(req):
+    return (req.remote_addr or '').split(',')[0].strip()
+
+
+def in_office(req):
+    """True when the request comes from the office network. If no office network has been
+    configured yet, attendance works from everywhere (so nobody is locked out by mistake)."""
+    nets = office_networks()
+    if not nets:
+        return True
+    try:
+        ip = ipaddress.ip_address(client_ip(req))
+    except ValueError:
+        return False
+    if getattr(ip, 'ipv4_mapped', None):
+        ip = ip.ipv4_mapped
+    return any(ip in n for n in nets)
 
 
 def is_tracked(user):
@@ -94,11 +136,15 @@ def pending_comment_leads(user_id):
     return Lead.query.filter(Lead.id.in_(ids - done)).order_by(Lead.created_at).all()
 
 
-def close_session(user_id, logout_type='manual', note=None):
+def close_session(user_id, logout_type='manual', note=None, use_last_activity=False):
+    """Close today's open session. Logging out from outside the office still closes it, but the
+    end time stays at the last time the person was active on the office network."""
     now = datetime.utcnow()
     s = AttendanceSession.query.filter_by(user_id=user_id, status='open').order_by(AttendanceSession.id.desc()).first()
     if not s:
         return None
+    if use_last_activity:
+        now = max(s.login_at, s.last_activity_at)
     _close_open_break(s.id, now)
     s.logout_at = now
     s.status = 'closed'

@@ -761,6 +761,9 @@
         {% endwith %}
     </div>
 
+    {% if attendance_tracked and attendance_out_of_office %}
+    <div class="px-4"><div class="alert alert-warning mb-0" id="oooBanner" style="border-radius:12px;"><i class="fas fa-wifi me-2"></i><b>You are out of office.</b> You can keep working, but your attendance is not being recorded because you are not on the office network.</div></div>
+    {% endif %}
     <!-- Main Content -->
     <main class="page-content">
         {% block content %}{% endblock %}
@@ -894,8 +897,24 @@
         const tick = () => { document.getElementById('breakTimer').textContent = fmt(Date.now() - breakStart); };
         tick(); timerId = setInterval(tick, 1000);
     }
+    function setOffice(out) {
+        let el = document.getElementById('oooBanner');
+        if (out && !el) {
+            const wrap = document.createElement('div'); wrap.className = 'px-4';
+            wrap.innerHTML = '<div class="alert alert-warning mb-0" id="oooBanner" style="border-radius:12px;"><i class="fas fa-wifi me-2"></i><b>You are out of office.</b> You can keep working, but your attendance is not being recorded because you are not on the office network.</div>';
+            const main = document.querySelector('main.page-content'); if (main) main.parentNode.insertBefore(wrap, main);
+        } else if (!out && el) { el.parentNode.remove(); }
+        if (out) {
+            try { if (!sessionStorage.getItem('orbit_ooo_shown')) { sessionStorage.setItem('orbit_ooo_shown', '1');
+                const t = document.createElement('div'); t.className = 'alert alert-warning position-fixed shadow';
+                t.style.cssText = 'top:70px;right:20px;z-index:3000;max-width:340px;';
+                t.innerHTML = '<b>You are out of office</b><br>Attendance is not recorded outside the office network.';
+                document.body.appendChild(t); setTimeout(() => t.remove(), 9000); } } catch (e) {}
+        } else { try { sessionStorage.removeItem('orbit_ooo_shown'); } catch (e) {} }
+    }
     function applyState(state) {
         if (!state || !state.success) return;
+        if (state.out_of_office !== undefined) setOffice(!!state.out_of_office);
         if (state.on_break && !onBreak) showBreak(state);
         if (!state.on_break && onBreak) { onBreak = false; clearInterval(timerId); modal.hide(); }
     }

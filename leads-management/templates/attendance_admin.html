@@ -5,7 +5,8 @@
 {% block content %}
 <div class="page-header mb-4">
   <div class="page-title">Team Attendance</div>
-  <div class="page-subtitle">Salespeople must log out daily. Sessions left open past midnight (Dubai) become unpaid leave.</div>
+  {% if current_user.is_admin() %}<a href="{{ url_for('main.attendance_office_network') }}" class="btn btn-outline-primary btn-sm float-end"><i class="fas fa-wifi me-1"></i>Office network</a>{% endif %}
+  <div class="page-subtitle">Recorded only from the office network. Salespeople must log out daily. Sessions left open past midnight (Dubai) become unpaid leave.</div>
 </div>
 
 <div class="row g-3 mb-4">

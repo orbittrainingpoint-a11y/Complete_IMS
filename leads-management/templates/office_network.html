@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Office Network{% endblock %}
+{% block breadcrumb %}<span class="current">Office Network</span>{% endblock %}
+{% block content %}
+<div class="page-header mb-4"><div class="page-title"><i class="fas fa-wifi me-2 text-primary"></i>Office Network</div>
+  <div class="page-subtitle">Attendance is recorded only from these networks. People can still log in and use the CRM from anywhere, but they are told they are out of office and nothing is recorded.</div></div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card p-3 mb-3">
+      <div class="small text-muted">You are connecting from</div>
+      <div style="font-size:24px;font-weight:800;">{{ my_ip or 'unknown' }}</div>
+      <div class="mt-1">{% if not enforced %}<span class="badge bg-secondary">No office network set - attendance works from everywhere</span>
+        {% elif in_office %}<span class="badge bg-success"><i class="fas fa-check me-1"></i>This is an office network</span>
+        {% else %}<span class="badge bg-warning text-dark">Not an office network</span>{% endif %}</div>
+      <form method="post" class="mt-3">
+        <input type="hidden" name="action" value="add_current">
+        <input name="label" class="form-control form-control-sm mb-2" placeholder="Label (e.g. Office WiFi)" value="Office WiFi">
+        <button class="btn btn-primary btn-sm w-100"><i class="fas fa-plus me-1"></i>Use my current network as the office</button>
+      </form>
+      <div class="text-muted mt-2" style="font-size:12px;">Open this page while connected to the office WiFi and click the button. If the internet provider changes the office IP, staff will see "out of office" - come back here and click it again.</div>
+    </div>
+    <div class="card p-3"><div class="fw-bold mb-2">Add manually</div>
+      <form method="post" class="row g-2"><input type="hidden" name="action" value="add_manual">
+        <div class="col-7"><input name="cidr" class="form-control form-control-sm" placeholder="203.0.113.7 or 203.0.113.0/28" required></div>
+        <div class="col-5"><input name="label" class="form-control form-control-sm" placeholder="Label"></div>
+        <div class="col-12"><button class="btn btn-outline-primary btn-sm">Add</button></div></form></div>
+  </div>
+  <div class="col-lg-7"><div class="card"><div class="table-responsive"><table class="table mb-0" style="font-size:13px;">
+    <thead><tr><th>Network</th><th>Label</th><th>Added</th><th></th></tr></thead><tbody>
+    {% for n in nets %}<tr><td><b>{{ n.cidr }}</b>{% if n.cidr == my_ip %} <span class="badge bg-success">you</span>{% endif %}</td><td>{{ n.label or '-' }}</td><td>{{ n.created_at.strftime('%d %b %Y') if n.created_at else '' }}</td>
+      <td class="text-end"><form method="post" onsubmit="return confirm('Remove this network? Staff on it will show as out of office.');"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="{{ n.id }}"><button class="btn btn-outline-danger btn-sm">Remove</button></form></td></tr>
+    {% else %}<tr><td colspan="4" class="text-center text-muted py-4">No office network yet.</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="text-muted mt-2" style="font-size:12px;">Logging out from outside the office still works: the day is closed at the last time the person was active in the office.</div></div>
+</div>
+{% endblock %}

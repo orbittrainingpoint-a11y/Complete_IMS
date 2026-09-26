@@ -71,7 +71,8 @@ def _enforce_dubai_curfew():
         if att.is_tracked(current_user):
             left = len(att.pending_comment_leads(current_user.id))
             att.close_session(current_user.id, 'curfew',
-                              f'Auto-logged out at 9:30 PM with {left} lead(s) still uncommented.' if left else None)
+                              f'Auto-logged out at 9:30 PM with {left} lead(s) still uncommented.' if left else None,
+                              use_last_activity=not att.in_office(request))
         logout_user()
         flash('Daily access ends at 9:30 PM (Dubai time). Please log in again tomorrow.', 'warning')
         return redirect(url_for('main.login'))
@@ -440,11 +441,15 @@ def login():
             ))
             db.session.commit()
             if att.is_tracked(user):
-                try:
-                    att.ensure_session(user)
-                except Exception:
-                    logging.exception('attendance ensure_session failed at login')
-                    db.session.rollback()
+                if att.in_office(request):
+                    try:
+                        att.ensure_session(user)
+                    except Exception:
+                        logging.exception('attendance ensure_session failed at login')
+                        db.session.rollback()
+                else:
+                    flash('You are out of office. You can use the CRM, but your attendance is only recorded '
+                          'from the office network.', 'warning')
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
         # failed attempt — look up user just to get their id if they exist
@@ -466,7 +471,7 @@ def logout():
         pending = att.pending_comment_leads(current_user.id)
         if pending:
             return render_template('logout_blocked.html', leads=pending)
-        att.close_session(current_user.id, 'manual')
+        att.close_session(current_user.id, 'manual', use_last_activity=not att.in_office(request))
     session.pop('sound_ok_at', None)
     logout_user()
     return redirect(url_for('main.login'))
@@ -579,6 +584,43 @@ def sound_status():
     return jsonify({'ok': left > 0, 'remaining': left})
 
 
+@main.route('/attendance/office-network', methods=['GET', 'POST'])
+@login_required
+def attendance_office_network():
+    if not current_user.is_admin():
+        flash('Only admins can manage the office network.', 'error')
+        return redirect(url_for('main.dashboard'))
+    import ipaddress
+    my_ip = att.client_ip(request)
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add_current':
+            cidr, label = my_ip, request.form.get('label', '').strip() or 'Office network'
+        elif action == 'add_manual':
+            cidr, label = request.form.get('cidr', '').strip(), request.form.get('label', '').strip()
+        elif action == 'delete':
+            OfficeNetwork.query.filter_by(id=request.form.get('id', type=int)).delete()
+            db.session.commit(); att.office_networks(force=True)
+            flash('Network removed.', 'success')
+            return redirect(url_for('main.attendance_office_network'))
+        else:
+            return redirect(url_for('main.attendance_office_network'))
+        try:
+            ipaddress.ip_network(cidr, strict=False)
+        except ValueError:
+            flash('That is not a valid IP address or range.', 'error')
+            return redirect(url_for('main.attendance_office_network'))
+        if not OfficeNetwork.query.filter_by(cidr=cidr).first():
+            db.session.add(OfficeNetwork(cidr=cidr, label=label[:100], added_by_id=current_user.id))
+            db.session.commit()
+        att.office_networks(force=True)
+        flash(f'Office network added: {cidr}. Attendance is now recorded only from the office network(s) listed here.', 'success')
+        return redirect(url_for('main.attendance_office_network'))
+    nets = OfficeNetwork.query.order_by(OfficeNetwork.id).all()
+    return render_template('office_network.html', nets=nets, my_ip=my_ip, in_office=att.in_office(request),
+                           enforced=bool(att.office_networks(force=True)))
+
+
 @main.route('/attendance/quick-comment', methods=['POST'])
 @login_required
 def attendance_quick_comment():
@@ -598,7 +640,7 @@ def attendance_quick_comment():
 
 @main.before_request
 def _attendance_track():
-    if request.endpoint in (None, 'main.login', 'main.logout') or not att.is_tracked(current_user):
+    if request.endpoint in (None, 'main.login', 'main.logout') or not att.is_tracked(current_user) or not att.in_office(request):
         return
     try:
         att.ensure_session(current_user)
@@ -618,7 +660,8 @@ def _attendance_context():
                 .order_by(AttendanceSession.work_date.desc()).first())
     except Exception:
         db.session.rollback()
-    return {'attendance_tracked': True, 'attendance_warning': warn}
+    return {'attendance_tracked': True, 'attendance_warning': warn,
+            'attendance_out_of_office': not att.in_office(request)}
 
 
 def _my_open_session():
@@ -635,7 +678,13 @@ def _attendance_state(s):
         'break_type': br.break_type if br else None,
         'break_start': br.start_at.isoformat() + 'Z' if br else None,
         'idle_limit_seconds': int(att.IDLE_LIMIT.total_seconds()),
+        'out_of_office': False,
     }
+
+
+def _out_of_office_json():
+    return jsonify({'success': True, 'out_of_office': True, 'open': False, 'on_break': False,
+                    'break_type': None, 'break_start': None, 'idle_limit_seconds': int(att.IDLE_LIMIT.total_seconds())})
 
 
 @main.route('/attendance/heartbeat', methods=['POST'])
@@ -643,6 +692,8 @@ def _attendance_state(s):
 def attendance_heartbeat():
     if not att.is_tracked(current_user):
         return jsonify({'success': True, 'tracked': False})
+    if not att.in_office(request):
+        return _out_of_office_json()
     s = _my_open_session() or att.ensure_session(current_user)
     if (request.get_json(silent=True, force=True) or {}).get('active'):
         att.record_activity(s)
@@ -654,6 +705,8 @@ def attendance_heartbeat():
 def attendance_break_start():
     if not att.is_tracked(current_user):
         return jsonify({'success': False}), 403
+    if not att.in_office(request):
+        return _out_of_office_json()
     s = _my_open_session() or att.ensure_session(current_user)
     payload = request.get_json(silent=True, force=True) or {}
     btype = 'auto_idle' if payload.get('type') == 'auto_idle' else 'manual'
@@ -670,6 +723,8 @@ def attendance_break_start():
 def attendance_break_end():
     if not att.is_tracked(current_user):
         return jsonify({'success': False}), 403
+    if not att.in_office(request):
+        return _out_of_office_json()
     s = _my_open_session() or att.ensure_session(current_user)
     br = att.end_break(s, worked=bool((request.get_json(silent=True, force=True) or {}).get('worked')))
     state = _attendance_state(s)

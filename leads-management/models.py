@@ -799,3 +799,14 @@ class AttendanceBreak(db.Model):
     start_at   = db.Column(db.DateTime, nullable=False)   # UTC
     end_at     = db.Column(db.DateTime)                   # UTC, NULL while the break is running
     break_type = db.Column(db.String(12), default='manual')  # manual / auto_idle
+
+
+class OfficeNetwork(db.Model):
+    """Public IP address / range of the office network. Attendance is recorded only for
+    requests coming from these networks; people can still log in and work from anywhere."""
+    __tablename__ = 'attendance_office_network'
+    id          = db.Column(db.Integer, primary_key=True)
+    cidr        = db.Column(db.String(64), nullable=False)      # "217.165.113.138" or "203.0.113.0/28"
+    label       = db.Column(db.String(100))
+    added_by_id = db.Column(db.Integer)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
