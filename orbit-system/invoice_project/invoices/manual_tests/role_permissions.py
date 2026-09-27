@@ -23,7 +23,7 @@ try:
         edit = role in ('admin', 'sales_manager')
         print(f'\n{role} (edit={edit})')
         home = c.get('/trainers/').content.decode()
-        check('sidebar shows Trainers & Batches', 'Trainers &amp; Batches' in home)
+        check('sidebar shows the Training section (All Schedules, Trainers, ...)', 'All Schedules' in home and '>Trainers<' in home)
         for url in ('/trainers/', f'/trainers/{t.pk}/', f'/trainers/{t.pk}/?view=month', '/trainer-board/', '/batches/', '/sessions/', '/waiting-students/', '/find-trainer/', '/trainer-utilization/'):
             r = c.get(url); check(f'can VIEW {url}', r.status_code == 200, r.status_code)
         page = c.get(f'/trainers/{t.pk}/?view=day').content.decode()

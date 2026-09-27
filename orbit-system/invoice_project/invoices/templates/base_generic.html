@@ -693,10 +693,64 @@
     <div class="nav-section">
         <div class="nav-section-label">Training</div>
         <div class="nav-item">
-            <a href="{% url 'trainer_list' %}" class="nav-link {% if request.resolver_match.url_name in 'schedule_list,trainer_list,trainer_create,trainer_edit,trainer_week,trainer_day_board,batch_list,batch_create,batch_edit,batch_detail,session_list,session_create,session_edit,waiting_list,find_trainer,schedule_create,rule_detail,rule_edit,trainer_utilization,scheduling_settings,student_schedule_history' %}active{% endif %}">
-                <span class="nav-icon"><i class="fas fa-chalkboard-teacher"></i></span> Trainers &amp; Batches
+            <a href="{% url 'schedule_list' %}" class="nav-link {% if request.resolver_match.url_name in 'schedule_list,schedule_create,rule_detail,rule_edit,student_schedule_history' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-list-check"></i></span> All Schedules
             </a>
         </div>
+        <div class="nav-item">
+            <a href="{% url 'trainer_list' %}" class="nav-link {% if request.resolver_match.url_name in 'trainer_list,trainer_create,trainer_edit,trainer_week' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-chalkboard-teacher"></i></span> Trainers
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'trainer_day_board' %}" class="nav-link {% if request.resolver_match.url_name == 'trainer_day_board' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-table"></i></span> Daily Board
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'batch_list' %}" class="nav-link {% if request.resolver_match.url_name in 'batch_list,batch_create,batch_edit,batch_detail' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-users"></i></span> Batches
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'session_list' %}" class="nav-link {% if request.resolver_match.url_name in 'session_list,session_create,session_edit' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-user-clock"></i></span> One-off Sessions
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'find_trainer' %}" class="nav-link {% if request.resolver_match.url_name == 'find_trainer' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-magnifying-glass"></i></span> Find Free Trainer
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'waiting_list' %}" class="nav-link {% if request.resolver_match.url_name == 'waiting_list' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-hourglass-half"></i></span> Students Waiting
+            </a>
+        </div>
+        {% if is_admin or user_role == 'sales_manager' or request.user.trainer_record %}
+        <div class="nav-item">
+            <a href="{% url 'pending_sessions' %}" class="nav-link {% if request.resolver_match.url_name == 'pending_sessions' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-clipboard-check"></i></span> To Mark
+            </a>
+        </div>
+        {% endif %}
+        <div class="nav-item">
+            <a href="{% url 'checkin_admin_list' %}" class="nav-link {% if request.resolver_match.url_name == 'checkin_admin_list' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-wifi"></i></span> Student Check-ins
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'trainer_utilization' %}" class="nav-link {% if request.resolver_match.url_name == 'trainer_utilization' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-chart-simple"></i></span> Utilization
+            </a>
+        </div>
+        {% if is_admin %}
+        <div class="nav-item">
+            <a href="{% url 'scheduling_settings' %}" class="nav-link {% if request.resolver_match.url_name == 'scheduling_settings' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-gear"></i></span> Scheduling Settings
+            </a>
+        </div>
+        {% endif %}
     </div>
 
     <!-- ── ACCOUNTING (admin + accounts) ─────── -->

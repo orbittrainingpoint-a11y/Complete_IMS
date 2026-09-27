@@ -1431,6 +1431,10 @@ class SchedulingSetting(models.Model):
                       ('allow', 'Allow silently')]
     default_interval = models.PositiveSmallIntegerField(default=30, help_text='Individual teaching interval (minutes): 15/30/45/60')
     max_concurrent_individuals = models.PositiveSmallIntegerField(default=3, help_text='Students a trainer can rotate between at the same time')
+    min_individual_gap_minutes = models.PositiveSmallIntegerField(
+        default=30, help_text="Two individual students' sessions may overlap (that's the rotation), but their "
+                              'start times must be at least this many minutes apart - the trainer cannot start '
+                              'two students at the exact same time.')
     batch_batch_policy = models.CharField(max_length=8, choices=POLICY_CHOICES, default='block')
     batch_individual_policy = models.CharField(max_length=8, choices=POLICY_CHOICES, default='confirm')
     working_hours_policy = models.CharField(max_length=8, choices=POLICY_CHOICES, default='confirm')

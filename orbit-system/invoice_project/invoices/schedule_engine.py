@@ -409,7 +409,7 @@ def check_conflicts(trainer, planned, schedule_type, exclude_rule=None, exclude_
             continue
         by_date[cs.date].append(('session', cs))
 
-    groups = defaultdict(lambda: {'n': 0, 'first': None})
+    groups = defaultdict(lambda: {'n': 0, 'first': None, 'min_gap': None})
     max_conc, over_conc = setting.max_concurrent_individuals, None
     for d, s, e in planned:
         concurrent = 0
@@ -429,12 +429,25 @@ def check_conflicts(trainer, planned, schedule_type, exclude_rule=None, exclude_
             g = groups[key]
             g['n'] += 1
             g['first'] = g['first'] or d
+            if key[0] == 'ii':
+                # The overlap itself is fine (that's rotation) — but starting two students at
+                # the same instant, or a few minutes apart, isn't a real rotation slot; the
+                # trainer needs a genuine stagger to actually move between them.
+                gap = abs(s - mins(o.start_time))
+                g['min_gap'] = gap if g['min_gap'] is None else min(g['min_gap'], gap)
         if schedule_type == 'individual' and concurrent >= max_conc and over_conc is None:
             over_conc = d
     for (kind, name), g in groups.items():
         line = f'{name} ({g["n"]} overlapping session(s), first {g["first"]:%a %d %b})'
         if kind == 'ii':
-            res['info'].append(f'Overlaps with individual student {line} - allowed, trainer rotates between students.')
+            min_gap = setting.min_individual_gap_minutes
+            if g['min_gap'] is not None and g['min_gap'] < min_gap:
+                res['errors'].append(
+                    f'Too close to individual student {line} - starts only {g["min_gap"]} minute(s) apart. '
+                    f'Individual sessions for the same trainer need at least {min_gap} minutes between start '
+                    f'times so the trainer can actually rotate between them.')
+            else:
+                res['info'].append(f'Overlaps with individual student {line} - allowed, trainer rotates between students.')
         elif kind == 'bb':
             msg = f'Batch conflict: {line}. A trainer cannot run two batches at once.'
             pol = setting.batch_batch_policy

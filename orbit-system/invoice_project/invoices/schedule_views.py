@@ -516,6 +516,7 @@ def scheduling_settings(request):
         p = request.POST
         s.default_interval = int(p.get('default_interval') or 30) if int(p.get('default_interval') or 30) in (15, 30, 45, 60) else 30
         s.max_concurrent_individuals = max(1, int(p.get('max_concurrent_individuals') or 3))
+        s.min_individual_gap_minutes = max(0, int(p.get('min_individual_gap_minutes') or 30))
         for f in ('batch_batch_policy', 'batch_individual_policy', 'working_hours_policy'):
             if p.get(f) in ('block', 'confirm', 'allow'):
                 setattr(s, f, p[f])
