@@ -1,0 +1,59 @@
+{% extends 'base_generic.html' %}
+{% block title %}Reports & VAT{% endblock %}
+{% block breadcrumb_label %}<span class="current">Reports &amp; VAT</span>{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div><div class="page-title"><i class="fas fa-chart-line me-2 text-primary"></i>Reports &amp; VAT</div>
+  <div class="page-subtitle">{{ d1|date:"d M Y" }} &ndash; {{ d2|date:"d M Y" }}</div></div>
+  <form method="get" class="d-flex gap-2 flex-wrap"><input type="hidden" name="tab" value="{{ tab }}">
+    <input type="date" name="from" value="{{ d1|date:'Y-m-d' }}" class="form-control form-control-sm"><input type="date" name="to" value="{{ d2|date:'Y-m-d' }}" class="form-control form-control-sm">
+    <button class="btn btn-sm btn-primary">Apply</button><a class="btn btn-sm btn-outline-secondary" href="?tab=pl&from={{ d1|date:'Y-m-d' }}&to={{ d2|date:'Y-m-d' }}&export=csv">CSV</a></form>
+</div>
+{% include 'accounting/_nav.html' %}
+<div class="ac-typeswitch">
+  <a class="{% if tab == 'pl' %}on{% endif %}" href="?tab=pl&from={{ d1|date:'Y-m-d' }}&to={{ d2|date:'Y-m-d' }}">Profit &amp; Loss</a>
+  <a class="{% if tab == 'vat' %}on{% endif %}" href="?tab=vat&from={{ d1|date:'Y-m-d' }}&to={{ d2|date:'Y-m-d' }}">VAT</a>
+  <a class="{% if tab == 'cash' %}on{% endif %}" href="?tab=cash&from={{ d1|date:'Y-m-d' }}&to={{ d2|date:'Y-m-d' }}">Cash flow</a>
+  <a class="{% if tab == 'detail' %}on{% endif %}" href="?tab=detail&from={{ d1|date:'Y-m-d' }}&to={{ d2|date:'Y-m-d' }}">Line by line</a>
+</div>
+
+{% if tab == 'pl' %}
+<div class="row g-3">
+ <div class="col-lg-6"><div class="ac-card"><h6>Income (excl. VAT)</h6><table class="table ac-table mb-0"><tbody>
+  {% for k, v in p.income.items %}<tr><td>{{ k }}</td><td class="ac-num {% if v < 0 %}ac-neg{% endif %}">{{ v|floatformat:"2g" }}</td></tr>{% empty %}<tr><td class="ac-hint">None</td></tr>{% endfor %}
+  <tr><th>Total income</th><th class="ac-num">{{ p.total_income|floatformat:"2g" }}</th></tr></tbody></table></div></div>
+ <div class="col-lg-6"><div class="ac-card"><h6>Expenses (excl. VAT)</h6><table class="table ac-table mb-0"><tbody>
+  {% for k, v in p.expense.items %}<tr><td>{{ k }}</td><td class="ac-num">{{ v|floatformat:"2g" }}</td></tr>{% empty %}<tr><td class="ac-hint">None</td></tr>{% endfor %}
+  <tr><th>Total expenses</th><th class="ac-num">{{ p.total_expense|floatformat:"2g" }}</th></tr></tbody></table></div></div>
+</div>
+<div class="ac-card"><div class="d-flex justify-content-between align-items-center"><h6 class="mb-0">Net profit</h6>
+  <div class="v {% if p.profit < 0 %}ac-neg{% else %}ac-pos{% endif %}" style="font-size:24px;font-weight:700">AED {{ p.profit|floatformat:"2g" }}</div></div>
+  {% if margin != None %}<div class="ac-hint mt-1">Margin {{ margin|floatformat:1 }}% of income</div>{% endif %}
+  <div class="ac-hint mt-2">Sales are counted on the invoice date, bills on the bill date, other costs on the day they were paid. Refunds reduce income. Transfers, owner money and VAT payments never affect profit. Tabby/Tamara fees come from the payout record.</div></div>
+
+{% elif tab == 'vat' %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">VAT collected on sales</div><div class="v">{{ p.vat_out|floatformat:"2g" }}</div></div></div>
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">VAT paid on costs</div><div class="v">{{ p.vat_in|floatformat:"2g" }}</div></div></div>
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">Net VAT for period</div><div class="v {% if p.vat_net < 0 %}ac-neg{% endif %}">{{ p.vat_net|floatformat:"2g" }}</div><div class="s">{% if p.vat_net < 0 %}refundable{% else %}payable{% endif %}</div></div></div>
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">VAT paid to authority</div><div class="v">{{ p.vat_paid|floatformat:"2g" }}</div></div></div>
+</div>
+<div class="ac-card"><h6>Owed to the tax authority right now</h6><div class="v" style="font-size:24px;font-weight:700">AED {{ vat_position|floatformat:"2g" }}</div>
+  <div class="ac-hint mt-1">Everything collected since the books started, minus VAT paid on costs, minus VAT payments already recorded. Record a payment with New Entry &rarr; &ldquo;VAT paid&rdquo;.</div>
+  {% if setting.trn %}<div class="ac-hint">VAT registration: {{ setting.trn }}</div>{% endif %}</div>
+
+{% elif tab == 'cash' %}
+<div class="ac-card p-0"><table class="table ac-table mb-0"><thead><tr><th>Source</th><th class="ac-num">Money in</th><th class="ac-num">Money out</th></tr></thead><tbody>
+  {% for name, i, o in flow %}<tr><td>{{ name }}</td><td class="ac-num ac-pos">{% if i %}{{ i|floatformat:"2g" }}{% endif %}</td><td class="ac-num ac-neg">{% if o %}{{ o|floatformat:"2g" }}{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="3" class="ac-hint text-center py-3">No cash movement.</td></tr>{% endfor %}
+  <tr class="table-light"><th>Total</th><th class="ac-num">{{ p.cash_in|floatformat:"2g" }}</th><th class="ac-num">{{ p.cash_out|floatformat:"2g" }}</th></tr>
+  <tr><th>Net cash change</th><th colspan="2" class="ac-num {% if p.cash_net < 0 %}ac-neg{% else %}ac-pos{% endif %}">{{ p.cash_net|floatformat:"2g" }}</th></tr></tbody></table></div>
+<div class="ac-hint">Transfers between your own accounts are left out. Tabby/Tamara: customer payments enter the wallet; the payout row is the money reaching the bank.</div>
+
+{% else %}
+<div class="ac-card p-0"><div class="table-responsive"><table class="table ac-table mb-0">
+<thead><tr><th>Date</th><th>Type</th><th>Detail</th><th>Group</th><th class="ac-num">Net</th><th class="ac-num">VAT</th></tr></thead><tbody>
+{% for d, k, l, n, v, g in detail %}<tr><td>{{ d|date:"d M Y" }}</td><td>{{ k|title }}</td><td>{{ l }}</td><td>{{ g }}</td><td class="ac-num">{{ n|floatformat:"2g" }}</td><td class="ac-num">{{ v|floatformat:"2g" }}</td></tr>
+{% empty %}<tr><td colspan="6" class="text-center ac-hint py-4">Nothing in this range.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'base_generic.html' %}
+{% block title %}Bill {{ b.vendor }}{% endblock %}
+{% block breadcrumb_label %}<span class="current">{{ b.vendor }}</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">{{ b.vendor }} {{ b.bill_number }} {% if b.status == 'void' %}<span class="ac-pill void">Void</span>{% elif balance <= 0 %}<span class="ac-pill posted">Paid</span>{% endif %}</div></div>
+{% include 'accounting/_nav.html' %}
+<div class="row g-3">
+<div class="col-lg-7">
+  <div class="ac-card"><table class="table ac-table mb-0"><tbody>
+    <tr><th style="width:160px">Bill date</th><td>{{ b.bill_date|date:"d M Y" }}</td></tr>
+    <tr><th>Due</th><td>{{ b.due_date|date:"d M Y" }}</td></tr>
+    <tr><th>Total</th><td><b>AED {{ b.amount|floatformat:"2g" }}</b>{% if b.vat_amount %} <span class="ac-hint">(incl. VAT {{ b.vat_amount|floatformat:"2g" }})</span>{% endif %}</td></tr>
+    <tr><th>Balance</th><td><b>AED {{ balance|floatformat:"2g" }}</b></td></tr>
+    <tr><th>Category</th><td>{{ b.category|default:"-" }}</td></tr>
+    <tr><th>For</th><td>{{ b.description|default:"-" }}</td></tr>
+    <tr><th>Bill copy</th><td>{% if b.attachment %}<a href="{{ b.attachment.url }}" target="_blank">Open file</a>{% else %}-{% endif %}</td></tr>
+    {% if b.void_reason %}<tr><th>Void reason</th><td>{{ b.void_reason }}</td></tr>{% endif %}
+  </tbody></table></div>
+  <div class="ac-card"><h6>Payments</h6>
+    <table class="table ac-table mb-0"><tbody>
+    {% for p in payments %}<tr {% if p.status == 'void' %}style="opacity:.5"{% endif %}><td>{{ p.date|date:"d M Y" }}</td><td>{{ p.account }}</td><td>{{ p.reference }}</td><td class="ac-num">{{ p.amount|floatformat:"2g" }}</td><td><a href="{% url 'accounting_txn_detail' p.pk %}"><span class="ac-pill {{ p.status }}">{{ p.get_status_display }}</span></a></td></tr>
+    {% empty %}<tr><td class="ac-hint">No payments yet.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div class="col-lg-5">
+  {% if b.status == 'open' and balance > 0 %}<div class="ac-card"><h6>Pay this bill</h6>
+    <form method="post" action="{% url 'accounting_txn_add' %}?type=bill_payment" enctype="multipart/form-data">{% csrf_token %}
+      <input type="hidden" name="txn_type" value="bill_payment"><input type="hidden" name="bill" value="{{ b.pk }}">
+      <div class="mb-2"><label class="form-label small fw-semibold">Date</label><input type="date" name="date" value="{{ today|date:'Y-m-d' }}" class="form-control form-control-sm" required></div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Amount</label><input type="number" step="0.01" min="0.01" max="{{ balance }}" name="amount" value="{{ balance }}" class="form-control form-control-sm" required></div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Paid from</label><select name="account" class="form-select form-select-sm">{% for a in accounts %}<option value="{{ a.pk }}">{{ a.name }}</option>{% endfor %}</select></div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Reference</label><input name="reference" class="form-control form-control-sm"></div>
+      <button class="btn btn-success btn-sm">Record payment</button></form></div>{% endif %}
+  {% if b.status == 'open' %}<div class="ac-card"><h6>Void bill</h6>
+    <form method="post" action="{% url 'accounting_bill_void' b.pk %}" onsubmit="return confirm('Void this bill?')">{% csrf_token %}
+      <input name="reason" class="form-control form-control-sm mb-2" placeholder="Reason (required)" required><button class="btn btn-outline-danger btn-sm">Void</button></form></div>{% endif %}
+</div></div>
+{% endblock %}

@@ -13,6 +13,7 @@
     <a href="{% url 'find_trainer' %}" class="ts-tab sm {% if active == 'find' %}on{% endif %}"><i class="fas fa-magnifying-glass"></i>Find Free Trainer</a>
     <a href="{% url 'waiting_list' %}" class="ts-tab sm {% if active == 'waiting' %}on{% endif %}"><i class="fas fa-hourglass-half"></i>Students Waiting</a>
     {% if can_edit or is_trainer %}<a href="{% url 'pending_sessions' %}" class="ts-tab sm {% if active == 'pending' %}on{% endif %}"><i class="fas fa-clipboard-check"></i>To Mark {% if counts.to_mark %}<span class="ts-badge red">{{ counts.to_mark }}</span>{% endif %}</a>{% endif %}
+    <a href="{% url 'checkin_admin_list' %}" class="ts-tab sm {% if active == 'checkins' %}on{% endif %}"><i class="fas fa-wifi"></i>Student Check-ins {% if counts.checkins_today %}<span class="ts-badge">{{ counts.checkins_today }}</span>{% endif %}</a>
     <a href="{% url 'schedule_list' %}?status=paused" class="ts-tab sm"><i class="fas fa-pause"></i>Paused {% if counts.paused %}<span class="ts-badge warn">{{ counts.paused }}</span>{% endif %}</a>
     <a href="{% url 'trainer_utilization' %}" class="ts-tab sm {% if active == 'util' %}on{% endif %}"><i class="fas fa-chart-simple"></i>Utilization</a>
     {% if is_admin %}<a href="{% url 'scheduling_settings' %}" class="ts-tab sm {% if active == 'settings' %}on{% endif %}"><i class="fas fa-gear"></i>Settings</a>{% endif %}

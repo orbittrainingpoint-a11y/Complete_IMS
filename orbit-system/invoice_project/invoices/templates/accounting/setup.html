@@ -1,0 +1,27 @@
+{% extends 'base_generic.html' %}
+{% block title %}Accounting Setup{% endblock %}
+{% block breadcrumb_label %}<span class="current">Accounting</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-scale-balanced me-2 text-primary"></i>Accounting</div>
+<div class="page-subtitle">Start the books</div></div>
+{% include 'accounting/_nav.html' %}
+{% if acc_is_admin %}
+<div class="ac-card" style="max-width:720px">
+  <h6>One-time setup</h6>
+  <p class="ac-hint">Pick the date you want the books to start from and tell us how much each account holds <b>on that date</b>. Everything from that date onward &mdash; invoices, customer payments, refunds, Tabby/Tamara payouts and the old Expenses page &mdash; is included automatically. Nothing before it is touched.</p>
+  <form method="post" action="{% url 'accounting_settings' %}">{% csrf_token %}
+    <input type="hidden" name="action" value="setup">
+    <div class="mb-3"><label class="form-label fw-semibold">Books start date</label>
+      <input type="date" name="books_start_date" class="form-control" style="max-width:220px" required></div>
+    <table class="table ac-table"><thead><tr><th>Account</th><th>Type</th><th style="width:200px">Balance on start date (AED)</th></tr></thead><tbody>
+    {% for a in accounts %}<tr><td>{{ a.name }}</td><td>{{ a.get_kind_display }}</td>
+      <td><input type="number" step="0.01" name="opening_{{ a.pk }}" value="{{ a.opening_balance }}" class="form-control form-control-sm text-end"></td></tr>{% endfor %}
+    </tbody></table>
+    <p class="ac-hint">You can add more accounts (a second bank, petty cash) and change what each one receives later under Bank &amp; Cash.</p>
+    <button class="btn btn-primary">Start the books</button>
+  </form>
+</div>
+{% else %}
+<div class="ac-card"><p class="mb-0">The books have not been started yet. Ask an admin to set the start date and opening balances.</p></div>
+{% endif %}
+{% endblock %}

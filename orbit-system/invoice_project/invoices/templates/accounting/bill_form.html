@@ -1,0 +1,26 @@
+{% extends 'base_generic.html' %}
+{% block title %}Add Bill{% endblock %}
+{% block breadcrumb_label %}<span class="current">Add Bill</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-file-invoice-dollar me-2 text-primary"></i>Add Vendor Bill</div></div>
+{% include 'accounting/_nav.html' %}
+{% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+<form method="post" enctype="multipart/form-data" class="ac-card" style="max-width:760px">{% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label fw-semibold">Vendor</label><input name="vendor" value="{{ v.vendor }}" class="form-control" required maxlength="200"></div>
+    <div class="col-md-6"><label class="form-label fw-semibold">Bill / invoice number</label><input name="bill_number" value="{{ v.bill_number }}" class="form-control" maxlength="60"></div>
+    <div class="col-md-4"><label class="form-label fw-semibold">Bill date</label><input type="date" name="bill_date" value="{{ v.bill_date }}" class="form-control" required></div>
+    <div class="col-md-4"><label class="form-label fw-semibold">Due date</label><input type="date" name="due_date" value="{{ v.due_date }}" class="form-control" required></div>
+    <div class="col-md-4"><label class="form-label fw-semibold">Total (AED)</label><input type="number" step="0.01" min="0.01" name="amount" value="{{ v.amount }}" class="form-control" required></div>
+    <div class="col-md-4"><label class="form-label fw-semibold">Category</label>
+      <select name="category" class="form-select" required><option value="">Choose...</option>{% for c in cats %}<option value="{{ c.pk }}" {% if v.category == c.pk|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label fw-semibold">VAT</label>
+      <select name="vat_mode" id="vatmode" class="form-select"><option value="none">No VAT</option><option value="incl" {% if v.vat_mode == 'incl' %}selected{% endif %}>Total includes {{ setting.vat_rate|floatformat:"-2" }}% VAT</option><option value="custom" {% if v.vat_mode == 'custom' %}selected{% endif %}>I will type the VAT amount</option></select></div>
+    <div class="col-md-4" id="vatbox" style="display:none"><label class="form-label fw-semibold">VAT amount</label><input type="number" step="0.01" min="0" name="vat_amount" value="{{ v.vat_amount }}" class="form-control"></div>
+    <div class="col-md-8"><label class="form-label fw-semibold">What is it for</label><input name="description" value="{{ v.description }}" class="form-control" maxlength="300"></div>
+    <div class="col-12"><label class="form-label fw-semibold">Bill copy <span class="ac-hint">(optional)</span></label><input type="file" name="attachment" class="form-control"></div>
+  </div>
+  <div class="mt-3"><button class="btn btn-primary">Save bill</button> <a href="{% url 'accounting_bills' %}" class="btn btn-light">Cancel</a></div>
+</form>
+<script>(function(){var m=document.getElementById('vatmode'),b=document.getElementById('vatbox');function s(){b.style.display=m.value==='custom'?'':'none'}m.addEventListener('change',s);s();})();</script>
+{% endblock %}

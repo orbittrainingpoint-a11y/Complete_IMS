@@ -1,0 +1,12 @@
+{% extends 'checkin/_base.html' %}
+{% block content %}
+<div class="card">
+  <h2>Welcome</h2>
+  <p class="sub">Enter your Student ID to check in to today's class.</p>
+  <form method="post" action="{% url 'checkin_lookup' %}">{% csrf_token %}
+    <input type="text" name="student_id" placeholder="e.g. OT/26/003" autocomplete="off" autocapitalize="characters" autofocus required>
+    <button class="btn btn-primary">Continue</button>
+  </form>
+  <p class="hint">Your Student ID is on your registration and invoice.</p>
+</div>
+{% endblock %}

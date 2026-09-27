@@ -3,6 +3,8 @@ from django.views.generic import RedirectView
 from . import views
 from . import trainer_schedule as ts
 from . import schedule_views as sv
+from . import accounting
+from . import checkin
 
 
 
@@ -135,6 +137,31 @@ urlpatterns = [
     path('schedule/create/', views.training_schedule_create, name='training_schedule_create'),
     path('schedule/<int:pk>/edit/', views.training_schedule_edit, name='training_schedule_edit'),
     path('schedule/<int:pk>/delete/', views.training_schedule_delete, name='training_schedule_delete'),
+    # Student Wi-Fi Check-in (public)
+    path('checkin/', checkin.checkin_start, name='checkin_start'),
+    path('checkin/lookup/', checkin.checkin_lookup, name='checkin_lookup'),
+    path('checkin/confirm/', checkin.checkin_confirm, name='checkin_confirm'),
+    path('schedule-checkins/', checkin.checkin_admin_list, name='checkin_admin_list'),
+    path('schedule-checkins/<int:pk>/no-show/', checkin.checkin_mark_no_show, name='checkin_mark_no_show'),
+    path('schedule-checkins/settings/', checkin.checkin_settings_save, name='checkin_settings_save'),
+
+    # Accounting
+    path('accounting/', accounting.accounting_home, name='accounting_home'),
+    path('accounting/transactions/', accounting.txn_list, name='accounting_txn_list'),
+    path('accounting/transactions/new/', accounting.txn_add, name='accounting_txn_add'),
+    path('accounting/transactions/<int:pk>/', accounting.txn_detail, name='accounting_txn_detail'),
+    path('accounting/transactions/<int:pk>/action/', accounting.txn_action, name='accounting_txn_action'),
+    path('accounting/bills/', accounting.bill_list, name='accounting_bills'),
+    path('accounting/bills/new/', accounting.bill_add, name='accounting_bill_add'),
+    path('accounting/bills/<int:pk>/', accounting.bill_detail, name='accounting_bill_detail'),
+    path('accounting/bills/<int:pk>/void/', accounting.bill_void, name='accounting_bill_void'),
+    path('accounting/receivables/', accounting.receivables_view, name='accounting_receivables'),
+    path('accounting/accounts/', accounting.account_list, name='accounting_accounts'),
+    path('accounting/accounts/save/', accounting.account_save, name='accounting_account_save'),
+    path('accounting/accounts/<int:pk>/', accounting.account_statement, name='accounting_statement'),
+    path('accounting/reports/', accounting.reports, name='accounting_reports'),
+    path('accounting/settings/', accounting.acc_settings, name='accounting_settings'),
+
     # Expenses
     path('expenses/', views.expense_list, name='expense_list'),
     path('expenses/create/', views.expense_create, name='expense_create'),

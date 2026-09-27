@@ -699,6 +699,48 @@
         </div>
     </div>
 
+    <!-- ── ACCOUNTING (admin + accounts) ─────── -->
+    {% if is_admin or user_role == 'accounts' %}
+    <div class="nav-section">
+        <div class="nav-section-label">Accounting</div>
+        <div class="nav-item">
+            <a href="{% url 'accounting_home' %}" class="nav-link {% if request.resolver_match.url_name == 'accounting_home' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-scale-balanced"></i></span> Accounts Overview
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'accounting_txn_list' %}" class="nav-link {% if 'accounting_txn' in request.resolver_match.url_name %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-money-bill-transfer"></i></span> Transactions
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'accounting_bills' %}" class="nav-link {% if 'accounting_bill' in request.resolver_match.url_name %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-file-invoice-dollar"></i></span> Bills
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'accounting_receivables' %}" class="nav-link {% if request.resolver_match.url_name == 'accounting_receivables' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-hand-holding-dollar"></i></span> Receivables &amp; Payables
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'accounting_accounts' %}" class="nav-link {% if request.resolver_match.url_name in 'accounting_accounts,accounting_statement' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-building-columns"></i></span> Bank &amp; Cash
+            </a>
+        </div>
+        <div class="nav-item">
+            <a href="{% url 'accounting_reports' %}" class="nav-link {% if request.resolver_match.url_name == 'accounting_reports' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-chart-line"></i></span> Reports &amp; VAT
+            </a>
+        </div>
+        {% if is_admin %}<div class="nav-item">
+            <a href="{% url 'accounting_settings' %}" class="nav-link {% if request.resolver_match.url_name == 'accounting_settings' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-sliders"></i></span> Accounting Settings
+            </a>
+        </div>{% endif %}
+    </div>
+    {% endif %}
+
     <!-- ── ADMIN ─────────────────────────────── -->
     {% if is_admin %}
     <div class="nav-section">

@@ -1,0 +1,13 @@
+{% extends 'checkin/_base.html' %}
+{% block content %}
+<div class="card center">
+  <div class="icon-big ok-icon">✓</div>
+  <h2>Confirmed</h2>
+  <div class="rows" style="text-align:left">
+    <div class="row"><span class="l">Your class</span><span class="v">{{ c.course|default:"—" }}</span></div>
+    <div class="row"><span class="l">Starts</span><span class="v">{{ c.scheduled_start|time:"h:i A" }}</span></div>
+    <div class="row"><span class="l">Ends</span><span class="v">{{ c.scheduled_end|time:"h:i A" }}</span></div>
+  </div>
+  <p class="hint">Attendance will be recorded automatically for this session. You don't need to do anything else — you can stay connected or disconnect from Wi-Fi, it won't affect your attendance.</p>
+</div>
+{% endblock %}

@@ -1540,3 +1540,227 @@ class ScheduleAudit(models.Model):
 
     class Meta:
         ordering = ['-created_at', '-id']
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# GENERAL ACCOUNTING (simple books)
+# Money accounts, categories, manual transactions, vendor bills. Sales
+# invoices, invoice payments, refunds and Tabby/Tamara payouts are NOT copied
+# here — accounting_engine.py reads them live so there is one source of truth.
+# Nothing here cascades: history must survive a deleted user/account.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class FinAccount(models.Model):
+    KIND_CHOICES = [('cash', 'Cash in hand'), ('bank', 'Bank'), ('pos', 'Card machine / POS'),
+                    ('gateway', 'Gateway wallet (Tabby/Tamara)'), ('other', 'Other')]
+    name = models.CharField(max_length=80, unique=True)
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default='bank')
+    opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    receives = models.CharField(
+        max_length=200, blank=True,
+        help_text='Comma list of what lands here: payment methods (cash, card, bank_transfer, cheque, '
+                  'payment_link, tabby, tamara, other) plus payout (gateway payouts) and refund (refunds paid from here)')
+    is_active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def receives_list(self):
+        return [x.strip() for x in self.receives.split(',') if x.strip()]
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['kind', 'name']
+
+
+class FinCategory(models.Model):
+    KIND_CHOICES = [('expense', 'Expense'), ('income', 'Income')]
+    name = models.CharField(max_length=80)
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default='expense')
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['kind', 'name']
+        unique_together = ('name', 'kind')
+
+
+class AccSetting(models.Model):
+    """Single row (pk=1)."""
+    books_start_date = models.DateField(null=True, blank=True,
+                                        help_text='Opening balances are as at this date; earlier data is ignored')
+    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=5)
+    approval_threshold = models.DecimalField(max_digits=12, decimal_places=2, default=2000,
+                                             help_text='Entries above this by the accounts role wait for admin approval. 0 = off')
+    locked_until = models.DateField(null=True, blank=True, help_text='Nothing can be added/changed on or before this date')
+    trn = models.CharField(max_length=40, blank=True, verbose_name='VAT registration number')
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class Bill(models.Model):
+    """A vendor bill (accrual): expense is recognised on bill_date, payments settle it."""
+    STATUS_CHOICES = [('open', 'Open'), ('void', 'Void')]
+    vendor = models.CharField(max_length=200)
+    bill_number = models.CharField(max_length=60, blank=True)
+    bill_date = models.DateField()
+    due_date = models.DateField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2, help_text='Total including VAT')
+    vat_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    category = models.ForeignKey(FinCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name='bills')
+    description = models.CharField(max_length=300, blank=True)
+    attachment = models.FileField(upload_to='accounting/bills/%Y/%m/', null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
+    void_reason = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def paid_amount(self):
+        return self.payments.filter(status='posted').aggregate(t=models.Sum('amount'))['t'] or Decimal('0')
+
+    def balance(self):
+        return self.amount - self.paid_amount()
+
+    def __str__(self):
+        return f"{self.vendor} {self.bill_number}".strip()
+
+    class Meta:
+        ordering = ['-bill_date', '-id']
+
+
+class FinTxn(models.Model):
+    TYPE_CHOICES = [
+        ('expense', 'Expense paid'), ('income', 'Other income received'),
+        ('transfer', 'Transfer between accounts'), ('bill_payment', 'Pay a vendor bill'),
+        ('owner_in', 'Owner / partner put money in'), ('owner_out', 'Owner / partner took money out'),
+        ('vat_payment', 'VAT paid to the tax authority'),
+    ]
+    STATUS_CHOICES = [('posted', 'Posted'), ('pending', 'Waiting for approval'),
+                      ('rejected', 'Rejected'), ('void', 'Void')]
+    date = models.DateField()
+    txn_type = models.CharField(max_length=15, choices=TYPE_CHOICES)
+    account = models.ForeignKey(FinAccount, on_delete=models.PROTECT, related_name='txns',
+                                help_text='Account the money moved out of / into')
+    to_account = models.ForeignKey(FinAccount, on_delete=models.PROTECT, null=True, blank=True, related_name='txns_in')
+    amount = models.DecimalField(max_digits=14, decimal_places=2, help_text='Total including VAT')
+    vat_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    category = models.ForeignKey(FinCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name='txns')
+    party = models.CharField(max_length=200, blank=True)
+    description = models.CharField(max_length=300, blank=True)
+    reference = models.CharField(max_length=100, blank=True)
+    attachment = models.FileField(upload_to='accounting/%Y/%m/', null=True, blank=True)
+    bill = models.ForeignKey(Bill, null=True, blank=True, on_delete=models.PROTECT, related_name='payments')
+    course = models.ForeignKey('Course', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='posted')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    void_reason = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.get_txn_type_display()} {self.amount} on {self.date}"
+
+    class Meta:
+        ordering = ['-date', '-id']
+        indexes = [models.Index(fields=['date', 'status'], name='invoices_fi_date_st_idx')]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STUDENT WI-FI CHECK-IN / ATTENDANCE
+# Phase 1 = software only (no real captive portal yet): a student opens a
+# public check-in page, types their registration number, sees a review of
+# today's session pulled from the same ScheduleOccurrence/Batch/ClassSession
+# data the trainer schedule already uses, and confirms. This is a per-student
+# record, separate from ScheduleOccurrence.attendance (the trainer's own
+# present/absent mark on the whole occurrence) — a batch occurrence has many
+# students, so their check-ins cannot share one field.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CheckInSetting(models.Model):
+    """Single row (pk=1)."""
+    is_enabled = models.BooleanField(default=True)
+    early_window_minutes = models.PositiveSmallIntegerField(default=60, help_text='How early before the scheduled start a student may check in. Check-in stays open for the whole session and closes at the scheduled end.')
+    rate_limit_attempts = models.PositiveSmallIntegerField(default=8, help_text='Failed attempts allowed from one address before a short block')
+    rate_limit_minutes = models.PositiveSmallIntegerField(default=10)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class CheckInAttempt(models.Model):
+    """Every Student-ID submission at the check-in page, whatever the outcome — audit trail
+    (spec §33) and the basis for rate-limiting (§45). Never edited."""
+    RESULT_CHOICES = [
+        ('success', 'Matched a session'), ('invalid_student', 'Student ID not found'),
+        ('inactive_student', 'Student account inactive'), ('no_schedule', 'No session today'),
+        ('session_completed', 'Session already ended'), ('session_cancelled', 'Session cancelled'),
+        ('already_confirmed', 'Already confirmed'), ('rate_limited', 'Too many attempts'),
+        ('system_error', 'System error'),
+    ]
+    student_id_text = models.CharField(max_length=50, blank=True)
+    registration = models.ForeignKey('Registration', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    result = models.CharField(max_length=20, choices=RESULT_CHOICES)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class StudentCheckIn(models.Model):
+    """The actual attendance record for one student on one session. occurrence covers
+    individual and batch rules; class_session covers one-off private/make-up/demo/workshop
+    classes. Exactly one of the two is set. PROTECT: a check-in must never disappear because
+    the schedule row was deleted — that would erase real attendance history."""
+    STATUS_CHOICES = [('awaiting_confirm', 'Shown, not yet confirmed'), ('confirmed', 'Confirmed'),
+                      ('no_show', 'No show'), ('cancelled', 'Session cancelled after check-in')]
+    registration = models.ForeignKey('Registration', on_delete=models.PROTECT, related_name='wifi_checkins')
+    occurrence = models.ForeignKey('ScheduleOccurrence', on_delete=models.PROTECT, null=True, blank=True, related_name='wifi_checkins')
+    class_session = models.ForeignKey('ClassSession', on_delete=models.PROTECT, null=True, blank=True, related_name='wifi_checkins')
+    course = models.ForeignKey('Course', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    trainer = models.ForeignKey('Trainer', on_delete=models.SET_NULL, null=True, blank=True, related_name='wifi_checkins')
+    scheduled_date = models.DateField()
+    scheduled_start = models.TimeField()
+    scheduled_end = models.TimeField()
+    login_at = models.DateTimeField(auto_now_add=True, help_text='When the student reached the review page')
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='awaiting_confirm')
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=300, blank=True)
+    marked_no_show_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-scheduled_date', '-scheduled_start']
+        unique_together = [('registration', 'occurrence'), ('registration', 'class_session')]
+
+    def display_status(self):
+        """Live state — never stored, so nothing needs a background job to flip it."""
+        if self.status in ('no_show', 'cancelled'):
+            return self.status
+        now = timezone.now().astimezone(datetime.timezone(datetime.timedelta(hours=4)))
+        start = datetime.datetime.combine(self.scheduled_date, self.scheduled_start, tzinfo=now.tzinfo)
+        end = datetime.datetime.combine(self.scheduled_date, self.scheduled_end, tzinfo=now.tzinfo)
+        if self.status != 'confirmed':
+            return 'awaiting_confirm'
+        if now < start:
+            return 'waiting_for_start'
+        if now <= end:
+            return 'active'
+        return 'completed'
+
+    def subject_name(self):
+        return f'{self.registration.first_name} {self.registration.last_name}'.strip()
+
+    def __str__(self):
+        return f'{self.subject_name()} — {self.scheduled_date} {self.scheduled_start}'

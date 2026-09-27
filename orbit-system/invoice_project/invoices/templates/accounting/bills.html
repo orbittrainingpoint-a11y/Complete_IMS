@@ -1,0 +1,25 @@
+{% extends 'base_generic.html' %}
+{% block title %}Bills{% endblock %}
+{% block breadcrumb_label %}<span class="current">Bills</span>{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div><div class="page-title"><i class="fas fa-file-invoice-dollar me-2 text-primary"></i>Vendor Bills</div>
+  <div class="page-subtitle">Bills we have received. A bill counts as an expense on its bill date; paying it only moves cash.</div></div>
+  <a href="{% url 'accounting_bill_add' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Bill</a>
+</div>
+{% include 'accounting/_nav.html' %}
+<div class="ac-typeswitch">
+  <a href="?show=unpaid" class="{% if show == 'unpaid' %}on{% endif %}">Unpaid</a>
+  <a href="?show=paid" class="{% if show == 'paid' %}on{% endif %}">Paid</a>
+  <a href="?show=all" class="{% if show == 'all' %}on{% endif %}">All</a>
+</div>
+<div class="ac-card p-0"><div class="table-responsive"><table class="table ac-table mb-0">
+<thead><tr><th>Vendor</th><th>Bill no.</th><th>Bill date</th><th>Due</th><th>Category</th><th class="ac-num">Total</th><th class="ac-num">Paid</th><th class="ac-num">Balance</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><a href="{% url 'accounting_bill_detail' r.b.pk %}">{{ r.b.vendor }}</a></td><td>{{ r.b.bill_number|default:"-" }}</td>
+  <td>{{ r.b.bill_date|date:"d M Y" }}</td><td>{{ r.b.due_date|date:"d M Y" }}{% if r.late %} <span class="ac-pill void">{{ r.late }}d late</span>{% endif %}</td>
+  <td>{{ r.b.category|default:"-" }}</td><td class="ac-num">{{ r.b.amount|floatformat:"2g" }}</td><td class="ac-num">{{ r.paid|floatformat:"2g" }}</td>
+  <td class="ac-num"><b>{{ r.balance|floatformat:"2g" }}</b></td></tr>
+{% empty %}<tr><td colspan="8" class="text-center ac-hint py-4">No bills here.</td></tr>{% endfor %}
+</tbody>{% if rows %}<tfoot><tr><th colspan="7" class="text-end">Outstanding</th><th class="ac-num">{{ total|floatformat:"2g" }}</th></tr></tfoot>{% endif %}
+</table></div></div>
+{% endblock %}

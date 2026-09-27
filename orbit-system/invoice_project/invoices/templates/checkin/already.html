@@ -1,0 +1,13 @@
+{% extends 'checkin/_base.html' %}
+{% block content %}
+<div class="card center">
+  <div class="icon-big" style="color:#f59e0b">ℹ</div>
+  <h2>Already confirmed</h2>
+  <p class="sub">You have already confirmed this class.</p>
+  <div class="rows" style="text-align:left">
+    <div class="row"><span class="l">Class</span><span class="v">{{ c.course|default:"—" }}</span></div>
+    <div class="row"><span class="l">Time</span><span class="v">{{ c.scheduled_start|time:"h:i A" }} – {{ c.scheduled_end|time:"h:i A" }}</span></div>
+    <div class="row"><span class="l">Confirmed at</span><span class="v">{{ c.confirmed_at|time:"h:i A" }}</span></div>
+  </div>
+</div>
+{% endblock %}

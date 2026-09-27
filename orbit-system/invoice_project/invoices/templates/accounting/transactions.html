@@ -1,0 +1,29 @@
+{% extends 'base_generic.html' %}
+{% block title %}Transactions{% endblock %}
+{% block breadcrumb_label %}<span class="current">Transactions</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-money-bill-transfer me-2 text-primary"></i>Transactions</div>
+<div class="page-subtitle">Manual entries. Customer payments, refunds and Tabby/Tamara payouts come in automatically from invoices &mdash; see each account's statement for everything.</div></div>
+{% include 'accounting/_nav.html' %}
+<form method="get" class="ac-card d-flex flex-wrap gap-2 align-items-end">
+  <div><label class="ac-hint">From</label><input type="date" name="from" value="{{ d1|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  <div><label class="ac-hint">To</label><input type="date" name="to" value="{{ d2|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  <div><label class="ac-hint">Type</label><select name="type" class="form-select form-select-sm"><option value="">All</option>{% for k, l in types %}<option value="{{ k }}" {% if f.type == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label class="ac-hint">Account</label><select name="account" class="form-select form-select-sm"><option value="">All</option>{% for a in accounts %}<option value="{{ a.pk }}" {% if f.account == a.pk|stringformat:'s' %}selected{% endif %}>{{ a.name }}</option>{% endfor %}</select></div>
+  <div><label class="ac-hint">Status</label><select name="status" class="form-select form-select-sm"><option value="">All</option>{% for k, l in statuses %}<option value="{{ k }}" {% if f.status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div><label class="ac-hint">Search</label><input name="q" value="{{ f.q }}" class="form-control form-control-sm" placeholder="vendor, note, ref"></div>
+  <button class="btn btn-sm btn-primary">Filter</button>
+  <button class="btn btn-sm btn-outline-secondary" name="export" value="csv">CSV</button>
+</form>
+<div class="ac-card p-0"><div class="table-responsive"><table class="table ac-table mb-0">
+<thead><tr><th>Date</th><th>Type</th><th>Details</th><th>Account</th><th class="ac-num">Total</th><th class="ac-num">VAT</th><th>Status</th></tr></thead><tbody>
+{% for t in txns %}<tr {% if t.status == 'void' or t.status == 'rejected' %}style="opacity:.55"{% endif %}>
+  <td>{{ t.date|date:"d M Y" }}</td><td>{{ t.get_txn_type_display }}</td>
+  <td><a href="{% url 'accounting_txn_detail' t.pk %}">{{ t.description|default:t.party|default:"&mdash;" }}</a>
+    <div class="ac-hint">{{ t.party }}{% if t.category %} &middot; {{ t.category }}{% endif %}{% if t.reference %} &middot; ref {{ t.reference }}{% endif %}</div></td>
+  <td>{{ t.account }}{% if t.to_account %} &rarr; {{ t.to_account }}{% endif %}</td>
+  <td class="ac-num">{{ t.amount|floatformat:"2g" }}</td><td class="ac-num">{{ t.vat_amount|floatformat:"2g" }}</td>
+  <td><span class="ac-pill {{ t.status }}">{{ t.get_status_display }}</span></td></tr>
+{% empty %}<tr><td colspan="7" class="text-center ac-hint py-4">No entries in this range.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

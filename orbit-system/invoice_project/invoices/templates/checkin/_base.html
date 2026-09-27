@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>{% block title %}Orbit Check-in{% endblock %}</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--primary:#2563eb;--primary-dark:#1d4ed8;--ink:#0f172a;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9;--green:#059669;--red:#dc2626}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
+ min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px}
+.wrap{width:100%;max-width:400px}
+.brand{text-align:center;margin-bottom:18px}
+.brand .logo{width:52px;height:52px;border-radius:14px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;
+ font-weight:800;font-size:20px;margin:0 auto 8px}
+.brand h1{font-size:16px;margin:0;font-weight:700}
+.brand p{font-size:12px;color:var(--muted);margin:2px 0 0}
+.card{background:#fff;border-radius:18px;padding:26px 22px;box-shadow:0 4px 24px rgba(15,23,42,.08)}
+.card h2{font-size:18px;margin:0 0 6px;font-weight:700}
+.card .sub{font-size:13px;color:var(--muted);margin:0 0 18px}
+input[type=text]{width:100%;font-size:20px;text-align:center;letter-spacing:.5px;padding:14px 12px;border:2px solid var(--border);
+ border-radius:12px;font-weight:700;text-transform:uppercase}
+input[type=text]:focus{outline:none;border-color:var(--primary)}
+.btn{display:block;width:100%;padding:14px;border-radius:12px;border:none;font-size:15px;font-weight:700;cursor:pointer;text-align:center;text-decoration:none;margin-top:12px}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-dark)}
+.btn-light{background:#f1f5f9;color:var(--ink)}
+.hint{font-size:12px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.5}
+.rows{margin:6px 0 4px}
+.row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
+.row:last-child{border-bottom:none}
+.row .l{color:var(--muted)}.row .v{font-weight:700;text-align:right}
+.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700}
+.badge.ok{background:#dcfce7;color:#166534}.badge.warn{background:#fef3c7;color:#92400e}.badge.err{background:#fee2e2;color:#991b1b}
+.center{text-align:center}.icon-big{font-size:44px;margin-bottom:8px}
+.err-icon{color:var(--red)}.ok-icon{color:var(--green)}
+.agree{font-size:13px;color:var(--muted);margin:16px 0;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="logo">O</div><h1>Orbit Training Center</h1><p>Student Wi-Fi Check-in</p></div>
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>

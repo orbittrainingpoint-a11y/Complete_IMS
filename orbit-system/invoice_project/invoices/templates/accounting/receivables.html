@@ -1,0 +1,30 @@
+{% extends 'base_generic.html' %}
+{% block title %}Receivables & Payables{% endblock %}
+{% block breadcrumb_label %}<span class="current">Receivables &amp; Payables</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-hand-holding-dollar me-2 text-primary"></i>Receivables &amp; Payables</div>
+<div class="page-subtitle">Who owes us and whom we owe, grouped by how late it is</div></div>
+{% include 'accounting/_nav.html' %}
+<div class="ac-typeswitch">
+  <a href="?side=receivable" class="{% if side == 'receivable' %}on{% endif %}">Customers owe us &middot; {{ rec_total|floatformat:"2g" }}</a>
+  <a href="?side=payable" class="{% if side == 'payable' %}on{% endif %}">We owe vendors &middot; {{ pay_total|floatformat:"2g" }}</a>
+</div>
+{% if side == 'receivable' %}
+<div class="row g-2 mb-3">{% for name, v in rec_ages.items %}<div class="col"><div class="ac-kpi"><div class="l">{{ name }}</div><div class="v" style="font-size:16px">{{ v|floatformat:"2g" }}</div></div></div>{% endfor %}</div>
+<div class="ac-card p-0"><div class="table-responsive"><table class="table ac-table mb-0">
+<thead><tr><th>Invoice</th><th>Client</th><th>Course</th><th>Due</th><th>Late</th><th class="ac-num">Total</th><th class="ac-num">Paid</th><th class="ac-num">Balance</th></tr></thead><tbody>
+{% for r in rec %}<tr><td><a href="{% url 'edit_invoice' r.inv.pk %}">{{ r.inv.invoice_number }}</a></td><td>{{ r.inv.client }}</td><td>{{ r.inv.course|default:"-" }}</td>
+  <td>{{ r.inv.due_date|date:"d M Y" }}</td><td>{% if r.days_late %}<span class="ac-pill void">{{ r.days_late }}d</span>{% else %}-{% endif %}</td>
+  <td class="ac-num">{{ r.inv.total_amount|floatformat:"2g" }}</td><td class="ac-num">{{ r.inv.amount_paid|floatformat:"2g" }}</td><td class="ac-num"><b>{{ r.balance|floatformat:"2g" }}</b></td></tr>
+{% empty %}<tr><td colspan="8" class="text-center ac-hint py-4">Nothing outstanding.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% else %}
+<div class="row g-2 mb-3">{% for name, v in pay_ages.items %}<div class="col"><div class="ac-kpi"><div class="l">{{ name }}</div><div class="v" style="font-size:16px">{{ v|floatformat:"2g" }}</div></div></div>{% endfor %}</div>
+<div class="ac-card p-0"><div class="table-responsive"><table class="table ac-table mb-0">
+<thead><tr><th>Vendor</th><th>Bill no.</th><th>Due</th><th>Late</th><th class="ac-num">Balance</th></tr></thead><tbody>
+{% for r in pay %}<tr><td><a href="{% url 'accounting_bill_detail' r.bill.pk %}">{{ r.bill.vendor }}</a></td><td>{{ r.bill.bill_number|default:"-" }}</td><td>{{ r.bill.due_date|date:"d M Y" }}</td>
+  <td>{% if r.days_late %}<span class="ac-pill void">{{ r.days_late }}d</span>{% else %}-{% endif %}</td><td class="ac-num"><b>{{ r.balance|floatformat:"2g" }}</b></td></tr>
+{% empty %}<tr><td colspan="5" class="text-center ac-hint py-4">No unpaid bills.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endif %}
+{% endblock %}

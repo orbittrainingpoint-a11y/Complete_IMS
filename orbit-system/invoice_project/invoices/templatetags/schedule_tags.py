@@ -2,7 +2,7 @@ from django import template
 from django.core.cache import cache
 
 from invoices import schedule_engine as eng
-from invoices.models import ScheduleOccurrence, ScheduleRule
+from invoices.models import ScheduleOccurrence, ScheduleRule, StudentCheckIn
 
 register = template.Library()
 
@@ -15,6 +15,7 @@ def _counts():
             'active': ScheduleRule.objects.filter(status='active').count(),
             'paused': ScheduleRule.objects.filter(status='paused').count(),
             'to_mark': ScheduleOccurrence.objects.filter(status__in=eng.ACTIVE_FUTURE, date__lt=today).count(),
+            'checkins_today': StudentCheckIn.objects.filter(scheduled_date=today, status='confirmed').count(),
         }
         cache.set('sched_nav_counts', data, 60)
     return data

@@ -1,0 +1,34 @@
+{% extends 'base_generic.html' %}
+{% block title %}Accounting Settings{% endblock %}
+{% block breadcrumb_label %}<span class="current">Accounting Settings</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-sliders me-2 text-primary"></i>Accounting Settings</div></div>
+{% include 'accounting/_nav.html' %}
+<div class="row g-3">
+<div class="col-lg-6">
+  <div class="ac-card"><h6>General</h6>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="save">
+      <div class="mb-2"><label class="form-label small fw-semibold">Books start date</label>
+        {% if setting.books_start_date %}<input type="date" name="books_start_date" value="{{ setting.books_start_date|date:'Y-m-d' }}" class="form-control form-control-sm" readonly><div class="ac-hint">Fixed once entries exist.</div>
+        {% else %}<input type="date" name="books_start_date" class="form-control form-control-sm" required>{% endif %}</div>
+      <div class="mb-2"><label class="form-label small fw-semibold">VAT rate %</label><input type="number" step="0.01" name="vat_rate" value="{{ setting.vat_rate }}" class="form-control form-control-sm"></div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Approval limit (AED)</label><input type="number" step="0.01" name="approval_threshold" value="{{ setting.approval_threshold }}" class="form-control form-control-sm">
+        <div class="ac-hint">Entries above this by the Accounts role wait for admin approval. Admin entries post immediately. 0 = no approval.</div></div>
+      <div class="mb-3"><label class="form-label small fw-semibold">VAT registration number (TRN)</label><input name="trn" value="{{ setting.trn }}" class="form-control form-control-sm"></div>
+      <button class="btn btn-primary btn-sm">Save</button></form></div>
+  <div class="ac-card"><h6>Close a period</h6>
+    <p class="ac-hint">Closing locks everything on or before the date: no new, edited, voided or approved entries. Do it after the month is reconciled and the VAT is filed.</p>
+    <p class="mb-2">{% if setting.locked_until %}Currently closed up to <b>{{ setting.locked_until|date:"d M Y" }}</b>.{% else %}Nothing is closed.{% endif %}</p>
+    <form method="post" class="d-flex gap-2 mb-2">{% csrf_token %}<input type="hidden" name="action" value="close"><input type="date" name="locked_until" class="form-control form-control-sm" required><button class="btn btn-warning btn-sm">Close</button></form>
+    {% if setting.locked_until %}<form method="post" onsubmit="return confirm('Reopen the books?')">{% csrf_token %}<input type="hidden" name="action" value="reopen">
+      <input type="date" name="locked_until" class="form-control form-control-sm d-inline-block" style="width:170px" placeholder="new lock date"> <button class="btn btn-outline-danger btn-sm">Move / remove lock</button>
+      <div class="ac-hint">Leave the date empty to remove the lock entirely. This is recorded in the audit log.</div></form>{% endif %}
+  </div>
+</div>
+<div class="col-lg-6"><div class="ac-card"><h6>Categories</h6>
+  <form method="post" class="d-flex gap-2 mb-3">{% csrf_token %}<input type="hidden" name="action" value="add_category">
+    <input name="name" class="form-control form-control-sm" placeholder="New category" required><select name="kind" class="form-select form-select-sm" style="width:120px"><option value="expense">Expense</option><option value="income">Income</option></select><button class="btn btn-primary btn-sm">Add</button></form>
+  <table class="table ac-table mb-0"><tbody>{% for c in cats %}<tr {% if not c.is_active %}style="opacity:.5"{% endif %}><td>{{ c.name }}</td><td>{{ c.get_kind_display }}</td>
+    <td class="text-end"><form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle_category"><input type="hidden" name="id" value="{{ c.pk }}"><button class="btn btn-sm btn-light">{% if c.is_active %}Hide{% else %}Show{% endif %}</button></form></td></tr>{% endfor %}</tbody></table>
+</div></div></div>
+{% endblock %}

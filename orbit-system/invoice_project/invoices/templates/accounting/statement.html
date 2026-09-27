@@ -1,0 +1,19 @@
+{% extends 'base_generic.html' %}
+{% block title %}{{ a.name }} statement{% endblock %}
+{% block breadcrumb_label %}<span class="current">{{ a.name }}</span>{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div><div class="page-title">{{ a.name }}</div><div class="page-subtitle">{{ d1|date:"d M Y" }} &ndash; {{ d2|date:"d M Y" }}</div></div>
+  <form method="get"><input type="month" name="month" value="{{ month_value }}" class="form-control form-control-sm" onchange="this.form.submit()"></form>
+</div>
+{% include 'accounting/_nav.html' %}
+<div class="ac-card p-0"><div class="table-responsive"><table class="table ac-table mb-0">
+<thead><tr><th>Date</th><th>What</th><th>Ref</th><th class="ac-num">In</th><th class="ac-num">Out</th><th class="ac-num">Balance</th></tr></thead><tbody>
+<tr class="table-light"><td colspan="5"><b>Opening balance</b></td><td class="ac-num"><b>{{ opening|floatformat:"2g" }}</b></td></tr>
+{% for r in rows %}<tr><td>{{ r.e.date|date:"d M Y" }}</td><td>{% if r.e.link %}<a href="{{ r.e.link }}">{{ r.e.label }}</a>{% else %}{{ r.e.label }}{% endif %}</td><td>{{ r.e.ref }}</td>
+  <td class="ac-num ac-pos">{% if r.e.cash_in %}{{ r.e.cash_in|floatformat:"2g" }}{% endif %}</td><td class="ac-num ac-neg">{% if r.e.cash_out %}{{ r.e.cash_out|floatformat:"2g" }}{% endif %}</td>
+  <td class="ac-num">{{ r.balance|floatformat:"2g" }}</td></tr>
+{% empty %}<tr><td colspan="6" class="text-center ac-hint py-4">No movements in this month.</td></tr>{% endfor %}
+<tr class="table-light"><td colspan="5"><b>Closing balance</b></td><td class="ac-num"><b>{{ closing|floatformat:"2g" }}</b></td></tr>
+</tbody></table></div></div>
+{% endblock %}

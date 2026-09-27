@@ -1,0 +1,10 @@
+{% extends 'checkin/_base.html' %}
+{% block content %}
+<div class="card center">
+  <div class="icon-big err-icon">✕</div>
+  <h2>{% if retry %}Please try again{% else %}Attendance not started{% endif %}</h2>
+  <p class="sub">{{ message }}</p>
+  <a href="{% url 'checkin_start' %}" class="btn btn-primary">Back</a>
+  <p class="hint">Need help? Please contact the Orbit reception/team.</p>
+</div>
+{% endblock %}

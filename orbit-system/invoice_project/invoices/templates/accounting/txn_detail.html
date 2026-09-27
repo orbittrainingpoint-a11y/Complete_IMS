@@ -1,0 +1,35 @@
+{% extends 'base_generic.html' %}
+{% block title %}Entry {{ t.pk }}{% endblock %}
+{% block breadcrumb_label %}<span class="current">Entry #{{ t.pk }}</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">{{ t.get_txn_type_display }} <span class="ac-pill {{ t.status }}">{{ t.get_status_display }}</span></div></div>
+{% include 'accounting/_nav.html' %}
+<div class="row g-3">
+<div class="col-lg-7"><div class="ac-card">
+  <table class="table ac-table mb-0"><tbody>
+    <tr><th style="width:170px">Date</th><td>{{ t.date|date:"d M Y" }}</td></tr>
+    <tr><th>Total</th><td><b>AED {{ t.amount|floatformat:"2g" }}</b>{% if t.vat_amount %} <span class="ac-hint">(incl. VAT {{ t.vat_amount|floatformat:"2g" }})</span>{% endif %}</td></tr>
+    <tr><th>Account</th><td>{{ t.account }}{% if t.to_account %} &rarr; {{ t.to_account }}{% endif %}</td></tr>
+    {% if t.category %}<tr><th>Category</th><td>{{ t.category }}</td></tr>{% endif %}
+    {% if t.party %}<tr><th>With</th><td>{{ t.party }}</td></tr>{% endif %}
+    {% if t.bill %}<tr><th>Bill</th><td><a href="{% url 'accounting_bill_detail' t.bill.pk %}">{{ t.bill }}</a></td></tr>{% endif %}
+    <tr><th>Description</th><td>{{ t.description|default:"-" }}</td></tr>
+    <tr><th>Reference</th><td>{{ t.reference|default:"-" }}</td></tr>
+    <tr><th>Document</th><td>{% if t.attachment %}<a href="{{ t.attachment.url }}" target="_blank">Open file</a>{% else %}-{% endif %}</td></tr>
+    <tr><th>Entered by</th><td>{{ t.created_by|default:"-" }} &middot; {{ t.created_at|date:"d M Y H:i" }}</td></tr>
+    {% if t.approved_by %}<tr><th>Decided by</th><td>{{ t.approved_by }} &middot; {{ t.approved_at|date:"d M Y H:i" }}</td></tr>{% endif %}
+    {% if t.void_reason %}<tr><th>Void reason</th><td>{{ t.void_reason }}</td></tr>{% endif %}
+  </tbody></table></div></div>
+<div class="col-lg-5">
+  {% if t.status == 'pending' and acc_is_admin %}<div class="ac-card"><h6>Approval</h6>
+    <form method="post" action="{% url 'accounting_txn_action' t.pk %}" class="d-flex gap-2">{% csrf_token %}
+      <button name="action" value="approve" class="btn btn-success btn-sm">Approve &amp; post</button>
+      <button name="action" value="reject" class="btn btn-outline-danger btn-sm">Reject</button></form></div>
+  {% elif t.status == 'pending' %}<div class="ac-card"><span class="ac-hint">Waiting for an admin to approve. It does not count in balances or reports until then.</span></div>{% endif %}
+  {% if t.status == 'posted' or t.status == 'pending' %}<div class="ac-card"><h6>Void this entry</h6>
+    <p class="ac-hint">Entries are never deleted. Voiding removes it from balances and reports and keeps the history.</p>
+    <form method="post" action="{% url 'accounting_txn_action' t.pk %}" onsubmit="return confirm('Void this entry?')">{% csrf_token %}
+      <input type="hidden" name="action" value="void"><input name="reason" class="form-control form-control-sm mb-2" placeholder="Reason (required)" required>
+      <button class="btn btn-outline-danger btn-sm">Void</button></form></div>{% endif %}
+</div></div>
+{% endblock %}

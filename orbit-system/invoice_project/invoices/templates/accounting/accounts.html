@@ -1,0 +1,34 @@
+{% extends 'base_generic.html' %}
+{% block title %}Bank & Cash{% endblock %}
+{% block breadcrumb_label %}<span class="current">Bank &amp; Cash</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-building-columns me-2 text-primary"></i>Bank &amp; Cash</div>
+<div class="page-subtitle">Every place money sits. Balance = opening balance + everything in &minus; everything out since the books started.</div></div>
+{% include 'accounting/_nav.html' %}
+{% for w in warnings %}<div class="alert alert-warning py-2"><i class="fas fa-triangle-exclamation me-2"></i>{{ w }}</div>{% endfor %}
+<div class="ac-card p-0"><div class="table-responsive"><table class="table ac-table mb-0">
+<thead><tr><th>Account</th><th>Type</th><th>Receives</th><th class="ac-num">Opening</th><th class="ac-num">Balance now</th><th></th></tr></thead><tbody>
+{% for a, b in rows %}<tr {% if not a.is_active %}style="opacity:.5"{% endif %}><td><a href="{% url 'accounting_statement' a.pk %}"><b>{{ a.name }}</b></a>{% if not a.is_active %} <span class="ac-pill">inactive</span>{% endif %}</td>
+  <td>{{ a.get_kind_display }}</td><td class="ac-hint">{{ a.receives|default:"-" }}</td><td class="ac-num">{{ a.opening_balance|floatformat:"2g" }}</td>
+  <td class="ac-num {% if b < 0 %}ac-neg{% endif %}"><b>{{ b|floatformat:"2g" }}</b></td>
+  <td class="text-end"><a href="{% url 'accounting_statement' a.pk %}" class="btn btn-sm btn-light">Statement</a>
+  {% if acc_is_admin %}<button class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#accModal" onclick='fillAcc({{ a.pk }},"{{ a.name|escapejs }}","{{ a.kind }}","{{ a.opening_balance }}","{{ a.receives|escapejs }}",{{ a.is_active|yesno:"true,false" }})'>Edit</button>{% endif %}</td></tr>
+{% endfor %}</tbody>
+<tfoot><tr><th colspan="4" class="text-end">Total (active accounts)</th><th class="ac-num">{{ total|floatformat:"2g" }}</th><th></th></tr></tfoot></table></div></div>
+{% if acc_is_admin %}
+<button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#accModal" onclick="fillAcc('', '', 'bank', '0', '', true)"><i class="fas fa-plus me-1"></i>Add account</button>
+<div class="modal fade" id="accModal" tabindex="-1"><div class="modal-dialog"><form method="post" action="{% url 'accounting_account_save' %}" class="modal-content">{% csrf_token %}
+  <div class="modal-header"><h6 class="modal-title">Account</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><input type="hidden" name="id" id="a_id">
+    <div class="mb-2"><label class="form-label small fw-semibold">Name</label><input name="name" id="a_name" class="form-control" required></div>
+    <div class="mb-2"><label class="form-label small fw-semibold">Type</label><select name="kind" id="a_kind" class="form-select">{% for k, l in kinds %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+    <div class="mb-2"><label class="form-label small fw-semibold">Opening balance (on the books start date)</label><input type="number" step="0.01" name="opening_balance" id="a_open" class="form-control"></div>
+    <div class="mb-2"><label class="form-label small fw-semibold">Receives</label><input name="receives" id="a_rec" class="form-control" placeholder="cash, card, bank_transfer, cheque, payment_link, tabby, tamara, other, payout, refund">
+      <div class="ac-hint">Customer payments by these methods land in this account. <b>payout</b> = Tabby/Tamara payouts arrive here. <b>refund</b> = refunds are paid from here.</div></div>
+    <div class="form-check" id="a_act_wrap"><input type="checkbox" class="form-check-input" name="is_active" id="a_act" checked><label class="form-check-label" for="a_act">Active</label></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-primary">Save</button></div></form></div></div>
+<script>function fillAcc(id,n,k,o,r,act){document.getElementById('a_id').value=id;document.getElementById('a_name').value=n;document.getElementById('a_kind').value=k;
+document.getElementById('a_open').value=o;document.getElementById('a_rec').value=r;document.getElementById('a_act').checked=act;document.getElementById('a_act_wrap').style.display=id?'':'none';}</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends 'base_generic.html' %}
+{% block title %}Accounts Overview{% endblock %}
+{% block breadcrumb_label %}<span class="current">Accounting</span>{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div><div class="page-title"><i class="fas fa-scale-balanced me-2 text-primary"></i>Accounts Overview</div>
+  <div class="page-subtitle">{{ d1|date:"d M Y" }} &ndash; {{ d2|date:"d M Y" }} &middot; AED, VAT excluded from income and costs</div></div>
+  <form method="get" class="d-flex gap-2"><input type="month" name="month" value="{{ month_value }}" class="form-control form-control-sm" onchange="this.form.submit()"></form>
+</div>
+{% include 'accounting/_nav.html' %}
+
+{% for a in alerts %}<div class="alert alert-warning py-2 mb-2"><i class="fas fa-triangle-exclamation me-2"></i>{{ a }}</div>{% endfor %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">Money we hold</div><div class="v">{{ cash_total|floatformat:"2g" }}</div><div class="s">across {{ accounts|length }} accounts today</div></div></div>
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">Income</div><div class="v ac-pos">{{ p.total_income|floatformat:"2g" }}</div><div class="s">invoiced this period</div></div></div>
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">Expenses</div><div class="v ac-neg">{{ p.total_expense|floatformat:"2g" }}</div><div class="s">incl. bills &amp; gateway fees</div></div></div>
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">Net profit</div><div class="v {% if p.profit < 0 %}ac-neg{% else %}ac-pos{% endif %}">{{ p.profit|floatformat:"2g" }}</div><div class="s"><a href="{% url 'accounting_reports' %}?month={{ month_value }}">see the breakdown</a></div></div></div>
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">Customers owe us</div><div class="v">{{ rec_total|floatformat:"2g" }}</div><div class="s"><a href="{% url 'accounting_receivables' %}">aging &rarr;</a></div></div></div>
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">We owe vendors</div><div class="v">{{ pay_total|floatformat:"2g" }}</div><div class="s"><a href="{% url 'accounting_bills' %}">unpaid bills &rarr;</a></div></div></div>
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">VAT to pay (since start)</div><div class="v">{{ vat_position|floatformat:"2g" }}</div><div class="s">collected &minus; paid on costs &minus; already paid</div></div></div>
+  <div class="col-6 col-lg-3"><div class="ac-kpi"><div class="l">Cash in / out</div><div class="v" style="font-size:16px"><span class="ac-pos">+{{ p.cash_in|floatformat:"2g" }}</span> <span class="ac-neg">&minus;{{ p.cash_out|floatformat:"2g" }}</span></div><div class="s">excl. transfers</div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="ac-card"><h6>Accounts</h6>
+      <table class="table ac-table mb-0"><tbody>
+      {% for a, b in accounts %}<tr><td><a href="{% url 'accounting_statement' a.pk %}">{{ a.name }}</a><div class="ac-hint">{{ a.get_kind_display }}</div></td><td class="ac-num {% if b < 0 %}ac-neg{% endif %}">{{ b|floatformat:"2g" }}</td></tr>{% endfor %}
+      </tbody></table>
+      <div class="ac-hint mt-2">Tabby/Tamara wallets hold sales not yet paid out; they clear when a payout is marked received.</div>
+    </div>
+    <div class="ac-card"><h6>Last 6 months</h6>
+      <table class="table ac-table mb-0"><thead><tr><th>Month</th><th class="ac-num">Income</th><th class="ac-num">Expenses</th><th class="ac-num">Profit</th></tr></thead><tbody>
+      {% for m in monthly %}<tr><td>{{ m.label }}</td><td class="ac-num">{{ m.income|floatformat:"2g" }}</td><td class="ac-num">{{ m.expense|floatformat:"2g" }}</td><td class="ac-num {% if m.profit < 0 %}ac-neg{% else %}ac-pos{% endif %}">{{ m.profit|floatformat:"2g" }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="ac-card"><h6>Where the money went this period</h6>
+      {% for name, v in p.expense.items %}<div class="d-flex justify-content-between small mb-1"><span>{{ name }}</span><span class="ac-num">{{ v|floatformat:"2g" }}</span></div>
+      <div class="ac-bar mb-2"><i style="width:{% widthratio v p.total_expense 100 %}%;background:#f59e0b"></i></div>
+      {% empty %}<div class="ac-hint">No expenses in this period.</div>{% endfor %}
+    </div>
+    <div class="ac-card"><h6>Recent entries <a class="float-end text-decoration-none" style="text-transform:none;letter-spacing:0" href="{% url 'accounting_txn_list' %}">all &rarr;</a></h6>
+      <table class="table ac-table mb-0"><tbody>
+      {% for t in recent %}<tr><td>{{ t.date|date:"d M" }}</td><td><a href="{% url 'accounting_txn_detail' t.pk %}">{{ t.description|default:t.party|default:t.get_txn_type_display }}</a><div class="ac-hint">{{ t.get_txn_type_display }} &middot; {{ t.account }}</div></td>
+        <td class="ac-num">{{ t.amount|floatformat:"2g" }}</td><td><span class="ac-pill {{ t.status }}">{{ t.get_status_display }}</span></td></tr>
+      {% empty %}<tr><td class="ac-hint">Nothing entered yet. Use <b>New Entry</b> for an expense, income, transfer or bill payment.</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</div>
+{% endblock %}

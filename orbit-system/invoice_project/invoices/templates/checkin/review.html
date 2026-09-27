@@ -1,0 +1,22 @@
+{% extends 'checkin/_base.html' %}
+{% block content %}
+<div class="card">
+  <h2>Welcome {{ c.registration.first_name }}</h2>
+  <p class="sub">Please check this is your class before confirming.</p>
+  <div class="rows">
+    <div class="row"><span class="l">Student ID</span><span class="v">{{ c.registration.registration_number }}</span></div>
+    <div class="row"><span class="l">Course</span><span class="v">{{ course|default:"—" }}</span></div>
+    <div class="row"><span class="l">Trainer</span><span class="v">{{ trainer|default:"—" }}</span></div>
+    <div class="row"><span class="l">Class date</span><span class="v">{{ c.scheduled_date|date:"d M Y" }}</span></div>
+    <div class="row"><span class="l">Class time</span><span class="v">{{ c.scheduled_start|time:"h:i A" }} – {{ c.scheduled_end|time:"h:i A" }}</span></div>
+    <div class="row"><span class="l">Your login time</span><span class="v">{{ login_time|time:"h:i A" }}</span></div>
+  </div>
+  <p class="agree">I confirm that the above information belongs to me and I am joining this scheduled class.</p>
+  <form method="post" action="{% url 'checkin_confirm' %}">{% csrf_token %}
+    <input type="hidden" name="token" value="{{ token }}">
+    <button class="btn btn-primary">✓ I Agree &amp; Confirm</button>
+  </form>
+  <a href="{% url 'checkin_start' %}" class="btn btn-light">Back</a>
+  <p class="hint">If any of this is not correct, do not confirm — go back and check your Student ID.</p>
+</div>
+{% endblock %}
