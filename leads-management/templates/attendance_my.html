@@ -25,7 +25,7 @@
           <td><strong>{{ fmt(r.net) }}</strong></td>
           <td>
             {% if r.status == 'open' %}<span class="badge bg-primary">Logged in</span>
-            {% elif r.status == 'closed' %}<span class="badge bg-success">Present{% if r.logout_type == 'curfew' %} (auto 9:30 PM){% endif %}</span>
+            {% elif r.status == 'closed' %}<span class="badge bg-success">Present{% if r.logout_type == 'curfew' %} (auto 9:30 PM){% elif r.logout_type == 'forgot_logout' %} (forgot to log out){% endif %}</span>
             {% elif r.status == 'unpaid_leave' %}<span class="badge bg-danger">Unpaid leave &mdash; did not log out</span>
             {% elif r.status == 'excused' %}<span class="badge bg-info">Excused{% if r.note %}: {{ r.note }}{% endif %}</span>
             {% endif %}

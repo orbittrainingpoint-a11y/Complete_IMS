@@ -948,9 +948,19 @@
     function assumedElsewhere() { return document.hidden || !document.hasFocus(); }
 
     function beat() {
-        const active = !onBreak && (detectorOn ? sysState === 'active' : (activeSinceBeat || assumedElsewhere()));
+        // confirmed = real evidence of activity (a keystroke/click, or the system-wide
+        // detector saying 'active') as opposed to merely assuming elsewhere because the tab
+        // is hidden/unfocused. A background tab's own timer can be throttled by the browser
+        // for 20+ minutes; the server must not turn an *unconfirmed* silent gap into a break
+        // just because this heartbeat itself arrived late — see attendance.record_activity.
+        let active, confirmed;
+        if (onBreak) { active = false; confirmed = true; }
+        else if (detectorOn) { active = sysState === 'active'; confirmed = true; }
+        else if (activeSinceBeat) { active = true; confirmed = true; }
+        else if (assumedElsewhere()) { active = true; confirmed = false; }
+        else { active = false; confirmed = true; }
         activeSinceBeat = false;
-        post('/attendance/heartbeat', { active: active }).then(applyState).catch(() => {});
+        post('/attendance/heartbeat', { active: active, confirmed: confirmed }).then(applyState).catch(() => {});
     }
     beat();
     setInterval(beat, 60 * 1000);

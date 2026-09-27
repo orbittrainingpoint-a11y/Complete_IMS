@@ -14,6 +14,13 @@ from models import AttendanceSession, AttendanceBreak
 IDLE_LIMIT = timedelta(minutes=20)   # no movement for this long counts as a break
 TRACKED_ROLES = ('consultant', 'sales_manager')
 DUBAI_TZ = timezone(timedelta(hours=4))
+CURFEW_HOUR, CURFEW_MINUTE = 21, 30  # 9:30 PM Dubai — matches routes._is_after_dubai_curfew
+
+
+def _is_at_or_after_curfew(dt_utc):
+    """True if this UTC timestamp falls at/after the 9:30 PM Dubai mandatory-logout time."""
+    local = dt_utc + timedelta(hours=4)
+    return (local.hour, local.minute) >= (CURFEW_HOUR, CURFEW_MINUTE)
 
 
 _net_cache = {'t': 0.0, 'nets': None}
@@ -76,8 +83,13 @@ def _close_open_break(session_id, at):
 
 
 def settle_stale_sessions(user_id=None):
-    """Any session still open from a previous Dubai date was never logged out:
-    the day becomes unpaid leave and the user gets a one-time warning. Returns count."""
+    """Any session still open from a previous Dubai date was never logged out. Most of the
+    time that's just someone forgetting to click Logout before leaving at a normal hour —
+    their last real activity was before the 9:30 PM curfew, so the day is closed normally
+    (no warning, no unpaid leave). Unpaid leave is reserved for a session whose last activity
+    was AT/AFTER curfew: the mandatory-logout enforcement never got a chance to run (no more
+    requests came in that day), so nobody knows whether the computer was just left signed in.
+    Returns count of sessions settled either way."""
     q = AttendanceSession.query.filter(
         AttendanceSession.status == 'open',
         AttendanceSession.work_date < dubai_today(),
@@ -87,10 +99,14 @@ def settle_stale_sessions(user_id=None):
     count = 0
     for s in q.all():
         _close_open_break(s.id, s.last_activity_at)
-        s.status = 'unpaid_leave'
-        s.logout_type = 'forced_next_day'
         s.logout_at = s.last_activity_at
-        s.warning_pending = True
+        if _is_at_or_after_curfew(s.last_activity_at):
+            s.status = 'unpaid_leave'
+            s.logout_type = 'forced_next_day'
+            s.warning_pending = True
+        else:
+            s.status = 'closed'
+            s.logout_type = 'forgot_logout'
         count += 1
     if count:
         db.session.commit()
@@ -155,13 +171,21 @@ def close_session(user_id, logout_type='manual', note=None, use_last_activity=Fa
     return s
 
 
-def record_activity(session):
+def record_activity(session, confirmed=True):
     """Human activity heartbeat. If the user was silent for more than the idle limit
-    (laptop asleep, walked away with the tab closed) the silent gap counts as a break."""
+    (laptop asleep, walked away with the tab closed) the silent gap counts as a break.
+
+    `confirmed` = the browser actually saw real evidence of activity (a keystroke/click, or
+    the system-wide Idle Detection API reporting 'active') for this heartbeat, as opposed to
+    just assuming the person is working elsewhere because the tab is hidden/unfocused. A
+    background tab's own timer can be throttled by the browser for 20+ minutes at a stretch;
+    when the delayed heartbeat finally arrives on nothing but that assumption, the gap must
+    NOT be turned into a break — that would wrongly punish ordinary tab-switching. A confirmed
+    gap (e.g. the laptop slept and just woke up to a real keypress) still counts, same as before."""
     now = datetime.utcnow()
     if _open_break(session.id):
         return
-    if now - session.last_activity_at > IDLE_LIMIT:
+    if confirmed and now - session.last_activity_at > IDLE_LIMIT:
         db.session.add(AttendanceBreak(
             session_id=session.id, user_id=session.user_id,
             start_at=session.last_activity_at, end_at=now, break_type='auto_idle',

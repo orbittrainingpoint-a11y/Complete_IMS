@@ -695,8 +695,11 @@ def attendance_heartbeat():
     if not att.in_office(request):
         return _out_of_office_json()
     s = _my_open_session() or att.ensure_session(current_user)
-    if (request.get_json(silent=True, force=True) or {}).get('active'):
-        att.record_activity(s)
+    payload = request.get_json(silent=True, force=True) or {}
+    if payload.get('active'):
+        # confirmed defaults to True: legacy/other callers (e.g. the ERP's event-driven
+        # heartbeat) never send it and are always based on a real click/keystroke.
+        att.record_activity(s, confirmed=bool(payload.get('confirmed', True)))
     return jsonify(_attendance_state(s))
 
 
@@ -757,6 +760,11 @@ def _attendance_rows(sessions):
         r['first_in'] = min(r['first_in'], s.login_at)
         if s.logout_at and (not r['last_out'] or s.logout_at > r['last_out']):
             r['last_out'] = s.logout_at
+            # A day's badge should describe how it actually ended, not whichever session the
+            # DB happened to return first — e.g. a mistaken 43-second login/logout earlier in
+            # the day must not hide the "(forgot to log out)" hint that belongs to the real one.
+            if s.status not in ('unpaid_leave', 'open'):
+                r['logout_type'] = s.logout_type
         if s.status in ('unpaid_leave', 'open'):
             r['status'] = s.status
             r['logout_type'] = s.logout_type
