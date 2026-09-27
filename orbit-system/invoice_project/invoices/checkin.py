@@ -235,10 +235,12 @@ def checkin_admin_list(request):
     for r in rows:
         r.disp = r.display_status()
     from .models import Trainer
+    confirmed = sum(1 for r in rows if r.status == 'confirmed')
+    no_show = sum(1 for r in rows if r.status == 'no_show')
     return render(request, 'checkin/admin_list.html', {
         'rows': rows, 'the_date': the_date, 'today': today, 'trainers': Trainer.objects.filter(is_active=True),
         'can_edit': can_manage(request.user), 'setting': CheckInSetting.get(),
-        'confirmed': sum(1 for r in rows if r.status == 'confirmed'), 'total': len(rows)})
+        'confirmed': confirmed, 'no_show': no_show, 'pending': len(rows) - confirmed - no_show, 'total': len(rows)})
 
 
 @login_required

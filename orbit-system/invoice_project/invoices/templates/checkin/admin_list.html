@@ -1,60 +1,92 @@
 {% extends 'base_generic.html' %}
-{% load schedule_tags %}
 {% block title %}Student Check-ins{% endblock %}
 {% block breadcrumb_label %}<span class="current">Student Check-ins</span>{% endblock %}
 {% block extra_css %}
 <style>
-.ci-table th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);font-weight:600}
+.ci-table th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);font-weight:600;white-space:nowrap}
 .ci-table td{font-size:13px;vertical-align:middle}
-.ci-pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px}
+.ci-table tbody tr:hover{background:#f8faff}
+.ci-pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;white-space:nowrap}
 .ci-pill.confirmed{background:#dcfce7;color:#166534}.ci-pill.waiting_for_start{background:#e0f2fe;color:#075985}
 .ci-pill.active{background:#dbeafe;color:#1e40af}.ci-pill.completed{background:#f1f5f9;color:#475569}
 .ci-pill.awaiting_confirm{background:#fef3c7;color:#92400e}.ci-pill.no_show{background:#fee2e2;color:#991b1b}
 .ci-pill.cancelled{background:#fee2e2;color:#991b1b}
+.ci-avatar{width:32px;height:32px;border-radius:50%;background:rgba(37,99,235,.1);color:var(--primary);
+  display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.ci-student{display:flex;align-items:center;gap:10px}
+.ci-toolbar{background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:16px;
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.ci-link-box{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--text-muted)}
+.ci-link-box code{color:var(--text);font-size:12px}
+.ci-empty{text-align:center;padding:56px 20px;color:var(--text-muted)}
+.ci-empty i{font-size:34px;color:#cbd5e1;margin-bottom:12px;display:block}
 </style>
 {% endblock %}
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
   <div><div class="page-title"><i class="fas fa-wifi me-2 text-primary"></i>Student Check-ins</div>
-  <div class="page-subtitle">Students who checked in themselves for a scheduled class (phase 1: a check-in page, not a real Wi-Fi captive portal yet)</div></div>
+  <div class="page-subtitle">Students who checked in themselves for a scheduled class — phase 1: a check-in page, not a real Wi-Fi captive portal yet</div></div>
   <form method="get" class="d-flex gap-2">
     <input type="date" name="date" value="{{ the_date|date:'Y-m-d' }}" class="form-control form-control-sm" onchange="this.form.submit()">
     <select name="trainer" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">All trainers</option>
       {% for t in trainers %}<option value="{{ t.pk }}" {% if request.GET.trainer == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select>
   </form>
 </div>
-{% schedule_nav active='checkins' %}
-<div class="d-flex gap-3 mb-3 align-items-center">
-  <span class="ci-pill confirmed">{{ confirmed }} confirmed</span>
-  <span class="ci-pill awaiting_confirm">{{ total|add:"-0" }} total shown</span>
-  {% if the_date == today %}<a href="{% url 'checkin_start' %}" target="_blank" class="small">Open student check-in page ↗</a>{% endif %}
-  {% if is_admin %}<button class="btn btn-sm btn-light ms-auto" data-bs-toggle="collapse" data-bs-target="#ciSettings"><i class="fas fa-gear me-1"></i>Settings</button>{% endif %}
+{% include 'trainer_schedule/_nav.html' with active='checkins' %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card"><div class="kpi-icon icon-green"><i class="fas fa-circle-check"></i></div>
+      <div class="kpi-value" style="font-size:22px;">{{ confirmed }}</div><div class="kpi-label">Confirmed</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card"><div class="kpi-icon icon-blue"><i class="fas fa-user-clock"></i></div>
+      <div class="kpi-value" style="font-size:22px;">{{ total }}</div><div class="kpi-label">Total shown for this date</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card"><div class="kpi-icon icon-orange"><i class="fas fa-hourglass-half"></i></div>
+      <div class="kpi-value" style="font-size:22px;">{{ pending }}</div><div class="kpi-label">Not yet confirmed</div></div>
+  </div>
+  <div class="col-6 col-md-3 d-flex flex-column gap-2 justify-content-center">
+    {% if the_date == today %}<a href="{% url 'checkin_start' %}" target="_blank" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-up-right-from-square me-1"></i>Open check-in page</a>{% endif %}
+    {% if is_admin %}<button class="btn btn-light btn-sm" data-bs-toggle="collapse" data-bs-target="#ciSettings"><i class="fas fa-gear me-1"></i>Settings</button>{% endif %}
+  </div>
 </div>
+
 {% if is_admin %}
-<div class="collapse card mb-3 p-3" id="ciSettings">
-  <form method="post" action="{% url 'checkin_settings_save' %}" class="d-flex flex-wrap gap-3 align-items-end">{% csrf_token %}
-    <div class="form-check"><input type="checkbox" class="form-check-input" name="is_enabled" id="ci_en" {% if setting.is_enabled %}checked{% endif %}>
-      <label class="form-check-label small" for="ci_en">Check-in page enabled</label></div>
-    <div><label class="small text-muted d-block">Early window (minutes)</label><input type="number" name="early_window_minutes" value="{{ setting.early_window_minutes }}" class="form-control form-control-sm" style="width:110px"></div>
-    <div><label class="small text-muted d-block">Max failed attempts</label><input type="number" name="rate_limit_attempts" value="{{ setting.rate_limit_attempts }}" class="form-control form-control-sm" style="width:110px"></div>
-    <div><label class="small text-muted d-block">...within (minutes)</label><input type="number" name="rate_limit_minutes" value="{{ setting.rate_limit_minutes }}" class="form-control form-control-sm" style="width:110px"></div>
-    <button class="btn btn-sm btn-primary">Save</button>
-  </form>
-  <div class="text-muted small mt-2">Check-in page: <code>{{ request.scheme }}://{{ request.get_host }}{% url 'checkin_start' %}</code> — students open this directly for now (no separate Wi-Fi network yet).</div>
+<div class="collapse mb-3" id="ciSettings">
+  <div class="card p-3">
+    <div class="fw-semibold small text-muted text-uppercase mb-2" style="letter-spacing:.5px;">Check-in settings</div>
+    <form method="post" action="{% url 'checkin_settings_save' %}" class="d-flex flex-wrap gap-3 align-items-end">{% csrf_token %}
+      <div class="form-check"><input type="checkbox" class="form-check-input" name="is_enabled" id="ci_en" {% if setting.is_enabled %}checked{% endif %}>
+        <label class="form-check-label small" for="ci_en">Check-in page enabled</label></div>
+      <div><label class="small text-muted d-block">Early window (minutes)</label><input type="number" name="early_window_minutes" value="{{ setting.early_window_minutes }}" class="form-control form-control-sm" style="width:110px"></div>
+      <div><label class="small text-muted d-block">Max failed attempts</label><input type="number" name="rate_limit_attempts" value="{{ setting.rate_limit_attempts }}" class="form-control form-control-sm" style="width:110px"></div>
+      <div><label class="small text-muted d-block">...within (minutes)</label><input type="number" name="rate_limit_minutes" value="{{ setting.rate_limit_minutes }}" class="form-control form-control-sm" style="width:110px"></div>
+      <button class="btn btn-sm btn-primary">Save</button>
+    </form>
+    <div class="ci-link-box mt-3"><i class="fas fa-link"></i>Check-in page: <code>{{ request.scheme }}://{{ request.get_host }}{% url 'checkin_start' %}</code>
+      <span>— students open this directly for now (no separate Wi-Fi network yet).</span></div>
+  </div>
 </div>
 {% endif %}
+
 <div class="card p-0"><div class="table-responsive"><table class="table ci-table mb-0">
 <thead><tr><th>Student</th><th>Course</th><th>Trainer</th><th>Scheduled</th><th>Login</th><th>Confirmed</th><th>Status</th><th></th></tr></thead><tbody>
 {% for c in rows %}<tr>
-  <td>{{ c.registration.first_name }} {{ c.registration.last_name }}<div class="text-muted small">{{ c.registration.registration_number }}</div></td>
-  <td>{{ c.course|default:"-" }}</td><td>{{ c.trainer|default:"-" }}</td>
+  <td><div class="ci-student"><span class="ci-avatar">{{ c.registration.first_name|first|upper }}{{ c.registration.last_name|first|upper }}</span>
+    <div><div class="fw-semibold">{{ c.registration.first_name }} {{ c.registration.last_name }}</div>
+    <div class="text-muted small">{{ c.registration.registration_number }}</div></div></div></td>
+  <td>{{ c.course|default:"—" }}</td><td>{{ c.trainer|default:"—" }}</td>
   <td>{{ c.scheduled_start|time:"H:i" }}–{{ c.scheduled_end|time:"H:i" }}</td>
-  <td>{{ c.login_at|time:"H:i" }}</td><td>{% if c.confirmed_at %}{{ c.confirmed_at|time:"H:i" }}{% else %}-{% endif %}</td>
+  <td>{{ c.login_at|time:"H:i" }}</td><td>{% if c.confirmed_at %}{{ c.confirmed_at|time:"H:i" }}{% else %}—{% endif %}</td>
   <td><span class="ci-pill {{ c.disp }}">{{ c.get_status_display }}{% if c.disp != c.status %} · {{ c.disp|title }}{% endif %}</span></td>
-  <td>{% if can_edit and c.disp != 'confirmed' and c.disp != 'active' and c.status != 'no_show' %}
+  <td class="text-end">{% if can_edit and c.disp != 'confirmed' and c.disp != 'active' and c.status != 'no_show' %}
     <form method="post" action="{% url 'checkin_mark_no_show' c.pk %}"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
     <button class="btn btn-sm btn-outline-danger">Mark no-show</button></form>{% endif %}</td>
 </tr>
-{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No check-ins for this date. Students haven't used the check-in page yet, or nobody had a scheduled class.</td></tr>{% endfor %}
+{% empty %}<tr><td colspan="8"><div class="ci-empty"><i class="fas fa-wifi"></i>No check-ins for this date<br>
+  <span class="small">Students haven't used the check-in page yet, or nobody had a scheduled class.</span></div></td></tr>{% endfor %}
 </tbody></table></div></div>
 {% endblock %}

@@ -16,8 +16,26 @@ def check(l, c, x=''):
     else: FAIL += 1; print('  FAIL', l, x)
 
 HTML = {'HTTP_HOST': 'localhost'}
+
+# Freeze "now" at a safe mid-afternoon time, whatever the real wall clock says: every offset
+# below (early window, "too early", session-ended, etc.) assumes room on both sides of it, which
+# a real run close to midnight would break (e.g. "+90 minutes" spilling into tomorrow). Business
+# hours are 10:00-21:00 anyway (schedule_engine.DAY_START/DAY_END) — no real class ever starts at
+# 23:00 — so anchoring here to 14:00 is exactly as realistic and removes the flakiness entirely.
+import invoices.checkin as checkin_mod
+import invoices.middleware as mw_mod
 today = eng.dubai_today()
-now_min = eng.dubai_now_minutes()
+_FAKE_NOW = dt.datetime.combine(today, dt.time(14, 0), tzinfo=checkin_mod.DUBAI)
+_orig_now = checkin_mod._now
+_orig_curfew = mw_mod._is_after_dubai_curfew
+checkin_mod._now = lambda: _FAKE_NOW
+# The ERP has its own 9:30 PM curfew (invoices.middleware.DubaiCurfewMiddleware) that logs out
+# every non-admin user network-wide — same real-clock dependency as _now above, and it would log
+# the sales_manager/sales_executive test users in scenario 15 straight back out if this test
+# happens to run late at night. Frozen "now" for good measure, so nothing here depends on when
+# it's actually run.
+mw_mod._is_after_dubai_curfew = lambda: False
+now_min = 14 * 60
 
 def t(h, m=0):
     return dt.time(h, m)
@@ -196,6 +214,8 @@ try:
     CheckInSetting.objects.filter(pk=1).update(early_window_minutes=60)
 
 finally:
+    checkin_mod._now = _orig_now
+    mw_mod._is_after_dubai_curfew = _orig_curfew
     # Broad (not just pk__in=made) so a run that dies partway through never leaves orphans behind.
     StudentCheckIn.objects.filter(trainer__name='ZZ CI Trainer').delete()
     StudentCheckIn.objects.filter(registration__first_name='ZZ').delete()
