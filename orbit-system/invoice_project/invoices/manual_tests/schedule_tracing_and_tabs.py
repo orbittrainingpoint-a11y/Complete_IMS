@@ -48,12 +48,34 @@ try:
         rr = c.get(url); b = rr.content.decode(); b = b[b.find('<tbody>'):] if '<tbody>' in b else b
         check(label, rr.status_code == 200 and expect_in in b and (expect_out is None or expect_out not in b), rr.status_code)
     check('CSV export works for admin', 'text/csv' in c.get('/schedules/?status=all&export=1')['Content-Type'])
-    print('\n2. Tab bar')
-    home = c.get('/trainers/').content.decode()
-    for t in ('All Schedules', 'Trainers', 'Daily Board', 'Batches', 'One-off', 'Find Free Trainer', 'Students Waiting', 'To Mark', 'Utilization', 'Create Schedule', 'Trace a student'):
-        check(f'tab "{t}" present', t in home)
-    check('To Mark badge shows a count', re.search(r'To Mark <span class="ts-badge red">\d+', home) is not None)
-    check('Paused badge shows a count', re.search(r'Paused <span class="ts-badge warn">\d+', home) is not None)
+    print('\n2. Tab bar - each page shows only its own cluster, not the whole site (Training sidebar covers the rest)')
+    def tab_bar(url):
+        b = c.get(url).content.decode()
+        i = b.find('class="ts-nav"')
+        if i < 0:
+            return ''
+        j = b.find('</div>\n</div>', i)  # closes ts-row then ts-nav
+        return b[i:j] if j >= 0 else b[i:i + 1500]
+
+    sched = tab_bar('/schedules/')
+    for t in ('All Schedules', 'Batches', 'One-off', 'Paused', 'Trace a student', 'Create Schedule'):
+        check(f'schedule cluster shows "{t}"', t in sched)
+    for t in ('Trainers', 'Daily Board', 'Find Free Trainer', 'Students Waiting', 'To Mark', 'Utilization'):
+        check(f'schedule cluster does NOT show "{t}"', t not in sched)
+    check('Paused badge shows a count', re.search(r'Paused <span class="ts-badge warn">\d+', sched) is not None)
+
+    trainers = tab_bar('/trainers/')
+    for t in ('Trainers', 'Daily Board', 'Find Free Trainer', 'Utilization'):
+        check(f'trainer cluster shows "{t}"', t in trainers)
+    for t in ('All Schedules', 'Batches', 'One-off', 'Students Waiting', 'To Mark', 'Create Schedule', 'Trace a student'):
+        check(f'trainer cluster does NOT show "{t}"', t not in trainers)
+
+    action = tab_bar('/waiting-students/')
+    for t in ('Students Waiting', 'To Mark', 'Student Check-ins'):
+        check(f'action cluster shows "{t}"', t in action)
+    check('To Mark badge shows a count', re.search(r'To Mark <span class="ts-badge red">\d+', action) is not None)
+
+    check('settings page has no tab row at all (nothing left in its cluster)', tab_bar('/scheduling/settings/') == '')
     print('\n3. Detail page trace')
     d = c.get(f'/schedules/{r1.pk}/').content.decode()
     check('next / last / attention row', 'Next session' in d and 'Last session' in d and 'not marked' in d)
