@@ -417,12 +417,20 @@ class InvoicePurchase(models.Model):
 
             self.invoice_number = f"{year}/{month}/{new_number:03d}"
     
-    # Set total_amount based on the course rate
-        if self.course:
+    # total_amount must reflect the real purchase items when the invoice has any — that is
+    # the normal workflow today (create/edit views add InvoicePurchaseItem rows, then
+    # recompute and re-save). This used to unconditionally recompute from the legacy
+    # single `course` field on every save, which is never set once items are used — so it
+    # silently zeroed total_amount back out on every save, including the exact line the
+    # create/edit views used to try to fix it. The old course-rate formula is now only used
+    # for a legacy single-course purchase invoice that has no item rows at all.
+        if self.pk and self.purchaseitems.exists():
+            self.total_amount = self.calculate_total_amount()
+        elif self.course:
             self.total_amount = (self.course.rate * self.number_of_person) * (1 - Decimal(self.discount) / 100)
-        else:
-            self.total_amount = 0  # or handle it as needed
-    
+        elif not self.pk:
+            self.total_amount = self.total_amount or 0  # brand new, no items yet — set properly once items are added
+
         super().save(*args, **kwargs)
 
     def __str__(self):
