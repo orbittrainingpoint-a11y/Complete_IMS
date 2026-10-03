@@ -87,18 +87,18 @@ def generate_card_image(card):
     value_font = _font('VeraBd.ttf', 15)
     pill_font = _font('VeraBd.ttf', 15)
 
-    name = f'{reg.first_name} {reg.last_name}'.strip() or reg.registration_number
+    name = card.name() or reg.registration_number
     _centered(draw, name, 574, name_font, INK, max_width=500)
 
     course_name = card.course.name if card.course else '-'
     _centered(draw, course_name, 624, course_font, INK, max_width=460)
 
     _value(draw, reg.registration_number, ID_VALUE_X, 698, value_font, CARD_W - ID_VALUE_X - 30)
-    phone = reg.phone_no or ''
+    phone = card.phone() or ''
     if not phone:
         errors.append('No phone number on file — left blank on the card.')
     _value(draw, phone or '-', PHONE_VALUE_X, 723, value_font, CARD_W - PHONE_VALUE_X - 30)
-    email = reg.email or ''
+    email = card.email() or ''
     if not email:
         errors.append('No email on file — left blank on the card.')
     _value(draw, email or '-', EMAIL_VALUE_X, 757, value_font, CARD_W - EMAIL_VALUE_X - 30)

@@ -21,17 +21,24 @@
 <div class="col-lg-6">
   <div class="idc-verify">
     <h6 class="text-muted text-uppercase small fw-bold mb-3" style="letter-spacing:.5px">Verify student info</h6>
-    <div class="row-item"><span class="l">Name</span><span class="v">{{ reg.first_name }} {{ reg.last_name }}</span></div>
     <div class="row-item"><span class="l">Registration No.</span><span class="v">{{ reg.registration_number }}</span></div>
-    <div class="row-item"><span class="l">Phone</span><span class="v">{{ reg.phone_no|default:"— none on file" }}</span></div>
-    <div class="row-item"><span class="l">Email</span><span class="v">{{ reg.email|default:"— none on file" }}</span></div>
     <div class="row-item"><span class="l">Status</span><span class="v">{{ reg.get_student_status_display }}</span></div>
+    <div class="row-item"><span class="l">On the registration</span><span class="v">{{ reg.first_name }} {{ reg.last_name }} · {{ reg.phone_no|default:"no phone" }} · {{ reg.email|default:"no email" }}</span></div>
   </div>
-  <p class="text-muted small">Phone, email or name wrong? <a href="{% url 'edit_registration' reg.pk %}">Edit the registration</a> first, then come back here.</p>
+  <p class="text-muted small">Name, phone and email on the right are editable just for this card — fixing them here does not change the student's registration. To correct the registration itself, <a href="{% url 'edit_registration' reg.pk %}">edit it here</a> first.</p>
 </div>
 
 <div class="col-lg-6">
   <form method="post" enctype="multipart/form-data" class="card p-4">{% csrf_token %}
+    <div class="row g-3 mb-1">
+      <div class="col-12"><label class="form-label fw-semibold">Name on the card</label>
+        <input type="text" name="name" class="form-control" value="{{ current_name }}" required></div>
+      <div class="col-md-6"><label class="form-label fw-semibold">Phone on the card</label>
+        <input type="text" name="phone" class="form-control" value="{{ current_phone }}"></div>
+      <div class="col-md-6"><label class="form-label fw-semibold">Email on the card</label>
+        <input type="email" name="email" class="form-control" value="{{ current_email }}"></div>
+    </div>
+    <p class="text-muted small mb-3">ID No. is always {{ reg.registration_number }} — the real student ID, not editable.</p>
     <div class="mb-3">
       <label class="form-label fw-semibold">Course on the card</label>
       {% if courses %}
@@ -42,7 +49,7 @@
     </div>
     <div class="mb-3">
       <label class="form-label fw-semibold">Valid until</label>
-      <input type="date" name="valid_until" class="form-control" value="{{ default_valid_until|date:'Y-m-d' }}" required>
+      <input type="date" name="valid_until" class="form-control" value="{{ default_valid_until }}" required>
     </div>
     <div class="mb-3">
       <label class="form-label fw-semibold">Photo {% if not card.photo %}<span class="text-danger">*</span>{% endif %}</label>

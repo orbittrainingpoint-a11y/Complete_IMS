@@ -56,6 +56,11 @@ def id_card_generate(request, registration_id):
             valid_until = dt.date.fromisoformat(valid_until_raw)
         except ValueError:
             error = 'Choose a valid "Valid until" date.'
+        name_in = (request.POST.get('name') or '').strip()
+        phone_in = (request.POST.get('phone') or '').strip()
+        email_in = (request.POST.get('email') or '').strip()
+        if not error and not name_in:
+            error = 'Name cannot be empty.'
         photo = request.FILES.get('photo')
         if not error and not photo and not (card and card.photo):
             error = 'Please upload a photo.'
@@ -73,6 +78,13 @@ def id_card_generate(request, registration_id):
             card.course = course
             card.valid_until = valid_until
             card.generated_by = request.user
+            # Blank override = always track the live registration value; only store a value
+            # here when it was actually changed from what's on the registration, so a card
+            # left untouched never silently drifts from the real record.
+            live_name = f'{reg.first_name} {reg.last_name}'.strip()
+            card.display_name = '' if name_in == live_name else name_in
+            card.display_phone = '' if phone_in == (reg.phone_no or '') else phone_in
+            card.display_email = '' if email_in == (reg.email or '') else email_in
             if photo:
                 card.photo.save(photo.name, ContentFile(photo.read()), save=False)
             card.save()
@@ -88,9 +100,20 @@ def id_card_generate(request, registration_id):
             except Exception as e:
                 error = f'Could not generate the card: {e}'
 
+    if request.method == 'POST' and error:
+        # keep whatever they just typed on screen instead of silently reverting it
+        current_name, current_phone, current_email = name_in, phone_in, email_in
+        default_valid_until = valid_until_raw or (card.valid_until.isoformat() if card else (dt.date.today() + dt.timedelta(days=365)).isoformat())
+    else:
+        current_name = card.name() if card else f'{reg.first_name} {reg.last_name}'.strip()
+        current_phone = card.phone() if card else reg.phone_no
+        current_email = card.email() if card else reg.email
+        default_valid_until = (card.valid_until if card else dt.date.today() + dt.timedelta(days=365)).isoformat()
+
     return render(request, 'id_cards/generate.html', {
         'reg': reg, 'card': card, 'courses': courses, 'error': error,
-        'default_valid_until': (card.valid_until if card else dt.date.today() + dt.timedelta(days=365)),
+        'default_valid_until': default_valid_until,
+        'current_name': current_name, 'current_phone': current_phone, 'current_email': current_email,
     })
 
 

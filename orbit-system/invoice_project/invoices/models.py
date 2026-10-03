@@ -1803,10 +1803,25 @@ class StudentIDCard(models.Model):
                                help_text='Which of the student\'s courses to print on the card')
     photo = models.ImageField(upload_to=student_id_photo_path)
     valid_until = models.DateField()
+    # Printed on the card in place of the matching Registration field when set — lets staff
+    # correct what's shown on the card itself (a nickname, a typo, a better contact number)
+    # without touching the student's actual registration record. Blank = use the live value.
+    display_name = models.CharField(max_length=200, blank=True)
+    display_phone = models.CharField(max_length=20, blank=True)
+    display_email = models.EmailField(blank=True)
     card_image = models.ImageField(upload_to=student_id_card_path, null=True, blank=True)
     generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def name(self):
+        return self.display_name or f'{self.registration.first_name} {self.registration.last_name}'.strip()
+
+    def phone(self):
+        return self.display_phone or self.registration.phone_no
+
+    def email(self):
+        return self.display_email or self.registration.email
 
     def __str__(self):
         return f'ID Card — {self.registration}'
