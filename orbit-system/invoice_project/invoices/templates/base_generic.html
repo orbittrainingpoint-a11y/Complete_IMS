@@ -658,6 +658,11 @@
             </a>
         </div>
         <div class="nav-item">
+            <a href="{% url 'id_card_list' %}" class="nav-link {% if request.resolver_match.url_name in 'id_card_list,id_card_generate,id_card_view' %}active{% endif %}">
+                <span class="nav-icon"><i class="fas fa-id-card"></i></span> ID Cards
+            </a>
+        </div>
+        <div class="nav-item">
             <a href="{% url 'student_form_links' %}" class="nav-link {% if request.resolver_match.url_name == 'student_form_links' %}active{% endif %}">
                 <span class="nav-icon"><i class="fas fa-share-alt"></i></span> Reg. Links
             </a>

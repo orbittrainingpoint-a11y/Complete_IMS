@@ -5,6 +5,7 @@ from . import trainer_schedule as ts
 from . import schedule_views as sv
 from . import accounting
 from . import checkin
+from . import id_card_views as idc
 
 
 
@@ -144,6 +145,12 @@ urlpatterns = [
     path('schedule-checkins/', checkin.checkin_admin_list, name='checkin_admin_list'),
     path('schedule-checkins/<int:pk>/no-show/', checkin.checkin_mark_no_show, name='checkin_mark_no_show'),
     path('schedule-checkins/settings/', checkin.checkin_settings_save, name='checkin_settings_save'),
+
+    # Student ID Cards
+    path('id-cards/', idc.id_card_list, name='id_card_list'),
+    path('id-cards/<int:registration_id>/generate/', idc.id_card_generate, name='id_card_generate'),
+    path('id-cards/<int:registration_id>/', idc.id_card_view, name='id_card_view'),
+    path('id-cards/<int:registration_id>/download/', idc.id_card_download, name='id_card_download'),
 
     # Accounting
     path('accounting/', accounting.accounting_home, name='accounting_home'),

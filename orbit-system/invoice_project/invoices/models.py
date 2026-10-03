@@ -1776,3 +1776,37 @@ class StudentCheckIn(models.Model):
 
     def __str__(self):
         return f'{self.subject_name()} — {self.scheduled_date} {self.scheduled_start}'
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STUDENT ID CARDS
+# One ID card per enrolled student: a photo + the official Orbit design
+# template, composited server-side (see id_cards.py) into a printable PNG.
+# The photo is the only thing actually stored per card — everything else
+# (name, reg. no., phone, email, course) is read live from Registration at
+# generation time, so editing the registration and regenerating the card
+# always reflects the current data.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def student_id_photo_path(instance, filename):
+    ext = (filename.rsplit('.', 1)[-1] if '.' in filename else 'jpg').lower()
+    return f'id_cards/photos/{instance.registration_id}.{ext}'
+
+
+def student_id_card_path(instance, filename):
+    return f'id_cards/generated/{instance.registration_id}.png'
+
+
+class StudentIDCard(models.Model):
+    registration = models.OneToOneField('Registration', on_delete=models.CASCADE, related_name='id_card')
+    course = models.ForeignKey('Course', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                               help_text='Which of the student\'s courses to print on the card')
+    photo = models.ImageField(upload_to=student_id_photo_path)
+    valid_until = models.DateField()
+    card_image = models.ImageField(upload_to=student_id_card_path, null=True, blank=True)
+    generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'ID Card — {self.registration}'
