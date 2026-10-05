@@ -2,4 +2,4 @@
 -- Run once on the CRM database (leads) before deploying this version.
 ALTER TABLE sheet_sync_row
   ADD COLUMN lead_id INT NULL,
-  ADD COLUMN row_number INT NULL;
+  ADD COLUMN `row_number` INT NULL;
