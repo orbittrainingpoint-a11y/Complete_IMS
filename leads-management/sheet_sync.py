@@ -59,16 +59,28 @@ def _source_label(platform):
     return 'Social Media (Instagram)' if p in ('ig', 'instagram') else 'Social Media (Facebook)'
 
 
+def _clean_phone(raw):
+    """Meta exports phones as 'p:+971...'. Keep the digits (and a leading +); None if too short."""
+    s = (raw or '').strip()
+    if s.lower().startswith('p:'):
+        s = s[2:]
+    digits = ''.join(ch for ch in s if ch.isdigit())
+    if len(digits) < 9:
+        return None
+    return ('+' if s.startswith('+') else '') + digits
+
+
 def _import_row(row, intake):
     """Import one sheet row. Returns 'imported', 'duplicate', or 'skipped'."""
     external_id = row.get('id', '')
     if external_id and SheetSyncRow.query.filter_by(external_id=external_id).first():
         return 'duplicate'
-    if not row.get('phone_number'):
+    phone = _clean_phone(row.get('phone_number'))
+    if not phone:
         return 'skipped'
     lead = intake(
         name=row.get('full_name', ''),
-        phone=row.get('phone_number', ''),
+        phone=phone,
         email=row.get('email', ''),
         lead_source=_source_label(row.get('platform')),
         course_text=row.get('adset_name', ''),
