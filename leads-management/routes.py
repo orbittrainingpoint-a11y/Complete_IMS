@@ -2298,7 +2298,7 @@ def pipeline():
             func.count(Lead.id).label('count'),
             func.sum(Lead.quoted_amount).label('total_value')
         ).filter(Lead.added_by == current_user.id)
-        meeting_form.lead_id.choices = [(0, 'Select Lead')] + [(l.id, l.name) for l in Lead.query.filter(Lead.status != 'Converted', Lead.added_by == current_user.id).all()]
+        meeting_form.lead_id.choices = [(0, 'Select Lead')] + [(l.id, l.name) for l in Lead.query.filter(Lead.status != 'Converted', db.or_(Lead.assigned_to == current_user.id, Lead.added_by == current_user.id)).all()]
     
     pipeline_data = pipeline_query.group_by(Lead.status).all()
     meeting_form.student_id.choices = [(0, 'Select Student')] + [(s.id, s.name) for s in Student.query.all()]
@@ -2360,7 +2360,8 @@ def meetings():
         meeting_form = MeetingForm()
         meeting_form.lead_id.choices = [(0, 'Select Lead')] + [
             (l.id, l.name) for l in Lead.query.filter(
-                Lead.status != 'Converted', Lead.added_by == current_user.id
+                Lead.status != 'Converted',
+                db.or_(Lead.assigned_to == current_user.id, Lead.added_by == current_user.id)
             ).order_by(Lead.name).all()
         ]
 
