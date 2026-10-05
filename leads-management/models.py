@@ -810,3 +810,22 @@ class OfficeNetwork(db.Model):
     label       = db.Column(db.String(100))
     added_by_id = db.Column(db.Integer)
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class SheetSyncRow(db.Model):
+    """One row per Meta leadgen id already imported from the Google Sheet (prevents duplicates)."""
+    __tablename__ = 'sheet_sync_row'
+    id = db.Column(db.Integer, primary_key=True)
+    external_id = db.Column(db.String(64), unique=True, nullable=False)
+    imported_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class SheetSyncState(db.Model):
+    """Single row (id=1): outcome of the most recent Google Sheet sync, shown on the admin page."""
+    __tablename__ = 'sheet_sync_state'
+    id = db.Column(db.Integer, primary_key=True)
+    last_run_at = db.Column(db.DateTime)
+    last_status = db.Column(db.String(20))   # ok / error / not_configured
+    last_error = db.Column(db.Text)
+    last_counts = db.Column(db.String(200))
+    rows_seen = db.Column(db.Integer, default=0)

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Google Sheet Sync{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <h4 class="mb-1"><i class="fab fa-google me-2"></i>Google Sheet — Social Media Leads</h4>
+  <p class="text-muted mb-4">New Facebook &amp; Instagram leads are pulled from the sheet every 5 minutes. Each row is imported once.</p>
+
+  <div class="card mb-4"><div class="card-body">
+    <table class="table table-sm mb-0">
+      <tr><th style="width:220px">Spreadsheet</th><td>{{ cfg.sheet_id or '— not set' }}</td></tr>
+      <tr><th>Tab</th><td>{{ cfg.tab }}</td></tr>
+      <tr><th>Service-account key</th><td>
+        {% if key_set %}<span class="badge bg-success">found on server</span>{% else %}<span class="badge bg-danger">not found — set GOOGLE_SA_KEY_PATH</span>{% endif %}</td></tr>
+      <tr><th>Automatic sync</th><td>
+        {% if cfg.enabled %}<span class="badge bg-success">on (every 5 min)</span>{% else %}<span class="badge bg-secondary">off — set GOOGLE_SHEET_ENABLED=1</span>{% endif %}</td></tr>
+      <tr><th>Leads imported so far</th><td>{{ imported_total }}</td></tr>
+      <tr><th>Last run</th><td>{% if state and state.last_run_at %}{{ state.last_run_at.strftime('%d %b %Y %H:%M') }} UTC — <b>{{ state.last_status }}</b>{% if state.last_counts %} · {{ state.last_counts }}{% endif %}{% if state.last_error %}<div class="text-danger small">{{ state.last_error }}</div>{% endif %}{% else %}never{% endif %}</td></tr>
+    </table>
+  </div></div>
+
+  <form method="post" action="{{ url_for('main.sheet_sync_run') }}">
+    <button class="btn btn-primary"><i class="fas fa-rotate me-1"></i>Sync now</button>
+  </form>
+</div>
+{% endblock %}

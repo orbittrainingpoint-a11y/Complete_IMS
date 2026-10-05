@@ -24,6 +24,8 @@ def start_scheduler(app):
                         id='whatsapp_campaign_tick', max_instances=1)
     _scheduler.add_job(lambda: _attendance_tick(app), 'interval', minutes=15,
                         id='attendance_settle', max_instances=1)
+    _scheduler.add_job(lambda: _sheet_tick(app), 'interval', minutes=5,
+                        id='google_sheet_sync', max_instances=1)
     _scheduler.start()
     logging.info('WhatsApp campaign scheduler started')
 
@@ -82,3 +84,31 @@ def _attendance_tick(app):
                     db.session.commit()
                 except Exception:
                     pass
+
+
+def _sheet_tick(app):
+    """Import new social media leads from the Google Sheet. GET_LOCK keeps the 3 gunicorn
+    workers from all fetching the sheet at the same moment (the row dedupe is the real guard)."""
+    import os
+    if os.environ.get('GOOGLE_SHEET_ENABLED', '').strip() != '1':
+        return
+    with app.app_context():
+        from extensions import db
+        got_lock = False
+        try:
+            got_lock = bool(db.session.execute(text("SELECT GET_LOCK('google_sheet_sync', 0)")).scalar())
+            if not got_lock:
+                return
+            import sheet_sync
+            from routes import _intake_lead
+            sheet_sync.sync_once(_intake_lead)
+        except Exception:
+            logging.exception('Google Sheet sync tick failed')
+            db.session.rollback()
+        finally:
+            if got_lock:
+                try:
+                    db.session.execute(text("SELECT RELEASE_LOCK('google_sheet_sync')"))
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()

@@ -5632,3 +5632,34 @@ def set_lead_whatsapp_opt_out(id):
     lead = Lead.query.get_or_404(id)
     _fanout_whatsapp_optout(lead.whatsapp or lead.phone)
     return jsonify({'success': True, 'message': 'Marked as opted out of WhatsApp campaigns.'})
+
+
+# ── Google Sheet sync (social media leads) ─────────────────────────────────
+
+@main.route('/settings/sheet-sync')
+@login_required
+def sheet_sync_settings():
+    if not _can_manage_lead_sources():
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.dashboard'))
+    import sheet_sync
+    cfg = sheet_sync.config()
+    state = SheetSyncState.query.get(1)
+    imported_total = SheetSyncRow.query.count()
+    return render_template('sheet_sync.html', cfg=cfg, state=state, imported_total=imported_total,
+                           key_set=bool(cfg['key_path'] and os.path.isfile(cfg['key_path'])))
+
+
+@main.route('/settings/sheet-sync/run', methods=['POST'])
+@login_required
+def sheet_sync_run():
+    if not _can_manage_lead_sources():
+        flash('Access denied.', 'error')
+        return redirect(url_for('main.dashboard'))
+    import sheet_sync
+    state = sheet_sync.sync_once(_intake_lead)
+    if state.last_status == 'ok':
+        flash(f'Sheet synced — {state.last_counts}.', 'success')
+    else:
+        flash(f'Sheet sync did not run: {state.last_error}', 'error')
+    return redirect(url_for('main.sheet_sync_settings'))
