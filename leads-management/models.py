@@ -817,6 +817,8 @@ class SheetSyncRow(db.Model):
     __tablename__ = 'sheet_sync_row'
     id = db.Column(db.Integer, primary_key=True)
     external_id = db.Column(db.String(64), unique=True, nullable=False)
+    lead_id = db.Column(db.Integer)          # the CRM lead this row created (no FK: lead is MyISAM)
+    row_number = db.Column(db.Integer)       # where the row sits in the sheet, kept current for write-back
     imported_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 

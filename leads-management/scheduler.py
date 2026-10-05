@@ -24,7 +24,7 @@ def start_scheduler(app):
                         id='whatsapp_campaign_tick', max_instances=1)
     _scheduler.add_job(lambda: _attendance_tick(app), 'interval', minutes=15,
                         id='attendance_settle', max_instances=1)
-    _scheduler.add_job(lambda: _sheet_tick(app), 'interval', minutes=5,
+    _scheduler.add_job(lambda: _sheet_tick(app), 'interval', minutes=1,
                         id='google_sheet_sync', max_instances=1)
     _scheduler.start()
     logging.info('WhatsApp campaign scheduler started')
