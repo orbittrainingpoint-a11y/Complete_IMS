@@ -507,6 +507,12 @@
                     <span class="nav-icon"><i class="fas fa-plug"></i></span> Integration Settings
                 </a>
             </div>
+            <div class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'main.sheet_sync_settings' %}active{% endif %}"
+                   href="{{ url_for('main.sheet_sync_settings') }}">
+                    <span class="nav-icon"><i class="fab fa-google"></i></span> Google Sheet Sync
+                </a>
+            </div>
         </div>
         {% endif %}
 
