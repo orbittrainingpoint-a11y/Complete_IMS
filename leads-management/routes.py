@@ -1060,6 +1060,22 @@ def _notify_new_source_lead(lead, category):
     db.session.commit()
 
 
+def _notify_returning_lead(lead, category, lead_source, course_text=None):
+    """An existing lead submitted a new enquiry (often a warm, highly-interested repeat).
+    Tell the assigned consultant and the lead managers, so it isn't buried in the comments."""
+    label = 'Website' if category == 'website' else 'Social Media'
+    course = f' for {course_text}' if course_text else ''
+    message = (f'Returning lead submitted again via {lead_source}{course}: "{lead.name}" ({lead.phone}). '
+               f'Already in the CRM as {lead.status or "New"} - follow up now.')
+    managers = [u for u in User.query.all() if u.is_admin() or u.is_sales_manager()]
+    recipient_ids = {u.id for u in managers}
+    if lead.assigned_to:
+        recipient_ids.add(lead.assigned_to)  # the consultant who owns this lead
+    for uid in recipient_ids:
+        db.session.add(CRMNotification(user_id=uid, message=message, lead_id=lead.id, notif_type='returning_lead'))
+    db.session.commit()
+
+
 _COURSE_MATCH_STOPWORDS = {'course', 'courses', 'training', 'class', 'classes',
                             'the', 'a', 'an', 'and', 'program', 'programme'}
 
@@ -1268,6 +1284,8 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
             if course_text:
                 existing.course_text = course_text
         db.session.commit()
+        if notify_category:
+            _notify_returning_lead(existing, notify_category, lead_source, course_text)
         return existing
 
     lead = Lead(
