@@ -136,7 +136,7 @@
                     <th>Contact</th>
                     <th>Course Interest</th>
                     <th>Source</th>
-                    {% if current_user.role in ('admin', 'super_admin') or current_user.can_manage_users %}
+                    {% if current_user.is_admin() or current_user.is_sales_manager() or current_user.can_manage_users %}
                     <th>Consultant</th>
                     {% endif %}
                     <th>Status</th>
@@ -212,7 +212,7 @@
                             <span class="text-muted" style="font-size:12px;">Unknown</span>
                         {% endif %}
                     </td>
-                    {% if current_user.role in ('admin', 'super_admin') or current_user.can_manage_users %}
+                    {% if current_user.is_admin() or current_user.is_sales_manager() or current_user.can_manage_users %}
                     <td>
                         {% if lead.assigned_consultant %}
                         <div style="display:flex;align-items:center;gap:8px;">

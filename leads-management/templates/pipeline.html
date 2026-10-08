@@ -191,6 +191,9 @@
         </div>
 
         <div class="kcard-name">{{ lead.name }}</div>
+        {% if current_user.is_admin() or current_user.is_sales_manager() or current_user.can_manage_users %}
+        <div class="kcard-phone"><i class="fas fa-user-tie" style="font-size:10px;margin-right:3px;"></i>{{ lead.assigned_consultant.username if lead.assigned_consultant else 'Not assigned' }}</div>
+        {% endif %}
         {% if lead.phone %}<div class="kcard-phone"><i class="fas fa-phone" style="font-size:10px;margin-right:3px;"></i>{{ lead.phone }}</div>{% endif %}
         {% if lead.course_interest %}<span class="kcard-course">{{ lead.course_interest.name }}</span>{% endif %}
         {% if lead.quoted_amount and lead.quoted_amount > 0 %}
