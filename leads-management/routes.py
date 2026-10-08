@@ -1251,8 +1251,26 @@ def _match_course_by_name(course_text):
     return None
 
 
+_STALE_RECONTACT_DAYS = 90
+
+
+def _is_stale_or_closed(lead):
+    """True when a repeat submission from this phone should become its own new lead
+    instead of being merged as a comment onto the old one: the old lead is already
+    Converted/Lost, or nobody has touched it in a long time. A lead still being actively
+    worked keeps merging into one thread; one that's old or closed out is treated as a
+    fresh enquiry so it doesn't get buried where nobody will see it."""
+    if lead.status in ('Converted', 'Lost'):
+        return True
+    last_interaction = db.session.query(func.max(LeadInteraction.interaction_date)) \
+        .filter_by(lead_id=lead.id).scalar()
+    last_activity = last_interaction or lead.created_at
+    return (datetime.utcnow() - last_activity).days >= _STALE_RECONTACT_DAYS
+
+
 def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notify_category=None, course_text=None, match_hint=None):
-    """Create a Lead from an external source, or merge into an existing one with the same phone."""
+    """Create a Lead from an external source, or merge into an existing one with the same phone
+    (unless that existing lead is stale/closed, in which case this becomes a new lead)."""
     name = (name or 'Website Lead').strip()[:100]
     phone = (phone or '').strip()[:20]
     email = (email or '').strip()[:120] or None
@@ -1274,7 +1292,7 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
         course_id = matched_course.id
 
     existing = Lead.check_duplicate(phone)
-    if existing:
+    if existing and not _is_stale_or_closed(existing):
         stamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
         addition = f"\n\n[{stamp}] New {lead_source} submission received.{(' ' + note) if note else ''}"
         existing.comments = (existing.comments or '') + addition
@@ -1288,6 +1306,14 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
             _notify_returning_lead(existing, notify_category, lead_source, course_text)
         return existing
 
+    comments = note or None
+    if existing:
+        # Stale/closed old lead — keep a pointer to it so staff can still see the history.
+        pointer = (f"Same phone previously enquired as lead #{existing.id} "
+                   f"({existing.lead_source or 'unknown source'}, {existing.status}) "
+                   f"on {existing.created_at:%d %b %Y}. Treated as a new enquiry.")
+        comments = f"{pointer}\n\n{note}" if note else pointer
+
     lead = Lead(
         name=name,
         phone=phone,
@@ -1296,7 +1322,7 @@ def _intake_lead(name, phone, email, lead_source, course_id=None, note='', notif
         course_interest_id=course_id,
         course_text=course_text,
         status='New',
-        comments=note or None,
+        comments=comments,
     )
     db.session.add(lead)
     db.session.commit()
