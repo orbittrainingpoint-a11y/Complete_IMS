@@ -8,11 +8,36 @@ Correctness comes from an atomic DB claim on whatsapp_enrollment rows inside
 routes._process_account_due_enrollments(), not from only one process ticking.
 """
 import logging
+from contextlib import contextmanager
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import text
 
 _scheduler = None
+
+
+@contextmanager
+def _named_lock(lock_name):
+    """Acquire a MySQL named lock on one dedicated connection, held open for the whole
+    block, and release it on that same connection. GET_LOCK/RELEASE_LOCK are tied to the
+    exact connection that took them — using db.session for this is unsafe whenever the work
+    inside the block commits (as sheet_sync.sync_once does, deliberately, so imports survive
+    even if the later write-back fails): each commit can hand the ORM session a different
+    pooled connection, so RELEASE_LOCK can silently run on the wrong one and leave the lock
+    stuck until that connection happens to get recycled. Yields whether the lock was taken."""
+    from extensions import db
+    conn = db.engine.connect()
+    got = False
+    try:
+        got = bool(conn.execute(text('SELECT GET_LOCK(:n, 0)'), {'n': lock_name}).scalar())
+        yield got
+    finally:
+        if got:
+            try:
+                conn.execute(text('SELECT RELEASE_LOCK(:n)'), {'n': lock_name})
+            except Exception:
+                logging.exception('Could not release lock %s', lock_name)
+        conn.close()
 
 
 def start_scheduler(app):
@@ -33,22 +58,14 @@ def start_scheduler(app):
 def _tick(app):
     with app.app_context():
         from extensions import db
-        got_lock = False
         try:
-            got_lock = bool(db.session.execute(text("SELECT GET_LOCK('whatsapp_scheduler_tick', 0)")).scalar())
-            if not got_lock:
-                return  # another process is already ticking — nothing to do here
-            _run_tick(db)
+            with _named_lock('whatsapp_scheduler_tick') as got_lock:
+                if not got_lock:
+                    return  # another process is already ticking — nothing to do here
+                _run_tick(db)
         except Exception:
             logging.exception('WhatsApp scheduler tick failed')
             db.session.rollback()
-        finally:
-            if got_lock:
-                try:
-                    db.session.execute(text("SELECT RELEASE_LOCK('whatsapp_scheduler_tick')"))
-                    db.session.commit()
-                except Exception:
-                    pass
 
 
 def _run_tick(db):
@@ -67,23 +84,15 @@ def _attendance_tick(app):
     person never opens the CRM again (so admin reports are right without waiting)."""
     with app.app_context():
         from extensions import db
-        got_lock = False
         try:
-            got_lock = bool(db.session.execute(text("SELECT GET_LOCK('attendance_settle', 0)")).scalar())
-            if not got_lock:
-                return
-            import attendance
-            attendance.settle_stale_sessions()
+            with _named_lock('attendance_settle') as got_lock:
+                if not got_lock:
+                    return
+                import attendance
+                attendance.settle_stale_sessions()
         except Exception:
             logging.exception('Attendance settle tick failed')
             db.session.rollback()
-        finally:
-            if got_lock:
-                try:
-                    db.session.execute(text("SELECT RELEASE_LOCK('attendance_settle')"))
-                    db.session.commit()
-                except Exception:
-                    pass
 
 
 def _sheet_tick(app):
@@ -94,21 +103,13 @@ def _sheet_tick(app):
         return
     with app.app_context():
         from extensions import db
-        got_lock = False
         try:
-            got_lock = bool(db.session.execute(text("SELECT GET_LOCK('google_sheet_sync', 0)")).scalar())
-            if not got_lock:
-                return
-            import sheet_sync
-            from routes import _intake_lead
-            sheet_sync.sync_once(_intake_lead)
+            with _named_lock('google_sheet_sync') as got_lock:
+                if not got_lock:
+                    return
+                import sheet_sync
+                from routes import _intake_lead
+                sheet_sync.sync_once(_intake_lead)
         except Exception:
             logging.exception('Google Sheet sync tick failed')
             db.session.rollback()
-        finally:
-            if got_lock:
-                try:
-                    db.session.execute(text("SELECT RELEASE_LOCK('google_sheet_sync')"))
-                    db.session.commit()
-                except Exception:
-                    db.session.rollback()
