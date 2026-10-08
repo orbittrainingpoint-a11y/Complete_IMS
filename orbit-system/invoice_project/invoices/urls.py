@@ -4,6 +4,7 @@ from . import views
 from . import trainer_schedule as ts
 from . import schedule_views as sv
 from . import accounting
+from . import payroll
 from . import checkin
 from . import id_card_views as idc
 
@@ -168,6 +169,17 @@ urlpatterns = [
     path('accounting/accounts/<int:pk>/', accounting.account_statement, name='accounting_statement'),
     path('accounting/reports/', accounting.reports, name='accounting_reports'),
     path('accounting/settings/', accounting.acc_settings, name='accounting_settings'),
+    path('accounting/payroll/employees/', payroll.employee_list, name='payroll_employees'),
+    path('accounting/payroll/employees/save/', payroll.employee_save, name='payroll_employee_save'),
+    path('accounting/payroll/', payroll.run_list, name='payroll_runs'),
+    path('accounting/payroll/new/', payroll.run_create, name='payroll_run_create'),
+    path('accounting/payroll/<int:pk>/', payroll.run_detail, name='payroll_run_detail'),
+    path('accounting/payroll/<int:pk>/delete/', payroll.run_delete, name='payroll_run_delete'),
+    path('accounting/payroll/<int:pk>/finalize/', payroll.run_finalize, name='payroll_run_finalize'),
+    path('accounting/payroll/<int:pk>/mark-paid/', payroll.run_mark_paid, name='payroll_run_mark_paid'),
+    path('accounting/payroll/payslip/<int:pk>/', payroll.payslip_detail, name='payroll_payslip_detail'),
+    path('accounting/payroll/payslip/<int:pk>/item/add/', payroll.payslip_item_add, name='payroll_payslip_item_add'),
+    path('accounting/payroll/payslip/<int:pk>/item/<int:item_id>/delete/', payroll.payslip_item_delete, name='payroll_payslip_item_delete'),
 
     # Expenses
     path('expenses/', views.expense_list, name='expense_list'),

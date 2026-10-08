@@ -1684,6 +1684,84 @@ class FinTxn(models.Model):
         indexes = [models.Index(fields=['date', 'status'], name='invoices_fi_date_st_idx')]
 
 
+class Employee(models.Model):
+    STATUS_CHOICES = [('active', 'Active'), ('inactive', 'Inactive')]
+    name = models.CharField(max_length=150)
+    designation = models.CharField(max_length=100, blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    email = models.EmailField(blank=True)
+    join_date = models.DateField(null=True, blank=True)
+    monthly_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    bank_name = models.CharField(max_length=120, blank=True)
+    account_number = models.CharField(max_length=60, blank=True, verbose_name='Account number / IBAN')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    notes = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class PayrollRun(models.Model):
+    STATUS_CHOICES = [('draft', 'Draft'), ('finalized', 'Finalized'), ('paid', 'Paid')]
+    year = models.PositiveSmallIntegerField()
+    month = models.PositiveSmallIntegerField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+    txn = models.ForeignKey(FinTxn, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    finalized_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-year', '-month']
+        unique_together = ('year', 'month')
+
+    def label(self):
+        return datetime.date(self.year, self.month, 1).strftime('%B %Y')
+
+    def total_net(self):
+        return self.payslips.aggregate(t=models.Sum('net_pay'))['t'] or Decimal('0')
+
+    def __str__(self):
+        return self.label()
+
+
+class Payslip(models.Model):
+    run = models.ForeignKey(PayrollRun, on_delete=models.CASCADE, related_name='payslips')
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name='payslips')
+    basic_salary = models.DecimalField(max_digits=12, decimal_places=2)
+    net_pay = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['employee__name']
+        unique_together = ('run', 'employee')
+
+    def recompute(self):
+        bonus = self.line_items.filter(kind='bonus').aggregate(t=models.Sum('amount'))['t'] or Decimal('0')
+        deduction = self.line_items.filter(kind='deduction').aggregate(t=models.Sum('amount'))['t'] or Decimal('0')
+        self.net_pay = self.basic_salary + bonus - deduction
+        return self.net_pay
+
+    def __str__(self):
+        return f'{self.employee.name} - {self.run.label()}'
+
+
+class PayslipLineItem(models.Model):
+    KIND_CHOICES = [('bonus', 'Bonus / addition'), ('deduction', 'Deduction')]
+    payslip = models.ForeignKey(Payslip, on_delete=models.CASCADE, related_name='line_items')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    label = models.CharField(max_length=150)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def __str__(self):
+        return f'{self.get_kind_display()}: {self.label} ({self.amount})'
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # STUDENT WI-FI CHECK-IN / ATTENDANCE
 # Phase 1 = software only (no real captive portal yet): a student opens a

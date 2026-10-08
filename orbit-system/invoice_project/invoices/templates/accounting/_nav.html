@@ -28,6 +28,7 @@
   <a href="{% url 'accounting_bills' %}" class="ac-tab {% if active == 'bills' %}on{% endif %}"><i class="fas fa-file-invoice-dollar"></i>Bills</a>
   <a href="{% url 'accounting_receivables' %}" class="ac-tab {% if active == 'ar' %}on{% endif %}"><i class="fas fa-hand-holding-dollar"></i>Receivables &amp; Payables</a>
   <a href="{% url 'accounting_accounts' %}" class="ac-tab {% if active == 'accounts' %}on{% endif %}"><i class="fas fa-building-columns"></i>Bank &amp; Cash</a>
+  <a href="{% url 'payroll_runs' %}" class="ac-tab {% if active == 'payroll' %}on{% endif %}"><i class="fas fa-money-check-dollar"></i>Payroll</a>
   <a href="{% url 'accounting_reports' %}" class="ac-tab {% if active == 'reports' %}on{% endif %}"><i class="fas fa-chart-line"></i>Reports &amp; VAT</a>
   {% if acc_is_admin %}<a href="{% url 'accounting_settings' %}" class="ac-tab {% if active == 'settings' %}on{% endif %}"><i class="fas fa-sliders"></i>Settings</a>{% endif %}
   {% if setting.books_start_date %}<a href="{% url 'accounting_txn_add' %}" class="ac-tab cta"><i class="fas fa-plus"></i>New Entry</a>{% endif %}

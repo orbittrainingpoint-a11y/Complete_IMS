@@ -1,0 +1,49 @@
+{% extends 'base_generic.html' %}
+{% block title %}Employees{% endblock %}
+{% block breadcrumb_label %}<span class="current">Employees</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-users me-2 text-primary"></i>Employees</div>
+<div class="page-subtitle">Staff on payroll. Salary here is the monthly basic used when a new payroll run is created.</div></div>
+{% include 'accounting/_nav.html' %}
+{% include 'payroll/_subnav.html' %}
+<div class="ac-card p-0"><div class="table-responsive"><table class="table ac-table mb-0">
+<thead><tr><th>Name</th><th>Designation</th><th>Phone</th><th>Email</th><th class="ac-num">Monthly salary</th><th>Status</th><th></th></tr></thead><tbody>
+{% for e in employees %}<tr {% if e.status == 'inactive' %}style="opacity:.5"{% endif %}>
+  <td><b>{{ e.name }}</b></td><td>{{ e.designation|default:"-" }}</td><td>{{ e.phone|default:"-" }}</td><td>{{ e.email|default:"-" }}</td>
+  <td class="ac-num">{{ e.monthly_salary|floatformat:"2g" }}</td>
+  <td><span class="ac-pill {% if e.status == 'active' %}posted{% endif %}">{{ e.get_status_display }}</span></td>
+  <td class="text-end"><button class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#empModal"
+    onclick='fillEmp({{ e.pk }},"{{ e.name|escapejs }}","{{ e.designation|escapejs }}","{{ e.phone|escapejs }}","{{ e.email|escapejs }}","{{ e.join_date|date:"Y-m-d" }}","{{ e.monthly_salary }}","{{ e.bank_name|escapejs }}","{{ e.account_number|escapejs }}","{{ e.status }}","{{ e.notes|escapejs }}")'>Edit</button></td>
+</tr>
+{% empty %}<tr><td colspan="7" class="text-center ac-hint py-4">No employees yet.</td></tr>{% endfor %}
+</tbody><tfoot><tr><th colspan="4" class="text-end">Total active monthly salary</th><th class="ac-num">{{ active_total|floatformat:"2g" }}</th><th colspan="2"></th></tr></tfoot>
+</table></div></div>
+
+<button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#empModal" onclick="fillEmp('','','','','','','0','','','active','')"><i class="fas fa-plus me-1"></i>Add employee</button>
+
+<div class="modal fade" id="empModal" tabindex="-1"><div class="modal-dialog"><form method="post" action="{% url 'payroll_employee_save' %}" class="modal-content">{% csrf_token %}
+  <div class="modal-header"><h6 class="modal-title">Employee</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <input type="hidden" name="id" id="e_id">
+    <div class="row g-2">
+      <div class="col-md-8"><label class="form-label small fw-semibold">Name</label><input name="name" id="e_name" class="form-control" required></div>
+      <div class="col-md-4"><label class="form-label small fw-semibold">Designation</label><input name="designation" id="e_desig" class="form-control"></div>
+      <div class="col-md-6"><label class="form-label small fw-semibold">Phone</label><input name="phone" id="e_phone" class="form-control"></div>
+      <div class="col-md-6"><label class="form-label small fw-semibold">Email</label><input name="email" id="e_email" class="form-control"></div>
+      <div class="col-md-6"><label class="form-label small fw-semibold">Join date</label><input type="date" name="join_date" id="e_join" class="form-control"></div>
+      <div class="col-md-6"><label class="form-label small fw-semibold">Monthly salary (AED)</label><input type="number" step="0.01" min="0" name="monthly_salary" id="e_sal" class="form-control" required></div>
+      <div class="col-md-6"><label class="form-label small fw-semibold">Bank name</label><input name="bank_name" id="e_bank" class="form-control"></div>
+      <div class="col-md-6"><label class="form-label small fw-semibold">Account number / IBAN</label><input name="account_number" id="e_acc" class="form-control"></div>
+      <div class="col-md-6"><label class="form-label small fw-semibold">Status</label>
+        <select name="status" id="e_status" class="form-select"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+      <div class="col-12"><label class="form-label small fw-semibold">Notes</label><input name="notes" id="e_notes" class="form-control"></div>
+    </div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-primary">Save</button></div>
+</form></div></div>
+<script>function fillEmp(id,n,d,ph,em,j,s,bn,ac,st,no){
+document.getElementById('e_id').value=id;document.getElementById('e_name').value=n;document.getElementById('e_desig').value=d;
+document.getElementById('e_phone').value=ph;document.getElementById('e_email').value=em;document.getElementById('e_join').value=j==='None'?'':j;
+document.getElementById('e_sal').value=s;document.getElementById('e_bank').value=bn;document.getElementById('e_acc').value=ac;
+document.getElementById('e_status').value=st;document.getElementById('e_notes').value=no;}</script>
+{% endblock %}

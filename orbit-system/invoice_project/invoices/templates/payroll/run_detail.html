@@ -1,0 +1,42 @@
+{% extends 'base_generic.html' %}
+{% block title %}{{ run.label }}{% endblock %}
+{% block breadcrumb_label %}<span class="current">{{ run.label }}</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">{{ run.label }}
+  <span class="ac-pill {% if run.status == 'paid' %}posted{% elif run.status == 'finalized' %}pending{% endif %}">{{ run.get_status_display }}</span></div></div>
+{% include 'accounting/_nav.html' %}
+{% include 'payroll/_subnav.html' %}
+<div class="row g-3">
+<div class="col-lg-8">
+  <div class="ac-card p-0"><div class="table-responsive"><table class="table ac-table mb-0">
+  <thead><tr><th>Employee</th><th class="ac-num">Basic</th><th class="ac-num">Bonus</th><th class="ac-num">Deduction</th><th class="ac-num">Net pay</th><th></th></tr></thead><tbody>
+  {% for p in payslips %}<tr><td>{{ p.employee.name }}</td><td class="ac-num">{{ p.basic_salary|floatformat:"2g" }}</td>
+    <td class="ac-num ac-pos">{% for i in p.line_items.all %}{% if i.kind == 'bonus' %}+{{ i.amount|floatformat:"2g" }} {% endif %}{% endfor %}</td>
+    <td class="ac-num ac-neg">{% for i in p.line_items.all %}{% if i.kind == 'deduction' %}-{{ i.amount|floatformat:"2g" }} {% endif %}{% endfor %}</td>
+    <td class="ac-num"><b>{{ p.net_pay|floatformat:"2g" }}</b></td>
+    <td class="text-end"><a href="{% url 'payroll_payslip_detail' p.pk %}" class="btn btn-sm btn-light">{% if run.status == 'draft' %}Edit{% else %}View / Print{% endif %}</a></td></tr>
+  {% empty %}<tr><td colspan="6" class="text-center ac-hint py-4">No payslips on this run.</td></tr>{% endfor %}
+  </tbody><tfoot><tr><th colspan="4" class="text-end">Total net pay</th><th class="ac-num">{{ total|floatformat:"2g" }}</th><th></th></tr></tfoot>
+  </table></div></div>
+</div>
+<div class="col-lg-4">
+  {% if run.status == 'draft' %}
+  <div class="ac-card"><h6>Finalize</h6><p class="ac-hint">Locks every payslip on this run so bonuses/deductions can no longer be edited.</p>
+    <form method="post" action="{% url 'payroll_run_finalize' run.pk %}" onsubmit="return confirm('Finalize this run? Payslips will be locked.')">{% csrf_token %}
+      <button class="btn btn-primary btn-sm">Finalize run</button></form></div>
+  <div class="ac-card"><h6>Delete draft</h6>
+    <form method="post" action="{% url 'payroll_run_delete' run.pk %}" onsubmit="return confirm('Delete this draft run?')">{% csrf_token %}
+      <button class="btn btn-outline-danger btn-sm">Delete run</button></form></div>
+  {% elif run.status == 'finalized' %}
+  <div class="ac-card"><h6>Mark as paid</h6><p class="ac-hint">Posts one expense transaction (AED {{ total|floatformat:"2g" }}, category "Salaries &amp; wages") into Accounting.</p>
+    <form method="post" action="{% url 'payroll_run_mark_paid' run.pk %}">{% csrf_token %}
+      <div class="mb-2"><label class="form-label small fw-semibold">Payment date</label><input type="date" name="date" value="{{ today|date:'Y-m-d' }}" class="form-control form-control-sm" required></div>
+      <div class="mb-2"><label class="form-label small fw-semibold">Paid from</label><select name="account" class="form-select form-select-sm">{% for a in accounts %}<option value="{{ a.pk }}">{{ a.name }}</option>{% endfor %}</select></div>
+      <button class="btn btn-success btn-sm">Mark paid</button></form></div>
+  {% elif run.status == 'paid' %}
+  <div class="ac-card"><h6>Paid</h6><p class="ac-hint">Paid on {{ run.paid_at|date:"d M Y" }}.</p>
+    {% if run.txn %}<a href="{% url 'accounting_txn_detail' run.txn.pk %}" class="btn btn-sm btn-light">View accounting entry</a>{% endif %}</div>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

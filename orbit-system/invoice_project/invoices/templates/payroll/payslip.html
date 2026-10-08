@@ -1,0 +1,45 @@
+{% extends 'base_generic.html' %}
+{% block title %}Payslip - {{ slip.employee.name }}{% endblock %}
+{% block breadcrumb_label %}<span class="current">Payslip</span>{% endblock %}
+{% block content %}
+<div class="page-header d-print-none"><div class="page-title">Payslip &mdash; {{ slip.employee.name }} ({{ slip.run.label }})</div>
+  <button onclick="window.print()" class="btn btn-sm btn-light"><i class="fas fa-print me-1"></i>Print</button></div>
+<div class="d-print-none">{% include 'accounting/_nav.html' %}</div>
+
+<div class="ac-card" style="max-width:720px">
+  <div class="d-flex justify-content-between mb-3">
+    <div><h5 class="mb-0">Payslip</h5><div class="ac-hint">{{ slip.run.label }}</div></div>
+    <span class="ac-pill {% if slip.run.status == 'paid' %}posted{% elif slip.run.status == 'finalized' %}pending{% endif %}">{{ slip.run.get_status_display }}</span>
+  </div>
+  <table class="table ac-table mb-3"><tbody>
+    <tr><th style="width:160px">Employee</th><td>{{ slip.employee.name }}</td></tr>
+    <tr><th>Designation</th><td>{{ slip.employee.designation|default:"-" }}</td></tr>
+    <tr><th>Bank / account</th><td>{{ slip.employee.bank_name|default:"-" }} {{ slip.employee.account_number }}</td></tr>
+  </tbody></table>
+
+  <table class="table ac-table mb-3">
+    <thead><tr><th>Item</th><th class="ac-num">Amount (AED)</th>{% if editable %}<th></th>{% endif %}</tr></thead>
+    <tbody>
+      <tr><td>Basic salary</td><td class="ac-num">{{ slip.basic_salary|floatformat:"2g" }}</td>{% if editable %}<td></td>{% endif %}</tr>
+      {% for i in items %}<tr><td>{{ i.get_kind_display }}: {{ i.label }}</td>
+        <td class="ac-num {% if i.kind == 'deduction' %}ac-neg{% else %}ac-pos{% endif %}">{% if i.kind == 'deduction' %}-{% else %}+{% endif %}{{ i.amount|floatformat:"2g" }}</td>
+        {% if editable %}<td class="text-end"><form method="post" action="{% url 'payroll_payslip_item_delete' slip.pk i.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-link text-danger p-0">remove</button></form></td>{% endif %}
+      </tr>{% endfor %}
+    </tbody>
+    <tfoot><tr><th class="text-end">Net pay</th><th class="ac-num">{{ slip.net_pay|floatformat:"2g" }}</th>{% if editable %}<th></th>{% endif %}</tr></tfoot>
+  </table>
+
+  {% if editable %}
+  <div class="d-print-none">
+    <h6>Add bonus / deduction</h6>
+    <form method="post" action="{% url 'payroll_payslip_item_add' slip.pk %}" class="row g-2">{% csrf_token %}
+      <div class="col-md-3"><select name="kind" class="form-select form-select-sm"><option value="bonus">Bonus</option><option value="deduction">Deduction</option></select></div>
+      <div class="col-md-5"><input name="label" class="form-control form-control-sm" placeholder="e.g. Unpaid leave - 2 days" required></div>
+      <div class="col-md-2"><input type="number" step="0.01" min="0.01" name="amount" class="form-control form-control-sm" placeholder="Amount" required></div>
+      <div class="col-md-2"><button class="btn btn-primary btn-sm w-100">Add</button></div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+<style>@media print{.d-print-none{display:none!important}}</style>
+{% endblock %}

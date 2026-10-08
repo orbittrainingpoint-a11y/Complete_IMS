@@ -1,0 +1,25 @@
+{% extends 'base_generic.html' %}
+{% block title %}New Payroll Run{% endblock %}
+{% block breadcrumb_label %}<span class="current">New Payroll Run</span>{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title"><i class="fas fa-money-check-dollar me-2 text-primary"></i>New Payroll Run</div></div>
+{% include 'accounting/_nav.html' %}
+{% include 'payroll/_subnav.html' %}
+{% if not employees %}
+<div class="ac-card">No active employees yet. <a href="{% url 'payroll_employees' %}">Add employees</a> first.</div>
+{% else %}
+<form method="post" class="ac-card">{% csrf_token %}
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><label class="form-label fw-semibold">Month</label>
+      <select name="month" class="form-select">{% for m in month_names %}<option value="{{ forloop.counter }}" {% if forloop.counter == default_month %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label fw-semibold">Year</label><input type="number" name="year" value="{{ default_year }}" class="form-control" required></div>
+  </div>
+  <label class="form-label fw-semibold">Employees to include</label>
+  <table class="table ac-table mb-2"><thead><tr><th style="width:40px"><input type="checkbox" id="chkAll" checked></th><th>Name</th><th>Designation</th><th class="ac-num">Monthly salary</th></tr></thead><tbody>
+  {% for e in employees %}<tr><td><input type="checkbox" class="emp-chk" name="employee_ids" value="{{ e.pk }}" checked></td><td>{{ e.name }}</td><td>{{ e.designation|default:"-" }}</td><td class="ac-num">{{ e.monthly_salary|floatformat:"2g" }}</td></tr>{% endfor %}
+  </tbody></table>
+  <button class="btn btn-primary">Create run</button> <a href="{% url 'payroll_runs' %}" class="btn btn-light">Cancel</a>
+</form>
+<script>document.getElementById('chkAll').addEventListener('change', function(){document.querySelectorAll('.emp-chk').forEach(c=>c.checked=this.checked);});</script>
+{% endif %}
+{% endblock %}
