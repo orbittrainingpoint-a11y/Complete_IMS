@@ -5763,6 +5763,48 @@ def _send_welcome_email(registration, request=None):
         pass
 
 
+def _send_weekly_schedule_email(registration, monday, sunday, sessions):
+    """Monday reminder of this week's classes — reuses the same schedule data the trainer
+    calendar and student check-in already use. Returns True if it actually sent."""
+    from django.core.mail import EmailMultiAlternatives
+    from django.template.loader import render_to_string
+    from django.conf import settings as _s
+    from .weekly_schedule import group_by_day, SITE_URL
+    if not registration.email:
+        return False
+    has_logo = _find_logo_path() is not None
+    days = group_by_day(sessions)
+    ctx = {
+        'first_name': registration.first_name,
+        'registration_number': registration.registration_number,
+        'week_label': f"{monday.strftime('%d %b')} - {sunday.strftime('%d %b %Y')}",
+        'days': days,
+        'checkin_url': f'{SITE_URL}/checkin/',
+        'logo_src': 'cid:orbit_logo' if has_logo else '',
+    }
+    subject = f"Your Class Schedule This Week - {ctx['week_label']}"
+    html_body = render_to_string('emails/weekly_schedule_email.html', ctx)
+    lines = [f"Dear {registration.first_name},", '', f"Your classes for {ctx['week_label']}:", '']
+    for day in days:
+        lines.append(day['label'])
+        for s in day['sessions']:
+            lines.append(f"  {s['start_time']:%I:%M %p}-{s['end_time']:%I:%M %p} {s['course_name']} "
+                        f"({s['mode']}) with {s['trainer_name']}")
+        lines.append('')
+    lines += [f"In-person classes: check in at {ctx['checkin_url']} when your session starts.",
+             "Online classes: log in to your student portal at https://lms.orbittraining.online at your session time.",
+             '', 'Orbit Training Centre']
+    text_body = '\n'.join(lines)
+    try:
+        msg = EmailMultiAlternatives(subject, text_body, _s.DEFAULT_FROM_EMAIL, [registration.email])
+        msg.attach_alternative(html_body, 'text/html')
+        _attach_logo_inline(msg)
+        msg.send(fail_silently=True)
+        return True
+    except Exception:
+        return False
+
+
 def welcome_letter_printable(request, pk):
     """Public printable welcome letter page — no login required."""
     registration = get_object_or_404(Registration, pk=pk)

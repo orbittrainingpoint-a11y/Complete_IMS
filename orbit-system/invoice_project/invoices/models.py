@@ -1856,6 +1856,22 @@ class StudentCheckIn(models.Model):
         return f'{self.subject_name()} — {self.scheduled_date} {self.scheduled_start}'
 
 
+class WeeklyScheduleNotice(models.Model):
+    """One row per registration per week a schedule-reminder email was sent, so the
+    Monday cron job never double-sends if it ever runs more than once in the same week."""
+    registration = models.ForeignKey('Registration', on_delete=models.CASCADE, related_name='weekly_schedule_notices')
+    week_start = models.DateField(help_text='The Monday this notice covers')
+    session_count = models.PositiveIntegerField(default=0)
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('registration', 'week_start')
+        ordering = ['-week_start']
+
+    def __str__(self):
+        return f'{self.registration} — week of {self.week_start}'
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # STUDENT ID CARDS
 # One ID card per enrolled student: a photo + the official Orbit design
