@@ -5802,6 +5802,7 @@ def _send_weekly_schedule_email(registration, monday, sunday, sessions):
         msg.send(fail_silently=True)
         return True
     except Exception:
+        logger.exception('Weekly schedule email failed for %s', registration.registration_number)
         return False
 
 
