@@ -2559,6 +2559,17 @@ def _last_month_range(today=None):
     first_last = last_last.replace(day=1)
     return first_last, last_last
 
+def _last_month_mtd_range(today=None):
+    """Last month's run rate up to the same date, for a fair comparison against this
+    month-to-date — comparing a partial month against a full previous month always looks
+    like a drop, even when the run rate is identical. Clamps to the last day of the
+    previous month when today's day-of-month doesn't exist there (e.g. the 31st against
+    February)."""
+    today = today or timezone.now().date()
+    first_last, last_last = _last_month_range(today)
+    capped_day = min(today.day, last_last.day)
+    return first_last, first_last.replace(day=capped_day)
+
 def _pct_change(current, previous):
     if not previous:
         return 0, 'up' if current else 'neutral'
@@ -2606,7 +2617,7 @@ def _exec_target(user, month_first):
 def _admin_dashboard(request):
     today = timezone.now().date()
     first, last = _month_range(today)
-    prev_first, prev_last = _last_month_range(today)
+    prev_first, prev_last = _last_month_mtd_range(today)
 
     month_revenue = Invoice.objects.filter(date__gte=first, date__lte=last)\
                         .exclude(registration__is_refunded=True)\
@@ -2867,7 +2878,7 @@ def _sales_executive_dashboard(request):
 def _sales_manager_dashboard(request):
     today = timezone.now().date()
     first, last = _month_range(today)
-    prev_first, prev_last = _last_month_range(today)
+    prev_first, prev_last = _last_month_mtd_range(today)
 
     from django.contrib.auth.models import User
     from django.db.models import Count
@@ -2951,7 +2962,7 @@ def _sales_manager_dashboard(request):
 def _accounts_dashboard(request):
     today = timezone.now().date()
     first, last = _month_range(today)
-    prev_first, prev_last = _last_month_range(today)
+    prev_first, prev_last = _last_month_mtd_range(today)
 
     month_rev = Invoice.objects.filter(date__gte=first, date__lte=last)\
                   .aggregate(t=Sum('amount_paid'))['t'] or 0
