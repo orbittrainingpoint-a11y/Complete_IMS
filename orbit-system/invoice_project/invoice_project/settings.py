@@ -13,8 +13,23 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 from pathlib import Path
 import os
 
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# systemd's EnvironmentFile loads .env.erp for the gunicorn service, but cron jobs and ad-hoc
+# shells invoking manage.py directly do NOT get that for free — they'd otherwise run with every
+# os.environ.get(..., '') below silently falling back to its empty/insecure default (this is
+# exactly how the weekly-schedule and welcome-email cron jobs were silently failing to send any
+# mail: DEFAULT_FROM_EMAIL fell back to ''). load_dotenv only fills in variables that aren't
+# already set, so systemd-provided values always take priority; on local dev where no .env.erp
+# exists this is a harmless no-op.
+try:
+    from dotenv import load_dotenv
+    _env_file = Path(BASE_DIR).parent.parent / '.env.erp'
+    if _env_file.exists():
+        load_dotenv(_env_file)
+except ImportError:
+    pass
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
