@@ -5,6 +5,12 @@ against today's schedule (ScheduleOccurrence for individual/batch rules, or a on
 ClassSession) using the exact same data the trainer schedule module already maintains,
 shows a review screen, and records a StudentCheckIn once they confirm. Nothing here
 duplicates the trainer's own present/absent mark — see the models.py docstring.
+
+In-person (offline) sessions additionally require the student to be on the training
+centre's WiFi, checked against the exact same office-network ranges the CRM already
+manages for staff attendance (one shared source of truth, not a second copy to drift out
+of sync — see _is_on_office_wifi). Online sessions skip this: their attendance instead
+comes from the LMS login tracker (see online_attendance.py).
 """
 import datetime as dt
 import re
@@ -25,6 +31,39 @@ from .trainer_schedule import can_manage
 
 TOKEN_SALT = 'orbit-student-checkin-v1'
 DUBAI = dt.timezone(dt.timedelta(hours=4))
+
+
+def _mode_of(kind, obj, registration):
+    """'online' or 'offline' for the matched session. Batch sessions take their mode from
+    the Batch, not the student (a student can be offline overall but join an online batch).
+    Mirrors weekly_schedule._mode_of — kept local since each module's dependency is this one
+    small function, not worth a shared import for."""
+    if kind == 'class_session':
+        return obj.mode
+    rule = obj.rule
+    if rule.schedule_type == 'batch' and rule.batch:
+        return rule.batch.mode
+    return registration.class_type
+
+
+def _is_on_office_wifi(request):
+    """Ask the CRM whether this request's IP is in the configured office network. Fails
+    OPEN (treats as on-WiFi) on any error reaching the CRM, so a CRM outage never blocks
+    in-person check-in entirely — it's an added safeguard, not the only line of defense
+    (the schedule-window match still has to succeed either way)."""
+    import urllib.request, urllib.error
+    from .views import _CRM_URL, _CRM_SECRET
+    ip = _client_ip(request)
+    if not ip:
+        return True
+    url = f"{_CRM_URL}/api/internal/office-check?ip={ip}"
+    req = urllib.request.Request(url, headers={'Authorization': f'Bearer {_CRM_SECRET}'})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            import json
+            return bool(json.loads(resp.read()).get('in_office', True))
+    except Exception:
+        return True
 
 
 def _now():
@@ -173,6 +212,11 @@ def checkin_lookup(request):
                        f'{(dt.datetime.combine(now.date(), nxt.start_time, tzinfo=DUBAI) - early).strftime("%I:%M %p")}.'})
 
     kind, obj = match
+    if _mode_of(kind, obj, reg) == 'offline' and not _is_on_office_wifi(request):
+        _log(request, raw, reg, 'not_on_wifi')
+        return render(request, 'checkin/error.html', {
+            'message': 'You need to be connected to the training centre WiFi to check in for an '
+                       'in-person class. Please connect and try again.', 'retry': True})
     existing = _existing_checkin(reg, kind, obj)
     if existing and existing.status == 'confirmed':
         _log(request, raw, reg, 'already_confirmed')

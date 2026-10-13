@@ -147,6 +147,19 @@ CRM_DB = {
     'charset': 'utf8mb4',
 }
 
+# ── LMS Integration (online-class attendance via login tracking) ─────────────
+# The LMS (lms.orbittraining.online) is a separate Node/Postgres app on the same VPS, with no
+# existing link to the ERP. Read-only, best-effort: unset locally (no LMS Postgres exists in
+# dev), set in production's .env.erp. online_attendance.py no-ops cleanly when this is empty
+# or unreachable.
+LMS_DB = {
+    'host': os.environ.get('LMS_DB_HOST', 'localhost'),
+    'port': os.environ.get('LMS_DB_PORT', '5432'),
+    'user': os.environ.get('LMS_DB_USER', ''),
+    'password': os.environ.get('LMS_DB_PASSWORD', ''),
+    'database': os.environ.get('LMS_DB_NAME', 'lmsorbit'),
+}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators

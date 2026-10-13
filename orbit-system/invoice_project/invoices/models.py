@@ -1794,7 +1794,7 @@ class CheckInAttempt(models.Model):
         ('inactive_student', 'Student account inactive'), ('no_schedule', 'No session today'),
         ('session_completed', 'Session already ended'), ('session_cancelled', 'Session cancelled'),
         ('already_confirmed', 'Already confirmed'), ('rate_limited', 'Too many attempts'),
-        ('system_error', 'System error'),
+        ('system_error', 'System error'), ('not_on_wifi', 'Not on the training centre WiFi'),
     ]
     student_id_text = models.CharField(max_length=50, blank=True)
     registration = models.ForeignKey('Registration', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')

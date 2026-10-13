@@ -16,3 +16,4 @@ tzdata==2024.1
 weasyprint==69.0
 PyPDF2==3.0.1
 python-dotenv==1.0.1
+psycopg2-binary==2.9.9

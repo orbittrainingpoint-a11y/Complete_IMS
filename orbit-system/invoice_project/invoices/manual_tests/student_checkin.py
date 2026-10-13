@@ -28,7 +28,12 @@ today = eng.dubai_today()
 _FAKE_NOW = dt.datetime.combine(today, dt.time(14, 0), tzinfo=checkin_mod.DUBAI)
 _orig_now = checkin_mod._now
 _orig_curfew = mw_mod._is_after_dubai_curfew
+_orig_wifi = checkin_mod._is_on_office_wifi
 checkin_mod._now = lambda: _FAKE_NOW
+# This file's own focus is the schedule-matching flow, not the office-WiFi gate (that has its
+# own dedicated test: student_checkin_wifi.py) — assume on-WiFi throughout so these scenarios
+# don't depend on a real CRM call or get coupled to office-network config.
+checkin_mod._is_on_office_wifi = lambda request: True
 # The ERP has its own 9:30 PM curfew (invoices.middleware.DubaiCurfewMiddleware) that logs out
 # every non-admin user network-wide — same real-clock dependency as _now above, and it would log
 # the sales_manager/sales_executive test users in scenario 15 straight back out if this test
@@ -216,6 +221,7 @@ try:
 finally:
     checkin_mod._now = _orig_now
     mw_mod._is_after_dubai_curfew = _orig_curfew
+    checkin_mod._is_on_office_wifi = _orig_wifi
     # Broad (not just pk__in=made) so a run that dies partway through never leaves orphans behind.
     StudentCheckIn.objects.filter(trainer__name='ZZ CI Trainer').delete()
     StudentCheckIn.objects.filter(registration__first_name='ZZ').delete()
