@@ -4,14 +4,15 @@ import datetime as dt
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import ProtectedError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from . import schedule_engine as eng
 from .models import (
-    WEEKDAY_CHOICES, Batch, Course, Registration, RegistrationCourse, ScheduleAudit, ScheduleOccurrence,
-    ScheduleRule, SchedulingSetting, Trainer,
+    WEEKDAY_CHOICES, AuditLog, Batch, ClassSession, Course, Registration, RegistrationCourse, ScheduleAudit,
+    ScheduleOccurrence, ScheduleRule, SchedulingSetting, Trainer,
 )
 from .schedule_engine import fmt_hours, hhmm, mins
 from .trainer_schedule import (
@@ -433,6 +434,107 @@ def rule_cancel(request, pk):
     n = eng.cancel_rule(rule, parse_date(request.POST.get('cancel_date'), eng.dubai_today()), reason, request.user)
     messages.success(request, f'Future schedule cancelled; {n} slot(s) are free again. History is kept.')
     return redirect(safe_next(request, f'/schedules/{pk}/'))
+
+
+@login_required
+@require_POST
+def rule_delete(request, pk):
+    """Hard delete for a schedule created by mistake — not the same as Cancel, which keeps
+    everything as history. Only safe when nothing real happened on it yet: any occurrence
+    the student actually checked into (StudentCheckIn is PROTECTed) or that a trainer marked
+    completed blocks this; use Cancel for those instead. Admin-only since it's irreversible.
+    Logged to AuditLog (not ScheduleAudit, which would cascade-delete with the rule itself —
+    the point here is a record that survives the thing it's about)."""
+    if not is_admin_role(request.user):
+        messages.error(request, 'Only an admin can delete a schedule outright. Use Cancel instead.')
+        return redirect(safe_next(request, f'/schedules/{pk}/'))
+    rule = get_object_or_404(ScheduleRule, pk=pk)
+    reason = request.POST.get('reason', '').strip()
+    if not reason:
+        messages.error(request, 'Give a reason for deleting this schedule.')
+        return redirect(safe_next(request, f'/schedules/{pk}/'))
+    if rule.occurrences.filter(status='completed').exists():
+        messages.error(request, 'This schedule has completed sessions on record — delete would '
+                                'destroy real attendance history. Use "Cancel future" instead.')
+        return redirect(safe_next(request, f'/schedules/{pk}/'))
+    subject, trainer_name, repr_text = rule.subject, rule.trainer.name, str(rule)
+    try:
+        rule.delete()
+    except ProtectedError:
+        messages.error(request, 'This schedule has a student check-in on record — delete would '
+                                'destroy real attendance history. Use "Cancel future" instead.')
+        return redirect(safe_next(request, f'/schedules/{pk}/'))
+    AuditLog.objects.create(user=request.user, action='delete', model_name='ScheduleRule',
+                            object_id=str(pk), object_repr=repr_text[:300],
+                            changes=f'Deleted (mistaken schedule): {reason}'[:2000],
+                            ip_address=request.META.get('REMOTE_ADDR') or None)
+    messages.success(request, f'Schedule for {subject} with {trainer_name} deleted.')
+    return redirect(safe_next(request, '/schedules/'))
+
+
+@login_required
+@require_POST
+def occurrence_delete(request, pk):
+    """Hard delete for a single mistaken session (same rules as rule_delete, scoped to one
+    occurrence) — e.g. the rest of the schedule is fine, just this one slot was wrong."""
+    if not is_admin_role(request.user):
+        messages.error(request, 'Only an admin can delete a session outright. Cancel it instead.')
+        return redirect(safe_next(request, '/schedules/'))
+    occ = get_object_or_404(ScheduleOccurrence.objects.select_related('rule'), pk=pk)
+    reason = request.POST.get('reason', '').strip()
+    if not reason:
+        messages.error(request, 'Give a reason for deleting this session.')
+        return redirect(safe_next(request, f'/schedules/{occ.rule_id}/'))
+    if occ.status == 'completed':
+        messages.error(request, 'This session is marked completed — delete would destroy real '
+                                'attendance history. Cancel it instead.')
+        return redirect(safe_next(request, f'/schedules/{occ.rule_id}/'))
+    rule_id, repr_text = occ.rule_id, str(occ)
+    try:
+        occ.delete()
+    except ProtectedError:
+        messages.error(request, 'This session has a student check-in on record — delete would '
+                                'destroy real attendance history. Cancel it instead.')
+        return redirect(safe_next(request, f'/schedules/{rule_id}/'))
+    AuditLog.objects.create(user=request.user, action='delete', model_name='ScheduleOccurrence',
+                            object_id=str(pk), object_repr=repr_text[:300],
+                            changes=f'Deleted (mistaken session): {reason}'[:2000],
+                            ip_address=request.META.get('REMOTE_ADDR') or None)
+    messages.success(request, 'Session deleted.')
+    return redirect(safe_next(request, f'/schedules/{rule_id}/'))
+
+
+@login_required
+@require_POST
+def class_session_delete(request, pk):
+    """Hard delete for a one-off ClassSession (private/make-up/demo/workshop) created by
+    mistake — same rules as rule_delete/occurrence_delete."""
+    if not is_admin_role(request.user):
+        messages.error(request, 'Only an admin can delete a session outright.')
+        return redirect(safe_next(request, '/sessions/'))
+    cs = get_object_or_404(ClassSession, pk=pk)
+    reason = request.POST.get('reason', '').strip()
+    nxt = safe_next(request, '/sessions/')
+    if not reason:
+        messages.error(request, 'Give a reason for deleting this session.')
+        return redirect(nxt)
+    if cs.status == 'completed':
+        messages.error(request, 'This session is marked completed — delete would destroy real '
+                                'attendance history. Cancel it instead.')
+        return redirect(nxt)
+    repr_text = str(cs)
+    try:
+        cs.delete()
+    except ProtectedError:
+        messages.error(request, 'This session has a student check-in on record — delete would '
+                                'destroy real attendance history. Cancel it instead.')
+        return redirect(nxt)
+    AuditLog.objects.create(user=request.user, action='delete', model_name='ClassSession',
+                            object_id=str(pk), object_repr=repr_text[:300],
+                            changes=f'Deleted (mistaken session): {reason}'[:2000],
+                            ip_address=request.META.get('REMOTE_ADDR') or None)
+    messages.success(request, 'Session deleted.')
+    return redirect(nxt)
 
 
 @manage_required

@@ -497,7 +497,8 @@ def session_list(request):
         qs = qs.filter(trainer_id=request.GET['trainer'])
     return render(request, 'trainer_schedule/session_list.html', {
         'sessions': qs.order_by('date', 'start_time'), 'd1': d1, 'd2': d2, 'trainer_f': request.GET.get('trainer', ''),
-        'trainers': Trainer.objects.filter(is_active=True), 'can_manage': can_manage(request.user)})
+        'trainers': Trainer.objects.filter(is_active=True), 'can_manage': can_manage(request.user),
+        'is_admin': is_admin_role(request.user)})
 
 
 @manage_required

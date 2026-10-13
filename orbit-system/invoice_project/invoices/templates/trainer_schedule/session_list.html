@@ -24,6 +24,16 @@
     <td>{{ s.student_name|default:"-" }}<div class="text-muted" style="font-size:11px;">{{ s.course.name|default:"" }}</div></td>
     <td><span class="ts-pill pill-{% if s.status == 'completed' %}completed{% elif s.status == 'cancelled' or s.status == 'no_show' %}cancelled{% else %}upcoming{% endif %}">{{ s.get_status_display }}</span></td>
     <td class="text-end">{% if can_manage %}<a href="{% url 'session_edit' s.pk %}" class="btn btn-outline-secondary btn-sm">Edit</a>
-      {% if s.status == 'scheduled' %}<form method="post" action="{% url 'session_status' s.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="status" value="completed"><button class="btn btn-outline-success btn-sm">Done</button></form>{% endif %}{% endif %}</td></tr>
+      {% if s.status == 'scheduled' %}<form method="post" action="{% url 'session_status' s.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="status" value="completed"><button class="btn btn-outline-success btn-sm">Done</button></form>{% endif %}{% endif %}
+      {% if is_admin and s.status != 'completed' %}<form method="post" action="{% url 'class_session_delete' s.pk %}" class="d-inline"><input type="hidden" name="reason" class="reason-field">{% csrf_token %}<button type="button" class="btn btn-outline-danger btn-sm" title="Delete (mistaken session)" onclick="deleteWithReason(this, 'this session')">&#128465;</button></form>{% endif %}</td></tr>
   {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No sessions in this range.</td></tr>{% endfor %}</tbody></table></div></div>
+<script>
+function deleteWithReason(btn, what) {
+  var reason = prompt('Why are you deleting ' + what + '? (required — this is permanent, not a cancellation)');
+  if (!reason) return;
+  var form = btn.closest('form');
+  form.querySelector('.reason-field').value = reason;
+  form.submit();
+}
+</script>
 {% endblock %}
