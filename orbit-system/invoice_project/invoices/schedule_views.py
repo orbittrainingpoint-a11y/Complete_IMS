@@ -469,7 +469,11 @@ def rule_delete(request, pk):
                             changes=f'Deleted (mistaken schedule): {reason}'[:2000],
                             ip_address=request.META.get('REMOTE_ADDR') or None)
     messages.success(request, f'Schedule for {subject} with {trainer_name} deleted.')
-    return redirect(safe_next(request, '/schedules/'))
+    # Deliberately NOT safe_next() here: the rule is gone, so any "next" naming its own page
+    # (which is exactly what every other action's modal sends, since THEY don't delete the
+    # page out from under themselves) would send the browser straight to a 404. Always the
+    # list, regardless of what the form happened to submit.
+    return redirect('/schedules/')
 
 
 @login_required

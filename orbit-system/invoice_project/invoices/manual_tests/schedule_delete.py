@@ -56,10 +56,18 @@ try:
     print('\n3. Admin, with a reason, no real history -- deleted, occurrences gone too, logged')
     occ_count = rule1.occurrences.count()
     check('rule actually has occurrences to begin with', occ_count > 0, occ_count)
-    r = cl('admin').post(f'/schedules/{rule1.pk}/delete/', {'reason': 'created for the wrong student'}, **HTML)
+    # Exactly what the real template's delete modal submits: a "next" pointing back at this
+    # rule's own detail page (every other action's modal does this, since the page still
+    # exists afterward — the bug was copying that pattern onto delete, where it doesn't).
+    r = cl('admin').post(f'/schedules/{rule1.pk}/delete/',
+                        {'reason': 'created for the wrong student', 'next': f'/schedules/{rule1.pk}/'}, **HTML)
     check('redirects after delete', r.status_code == 302)
     check('rule gone', not ScheduleRule.objects.filter(pk=rule1.pk).exists())
     check('its occurrences gone too (cascade)', not ScheduleOccurrence.objects.filter(rule_id=rule1.pk).exists())
+    check('redirect does NOT send the browser back to the now-deleted rule\'s own page',
+          r.headers.get('Location') != f'/schedules/{rule1.pk}/', r.headers.get('Location'))
+    check('redirect target actually resolves (no 404 after a successful delete)',
+          cl('admin').get(r.headers.get('Location'), **HTML).status_code == 200, r.headers.get('Location'))
     log = AuditLog.objects.filter(model_name='ScheduleRule', object_id=str(rule1.pk), action='delete').first()
     check('AuditLog entry survives (not cascaded away with the rule)', log is not None and 'wrong student' in log.changes, log)
 

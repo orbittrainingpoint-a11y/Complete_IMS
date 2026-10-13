@@ -127,7 +127,11 @@
 
 {% if is_admin %}
 <div class="modal fade" id="deleteModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><form method="post" action="{% url 'rule_delete' rule.pk %}" class="modal-content" style="border-radius:14px;">{% csrf_token %}
-  <input type="hidden" name="next" value="{{ next_url }}"><div class="modal-header"><h5 class="modal-title text-danger">Delete schedule permanently</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  {# No "next" field here on purpose: on success this page's own URL no longer exists (the
+     rule is gone), so the view's own default - the schedule list - must win, not a stale
+     "come back here" value. On a blocked/error delete the view's default already points
+     back at this same page anyway. #}
+  <div class="modal-header"><h5 class="modal-title text-danger">Delete schedule permanently</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body">
     <p class="text-muted" style="font-size:13px;">Only for a schedule that was created by mistake and never actually happened. This removes the whole schedule and every one of its sessions — not a cancellation, it cannot be undone. Blocked automatically if any session was completed or has a student check-in on record; use <b>Cancel future</b> for those instead.</p>
     <label class="ts-label">Reason *</label><textarea name="reason" rows="2" class="form-control" required placeholder="e.g. created for the wrong student"></textarea>
