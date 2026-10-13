@@ -259,7 +259,39 @@ def checkin_confirm(request):
             'message': 'Your scheduled class has already ended. Attendance cannot be started for this session.'})
     c.status, c.confirmed_at = 'confirmed', timezone.now()
     c.save(update_fields=['status', 'confirmed_at'])
+    _notify_trainer_of_checkin(c)
     return render(request, 'checkin/success.html', {'c': c})
+
+
+def _notify_trainer_of_checkin(c):
+    """Email just this session's own trainer that their student has checked in — not every
+    trainer in the system, only the one this class belongs to."""
+    if not (c.trainer and c.trainer.email):
+        return
+    from django.core.mail import EmailMultiAlternatives
+    from django.template.loader import render_to_string
+    from django.conf import settings as _s
+    from .views import _find_logo_path, _attach_logo_inline
+    try:
+        ctx = {
+            'trainer_name': c.trainer.name,
+            'student_name': c.subject_name(),
+            'course_name': c.course.name if c.course else 'Training session',
+            'time_range': f'{c.scheduled_start:%I:%M %p} - {c.scheduled_end:%I:%M %p}',
+            'date_label': c.scheduled_date.strftime('%d %B %Y'),
+            'logo_src': 'cid:orbit_logo' if _find_logo_path() else '',
+        }
+        subject = f"{ctx['student_name']} has checked in - {ctx['course_name']}"
+        html_body = render_to_string('emails/trainer_checkin_notice.html', ctx)
+        text_body = (f"{ctx['student_name']} has checked in for {ctx['course_name']} "
+                    f"today ({ctx['time_range']}).")
+        msg = EmailMultiAlternatives(subject, text_body, _s.DEFAULT_FROM_EMAIL, [c.trainer.email])
+        msg.attach_alternative(html_body, 'text/html')
+        _attach_logo_inline(msg)
+        msg.send(fail_silently=True)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception('Trainer check-in notification failed for %s', c.pk)
 
 
 # ── admin visibility (Trainers & Batches area) ──────────────────────────────

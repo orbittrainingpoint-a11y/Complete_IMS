@@ -1,0 +1,26 @@
+{% extends 'trainer_schedule/_public_base.html' %}
+{% block title %}{{ trainer.name }} — Schedule{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{ trainer.name }}</h2>
+  <p class="sub">This week: {{ week_label }}</p>
+</div>
+
+{% for day in days %}
+<div class="card">
+  <div class="day-title">{{ day.label }}{% if day.date == today %} &middot; Today{% endif %}</div>
+  {% for s in day.rows %}
+  <div class="sess-row">
+    <div class="sess-time">{{ s.start_time|time:"h:i A" }}&ndash;{{ s.end_time|time:"h:i A" }}</div>
+    <div class="sess-main">
+      <div class="sess-course">{{ s.course_name }}</div>
+      <div class="sess-student">{{ s.student_label }}</div>
+    </div>
+    {% if s.status == 'rescheduled' %}<span class="badge ok">Rescheduled</span>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% empty %}
+<div class="card center">No sessions scheduled this week.</div>
+{% endfor %}
+{% endblock %}

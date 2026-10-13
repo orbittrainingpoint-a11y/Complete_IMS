@@ -14,6 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from . import schedule_engine as eng
+from . import trainer_link
 from .models import (
     WEEKDAY_CHOICES, Batch, BatchSkipDate, BatchStudent, ClassSession, Course, Registration, RegistrationCourse,
     ScheduleOccurrence, ScheduleRule, Trainer, TrainerLeave, TrainerWorkingHours,
@@ -162,7 +163,8 @@ def trainer_list(request):
                      'hr': eng.fmt_hours(snap['hours_remaining']),
                      'today_labels': [f'{e["label"]}  {e["title"]}' for e in day['events'] if not e['ghost']][:6],
                      'free_today': [s['label'] for s in day['free']][:6],
-                     'booked_h': round(sum(d['stats']['occupied_min'] for d in week) / 60, 1)})
+                     'booked_h': round(sum(d['stats']['occupied_min'] for d in week) / 60, 1),
+                     'link_token': trainer_link.make_trainer_token(t.pk)})
     return render(request, 'trainer_schedule/trainer_list.html', {
         'rows': rows, 'can_manage': can_manage(request.user), 'can_create': can_create(request.user), 'today': today,
         'inactive': Trainer.objects.filter(is_active=False).count(), 'fmt': eng.fmt_hours})

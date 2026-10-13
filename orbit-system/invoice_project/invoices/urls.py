@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.generic import RedirectView
 from . import views
 from . import trainer_schedule as ts
+from . import trainer_link
 from . import schedule_views as sv
 from . import accounting
 from . import payroll
@@ -146,6 +147,9 @@ urlpatterns = [
     path('schedule-checkins/', checkin.checkin_admin_list, name='checkin_admin_list'),
     path('schedule-checkins/<int:pk>/no-show/', checkin.checkin_mark_no_show, name='checkin_mark_no_show'),
     path('schedule-checkins/settings/', checkin.checkin_settings_save, name='checkin_settings_save'),
+
+    # Trainer schedule link (public, no login — one durable signed-token link per trainer)
+    path('trainer-link/<str:token>/', trainer_link.trainer_schedule_public, name='trainer_schedule_public'),
 
     # Student ID Cards
     path('id-cards/', idc.id_card_list, name='id_card_list'),

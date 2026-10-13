@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>{% block title %}Orbit Trainer Schedule{% endblock %}</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--primary:#2563eb;--primary-dark:#1d4ed8;--ink:#0f172a;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9;--green:#059669;--red:#dc2626}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
+ min-height:100vh;padding:28px 16px}
+.wrap{width:100%;max-width:720px;margin:0 auto}
+.brand{text-align:center;margin-bottom:18px}
+.brand .logo{width:52px;height:52px;border-radius:14px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;
+ font-weight:800;font-size:20px;margin:0 auto 8px}
+.brand h1{font-size:16px;margin:0;font-weight:700}
+.brand p{font-size:12px;color:var(--muted);margin:2px 0 0}
+.card{background:#fff;border-radius:18px;padding:22px;box-shadow:0 4px 24px rgba(15,23,42,.08);margin-bottom:16px}
+.card h2{font-size:17px;margin:0 0 4px;font-weight:700}
+.card .sub{font-size:13px;color:var(--muted);margin:0 0 4px}
+.day-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--primary);margin:0 0 10px}
+.sess-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px;gap:10px}
+.sess-row:last-child{border-bottom:none}
+.sess-time{font-weight:700;width:120px;flex-shrink:0}
+.sess-main{flex-grow:1}
+.sess-course{font-weight:600}
+.sess-student{font-size:12px;color:var(--muted)}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;flex-shrink:0}
+.badge.ok{background:#dcfce7;color:#166534}
+.center{text-align:center;color:var(--muted);padding:20px 0}
+.err-icon{font-size:44px;color:var(--red);margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="logo">O</div><h1>Orbit Training Center</h1><p>Trainer Schedule</p></div>
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>

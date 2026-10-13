@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Checked In</title>
+<style>
+  body { margin:0; padding:0; background:#f1f5f9; font-family:'Segoe UI',Arial,sans-serif; }
+  .wrapper { max-width:480px; margin:32px auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.08); }
+  .header { background:linear-gradient(135deg,#059669,#047857); padding:24px 32px; text-align:center; }
+  .header img { height:44px; width:auto; object-fit:contain; }
+  .hero-title { font-size:19px; font-weight:800; color:#ffffff; margin-top:12px; }
+  .body { padding:28px 32px; }
+  .greeting { font-size:15px; color:#1e293b; margin-bottom:16px; }
+  .card-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:16px 20px; }
+  .detail-row { display:flex; padding:6px 0; font-size:13px; }
+  .detail-label { color:#64748b; width:100px; flex-shrink:0; }
+  .detail-value { color:#1e293b; font-weight:600; }
+  .footer { background:#1e293b; padding:16px 32px; text-align:center; }
+  .footer p { font-size:11px; color:#94a3b8; margin:0; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    {% if logo_src %}<img src="{{ logo_src }}" alt="Orbit Training Centre">{% endif %}
+    <div class="hero-title">&#9989; Student Checked In</div>
+  </div>
+  <div class="body">
+    <p class="greeting">Hi {{ trainer_name }}, your student has checked in:</p>
+    <div class="card-box">
+      <div class="detail-row"><span class="detail-label">Student</span><span class="detail-value">{{ student_name }}</span></div>
+      <div class="detail-row"><span class="detail-label">Course</span><span class="detail-value">{{ course_name }}</span></div>
+      <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">{{ date_label }}</span></div>
+      <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">{{ time_range }}</span></div>
+    </div>
+  </div>
+  <div class="footer"><p>Orbit Training Centre</p></div>
+</div>
+</body>
+</html>

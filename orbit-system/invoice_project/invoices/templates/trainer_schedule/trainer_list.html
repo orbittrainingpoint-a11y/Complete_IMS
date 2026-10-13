@@ -41,7 +41,10 @@
       <div class="d-flex gap-1 mt-3 flex-wrap">
         <a href="{% url 'trainer_week' r.t.pk %}" class="btn btn-primary btn-sm">View Schedule</a>
         {% if can_create %}<a href="{% url 'schedule_create' %}?trainer={{ r.t.pk }}" class="btn btn-outline-success btn-sm">Create Schedule</a>{% endif %}
-        {% if can_manage %}<a href="{% url 'trainer_edit' r.t.pk %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+        {% if can_manage %}
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="copyTrainerLink('{{ r.link_token }}', this)">
+          <i class="fas fa-link me-1"></i>Copy Schedule Link</button>
+        <a href="{% url 'trainer_edit' r.t.pk %}" class="btn btn-outline-secondary btn-sm">Edit</a>
         <form method="post" action="{% url 'trainer_toggle_active' r.t.pk %}" class="ms-auto" onsubmit="return confirm('Deactivate this trainer? History is kept.');">{% csrf_token %}
           <button class="btn btn-outline-danger btn-sm">Deactivate</button></form>{% endif %}
       </div>
@@ -52,4 +55,14 @@
   {% endfor %}
 </div>
 {% if inactive %}<div class="text-muted mt-3" style="font-size:12px;">{{ inactive }} inactive trainer(s) hidden.</div>{% endif %}
+<script>
+function copyTrainerLink(token, btn) {
+  var url = window.location.origin + '/trainer-link/' + token + '/';
+  navigator.clipboard.writeText(url).then(function () {
+    var original = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+    setTimeout(function () { btn.innerHTML = original; }, 1500);
+  });
+}
+</script>
 {% endblock %}
