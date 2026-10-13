@@ -51,9 +51,9 @@
         <tr><td class="text-muted">{% if rule.batch %}Batch{% else %}Student{% endif %}</td><td>{{ rule.subject }}{% if rule.registration %}<div class="text-muted">{{ rule.registration.registration_number }} &middot; {{ rule.registration.phone_no }}</div>{% endif %}</td></tr>
         <tr><td class="text-muted">Course</td><td>{{ rule.course.name|default:"-" }}</td></tr>
         <tr><td class="text-muted">Type</td><td>{{ rule.get_schedule_type_display }}</td></tr>
-        <tr><td class="text-muted">Days</td><td>{{ rule.weekday_names }}</td></tr>
+        <tr><td class="text-muted">Days{% if rule.has_day_times %} &amp; times{% endif %}</td><td>{{ rule.day_times_display }}</td></tr>
         <tr><td class="text-muted">Start date</td><td>{{ rule.start_date|date:"d M Y" }}</td></tr>
-        <tr><td class="text-muted">Start time</td><td>{{ rule.start_time|time:"H:i" }}</td></tr>
+        {% if not rule.has_day_times %}<tr><td class="text-muted">Start time</td><td>{{ rule.start_time|time:"H:i" }}</td></tr>{% endif %}
         <tr><td class="text-muted">{% if rule.batch %}Session duration{% else %}Attendance window{% endif %}</td><td>{{ rule.session_minutes }} min</td></tr>
         {% if not rule.batch %}<tr><td class="text-muted">Teaching interval</td><td>{{ rule.teaching_interval }} min</td></tr>{% endif %}
         <tr><td class="text-muted">Expected end</td><td>{{ rule.end_date|date:"d M Y"|default:"-" }}{% if rule.end_date_manual %} <span class="text-muted">(manual)</span>{% endif %}</td></tr>

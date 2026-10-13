@@ -16,7 +16,7 @@
     <div class="ts-card mb-3">
       <label class="ts-label">Trainer</label>
       {% if batch.trainer %}<a href="{% url 'trainer_week' batch.trainer.pk %}" style="font-weight:700;">{{ batch.trainer.name }}</a>{% else %}<span class="text-danger">Not assigned</span>{% endif %}
-      <label class="ts-label mt-3">Schedule</label>{{ batch.weekday_names }}, {{ batch.start_time|time:"H:i" }} - {{ batch.end_time|time:"H:i" }}
+      <label class="ts-label mt-3">Schedule</label>{% if rule and rule.has_day_times %}{{ rule.day_times_display }} ({{ rule.session_minutes }} min){% else %}{{ batch.weekday_names }}, {{ batch.start_time|time:"H:i" }} - {{ batch.end_time|time:"H:i" }}{% endif %}
       <label class="ts-label mt-3">Dates</label>{{ batch.start_date|date:"d M Y" }} to {{ batch.end_date|date:"d M Y" }}
       <label class="ts-label mt-3">Progress</label>{{ done_sessions }} of {{ total_sessions }} sessions done
       {% if rule %}<div class="mt-1"><a href="{% url 'rule_detail' rule.pk %}">Open full schedule (pause / hours / history)</a></div>{% endif %}

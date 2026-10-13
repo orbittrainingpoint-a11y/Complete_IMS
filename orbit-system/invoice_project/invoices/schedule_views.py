@@ -14,7 +14,7 @@ from .models import (
     WEEKDAY_CHOICES, AuditLog, Batch, ClassSession, Course, Registration, RegistrationCourse, ScheduleAudit,
     ScheduleOccurrence, ScheduleRule, SchedulingSetting, Trainer,
 )
-from .schedule_engine import fmt_hours, hhmm, mins
+from .schedule_engine import fmt_hours, hhmm, mins, to_time
 from .trainer_schedule import (
     can_create, can_manage, create_required, is_admin_role, manage_required, own_trainer, parse_date, parse_time, safe_next,
 )
@@ -172,11 +172,30 @@ def _schedule_inputs(request, data):
     c['weekdays'] = sorted({int(x) for x in data.getlist('weekdays') if x.isdigit() and 0 <= int(x) <= 6})
     if not c['weekdays']:
         errors.append('Select at least one training day.')
-    try:
-        c['start_time'] = parse_time(data.get('start_time') or '')
-    except ValueError:
-        c['start_time'] = None
+    # Each ticked day has its own time field (time_0..time_6); students/batches taking
+    # different timing on different days need this, not one shared time for every day.
+    day_names = dict(WEEKDAY_CHOICES)
+    c['day_times'] = {}
+    fallback_raw = data.get('start_time') or ''
+    for d in c['weekdays']:
+        raw = data.get(f'time_{d}') or fallback_raw
+        try:
+            c['day_times'][d] = mins(parse_time(raw))
+        except ValueError:
+            errors.append(f'Choose a valid time for {day_names.get(d, "that day")}.')
+    # start_time stays as ONE representative value (the earliest day's time) - other code
+    # that only knows about a single time (dashboards, legacy displays) still has something
+    # sensible to show; the real per-day times live in weekday_times (see create_rule call).
+    c['start_time'] = to_time(c['day_times'][c['weekdays'][0]]) if c['weekdays'] and c['weekdays'][0] in c['day_times'] else None
+    if c['weekdays'] and c['start_time'] is None and not errors:
         errors.append('Choose a valid start time.')
+    # Only the days that actually DIFFER from start_time need storing - every existing rule,
+    # and every ordinary "same time every day" submission (the old single-time form posts no
+    # time_N fields at all, so every day lands on the one shared time here), should still end
+    # up with weekday_times blank, exactly as before this field existed.
+    primary_min = mins(c['start_time']) if c['start_time'] else None
+    c['day_times_diff'] = ({d: m for d, m in c['day_times'].items() if m != primary_min}
+                           if primary_min is not None else {})
     c['session_minutes'] = _hours(data.get('session_hours'))
     if c['session_minutes'] <= 0:
         errors.append('Enter the session length.')
@@ -201,7 +220,7 @@ def schedule_create(request):
         c, errors = _schedule_inputs(request, data)
         if not errors:
             planned = eng.plan_occurrences(c['start_date'], c['weekdays'], mins(c['start_time']), c['session_minutes'],
-                                           c['total_minutes'], until=c['end_date'])
+                                           c['total_minutes'], until=c['end_date'], day_times=c['day_times'])
             if not planned:
                 errors.append('No sessions could be generated - check the days, dates and end date.')
             else:
@@ -230,6 +249,7 @@ def schedule_create(request):
                         request.user, trainer=c['trainer'], schedule_type=c['type'], registration=c['registration'], batch=c['batch'],
                         course=c['course'], start_date=c['start_date'], end_date=c['end_date'] or planned[-1][0],
                         end_date_manual=bool(c['end_date']), weekdays=','.join(map(str, c['weekdays'])), start_time=c['start_time'],
+                        weekday_times=eng.format_day_times(c['day_times_diff']),
                         session_minutes=c['session_minutes'], teaching_interval=c['interval'], total_minutes=c['total_minutes'],
                         auto_extend=setting.auto_extend, notes=c['notes'])
                     if override and res['errors']:
@@ -248,6 +268,12 @@ def schedule_create(request):
     if not weekdays_sel and start_date:
         d0 = parse_date(start_date)
         weekdays_sel = {d0.weekday()} if d0 else set()
+    # One time per selected day (defaults to the shared start_time for any day that hasn't
+    # had its own time typed yet) - used to pre-fill the per-day inputs and, on the review
+    # stage, to carry every day's time through to the confirm POST via hidden fields.
+    day_names_short = dict((d, n[:3]) for d, n in WEEKDAY_CHOICES)
+    day_times_list = [{'day': d, 'time': (data.get(f'time_{d}') or start_time),
+                       'label': f"{day_names_short[d]} {data.get(f'time_{d}') or start_time}"} for d in sorted(weekdays_sel)]
     return render(request, 'trainer_schedule/schedule_create.html', {
         'stage': stage, 'errors': errors, 'prev': prev, 'trainer': trainer, 'trainers': Trainer.objects.filter(is_active=True),
         'selected_reg': selected_reg, 'batches': Batch.objects.exclude(status__in=('cancelled', 'completed')).order_by('name'),
@@ -256,8 +282,8 @@ def schedule_create(request):
               'start_time': start_time, 'session_hours': data.get('session_hours') or ('2' if stype == 'individual' else '1'),
               'total_hours': data.get('total_hours') or '20', 'teaching_interval': data.get('teaching_interval') or setting.default_interval,
               'end_date': data.get('end_date', ''), 'notes': data.get('notes', '')},
-        'weekdays': WEEKDAY_CHOICES, 'sel_days': weekdays_sel, 'setting': setting, 'next': data.get('next', ''),
-        'is_admin': is_admin_role(request.user), 'is_manager': can_manage(request.user)})
+        'weekdays': WEEKDAY_CHOICES, 'sel_days': weekdays_sel, 'day_times_list': day_times_list, 'setting': setting,
+        'next': data.get('next', ''), 'is_admin': is_admin_role(request.user), 'is_manager': can_manage(request.user)})
 
 
 @_create_only
@@ -272,11 +298,12 @@ def schedule_preview(request):
         session = _hours(g.get('session_hours'))
         total = _hours(g.get('total_hours'))
         end = parse_date(g.get('end_date'))
+        day_times = eng.parse_day_times(g.get('day_times', ''))
     except (ValueError, TypeError):
         return JsonResponse({'ok': False})
     if not (start_date and wd and session and total):
         return JsonResponse({'ok': False})
-    planned = eng.plan_occurrences(start_date, wd, s, session, total, until=end)
+    planned = eng.plan_occurrences(start_date, wd, s, session, total, until=end, day_times=day_times)
     if not planned:
         return JsonResponse({'ok': False})
     reg = Registration.objects.filter(pk=g.get('registration') or None).first()
@@ -352,6 +379,10 @@ def rule_edit(request, pk):
                         eng.change_trainer(rule, trainer, eff, request.user)
                 if not errors:
                     rule.weekdays, rule.start_time, rule.session_minutes = ','.join(map(str, wd)), st, session
+                    # This form only has one shared time field; leaving old per-day overrides
+                    # in place would silently keep some days on their previous time instead
+                    # of the one just entered here (see schedule_create for per-day editing).
+                    rule.weekday_times = ''
                     rule.teaching_interval = int(request.POST.get('teaching_interval') or rule.teaching_interval)
                     rule.total_minutes, rule.notes = total, request.POST.get('notes', '').strip()
                     rule.end_date, rule.end_date_manual = (end, True) if end else (rule.end_date, False)

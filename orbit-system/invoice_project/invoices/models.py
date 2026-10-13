@@ -1490,7 +1490,13 @@ class ScheduleRule(models.Model):
     end_date = models.DateField(null=True, blank=True)
     end_date_manual = models.BooleanField(default=False)
     weekdays = models.CharField(max_length=20)
-    start_time = models.TimeField()
+    start_time = models.TimeField()  # the representative/default time; see weekday_times for per-day overrides
+    weekday_times = models.CharField(
+        max_length=100, blank=True,
+        help_text='Optional per-day time override, "weekday:HHMM,weekday:HHMM" e.g. "0:1000,2:1400,4:1600" '
+                  '- for students/batches taking different timing on different days. A day not listed here '
+                  'uses start_time. Blank (the default) means every day uses start_time, same as before this '
+                  'field existed. Parsed by schedule_engine.parse_day_times/format_day_times.')
     session_minutes = models.PositiveIntegerField(default=60)        # attendance window (individual) / duration (batch)
     teaching_interval = models.PositiveSmallIntegerField(default=30)  # individual rotation slot
     total_minutes = models.PositiveIntegerField(default=0)           # required training
@@ -1521,6 +1527,24 @@ class ScheduleRule(models.Model):
     def weekday_names(self):
         names = dict(WEEKDAY_CHOICES)
         return ', '.join(names[d][:3] for d in self.weekday_list)
+
+    @property
+    def has_day_times(self):
+        return bool(self.weekday_times)
+
+    def day_times_display(self):
+        """'Mon 10:00, Wed 14:00, Fri 16:00' when days have different times, else just the
+        plain day list (weekday_names) - same as every rule before this field existed."""
+        if not self.weekday_times:
+            return self.weekday_names
+        from . import schedule_engine as eng
+        day_times = eng.parse_day_times(self.weekday_times)
+        names = dict(WEEKDAY_CHOICES)
+        parts = []
+        for d in self.weekday_list:
+            m = day_times.get(d, eng.mins(self.start_time))
+            parts.append(f'{names[d][:3]} {eng.hhmm(m)}')
+        return ', '.join(parts)
 
     @property
     def subject(self):

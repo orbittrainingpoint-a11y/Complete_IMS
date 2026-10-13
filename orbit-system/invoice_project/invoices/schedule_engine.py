@@ -54,6 +54,28 @@ def to_time(m):
     return dt.time(m // 60, m % 60)
 
 
+def parse_day_times(s):
+    """ScheduleRule.weekday_times ("0:1000,2:1400") -> {weekday: minutes}. Blank/garbage
+    entries are skipped rather than raising - this only ever augments start_time, never
+    replaces it, so a bad entry just means that one day falls back to start_time."""
+    out = {}
+    for pair in (s or '').split(','):
+        pair = pair.strip()
+        if ':' not in pair:
+            continue
+        d, hhmm_s = pair.split(':', 1)
+        if d.strip().isdigit() and hhmm_s.isdigit() and len(hhmm_s) == 4:
+            wd = int(d)
+            if 0 <= wd <= 6:
+                out[wd] = int(hhmm_s[:2]) * 60 + int(hhmm_s[2:])
+    return out
+
+
+def format_day_times(day_times):
+    """{weekday: minutes} -> ScheduleRule.weekday_times string, e.g. {0: 600, 2: 840} -> '0:1000,2:1400'."""
+    return ','.join(f'{wd}:{m // 60:02d}{m % 60:02d}' for wd, m in sorted((day_times or {}).items()))
+
+
 def fmt_hours(m):
     m = int(round(m or 0))
     h, r = divmod(m, 60)
@@ -97,11 +119,17 @@ def settings_obj():
 
 # ── recurrence ──────────────────────────────────────────────────────────────
 
-def plan_occurrences(start_date, weekdays, start_min, session_minutes, total_minutes, until=None, min_date=None):
+def plan_occurrences(start_date, weekdays, start_min, session_minutes, total_minutes, until=None, min_date=None, day_times=None):
     """[(date, start_min, end_min)] covering `total_minutes` (last session shortened to the
-    remainder). With `until`, every matching date up to it is planned instead."""
+    remainder). With `until`, every matching date up to it is planned instead.
+
+    `day_times` is an optional {weekday: start_min} map for students/batches taking different
+    timing on different days - any weekday present there uses its own time instead of the
+    shared `start_min`. Omitted (the default) means every day uses `start_min`, exactly the
+    original single-time behavior."""
     if not weekdays or session_minutes <= 0:
         return []
+    day_times = day_times or {}
     out, d = [], max(start_date, min_date or start_date)
     remaining = total_minutes
     guard = 0
@@ -110,13 +138,14 @@ def plan_occurrences(start_date, weekdays, start_min, session_minutes, total_min
         if until and d > until:
             break
         if d.weekday() in weekdays:
+            s = day_times.get(d.weekday(), start_min)
             if until:
-                out.append((d, start_min, start_min + session_minutes))
+                out.append((d, s, s + session_minutes))
             else:
                 if remaining <= 0:
                     break
                 length = min(session_minutes, remaining)
-                out.append((d, start_min, start_min + length))
+                out.append((d, s, s + length))
                 remaining -= length
         d += dt.timedelta(days=1)
         if not until and remaining <= 0:
@@ -124,8 +153,8 @@ def plan_occurrences(start_date, weekdays, start_min, session_minutes, total_min
     return out
 
 
-def expected_completion(start_date, weekdays, start_min, session_minutes, total_minutes, until=None):
-    rows = plan_occurrences(start_date, weekdays, start_min, session_minutes, total_minutes, until)
+def expected_completion(start_date, weekdays, start_min, session_minutes, total_minutes, until=None, day_times=None):
+    rows = plan_occurrences(start_date, weekdays, start_min, session_minutes, total_minutes, until, day_times=day_times)
     return {'sessions': len(rows), 'first': rows[0][0] if rows else None, 'last': rows[-1][0] if rows else None,
             'minutes': sum(e - s for _, s, e in rows), 'rows': rows}
 
@@ -172,7 +201,8 @@ def _touch_end_date(rule):
 
 def _generate(rule, from_date, minutes_needed, user=None):
     rows = plan_occurrences(rule.start_date, rule.weekday_list, mins(rule.start_time), rule.session_minutes,
-                            minutes_needed, until=rule.end_date if rule.end_date_manual else None, min_date=from_date)
+                            minutes_needed, until=rule.end_date if rule.end_date_manual else None, min_date=from_date,
+                            day_times=parse_day_times(rule.weekday_times))
     created = [ScheduleOccurrence(rule=rule, trainer=rule.trainer, date=d, start_time=to_time(s), end_time=to_time(e),
                                   status='scheduled', updated_by=user) for d, s, e in rows]
     ScheduleOccurrence.objects.bulk_create(created)
@@ -246,6 +276,12 @@ def resume_rule(rule, start_date, user, changes=None):
     for k in ('weekdays', 'start_time', 'session_minutes', 'trainer'):
         if k in changes and changes[k] is not None:
             setattr(rule, k, changes[k])
+    if ('weekdays' in changes or 'start_time' in changes) and rule.weekday_times:
+        # The resume form only knows one shared time; applying it while leaving old per-day
+        # overrides in place would silently keep some days on their previous time instead of
+        # the one just chosen here. Clearest behavior: a plain single-time change resets to
+        # a plain single-time schedule - re-add per-day overrides from the schedule page.
+        rule.weekday_times = ''
     rule.status, rule.resume_date, rule.updated_by = 'active', start_date, user
     rule.save()
     h = rule_hours(rule)
