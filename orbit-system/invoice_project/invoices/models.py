@@ -891,6 +891,24 @@ class SalesTarget(models.Model):
         return f"{self.user.username} - {self.month.strftime('%b %Y')} - AED {self.target_amount}"
 
 
+class TeamSalesTarget(models.Model):
+    """A sales manager's TEAM target (her executives' combined performance), separate from
+    her own personal target (SalesTarget, same as any executive's — a manager has both)."""
+    manager = models.ForeignKey(User, on_delete=models.CASCADE, related_name='team_sales_targets')
+    month = models.DateField()
+    target_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    target_registrations = models.IntegerField(default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='team_targets_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('manager', 'month')
+
+    def __str__(self):
+        return f"{self.manager.username} team - {self.month.strftime('%b %Y')} - AED {self.target_amount}"
+
+
 # Auto-create UserProfile when a User is saved (covers new users and login)
 from django.db.models.signals import post_save
 from django.dispatch import receiver

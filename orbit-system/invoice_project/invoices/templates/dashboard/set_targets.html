@@ -9,7 +9,7 @@
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div>
         <div class="page-title">Sales Targets</div>
-        <div class="page-subtitle">Set monthly revenue & registration targets for each executive</div>
+        <div class="page-subtitle">Set monthly revenue & registration targets for each executive and sales manager</div>
     </div>
 </div>
 
@@ -30,6 +30,73 @@
 <form method="post">
     {% csrf_token %}
     <input type="hidden" name="month" value="{{ selected_month }}">
+
+    {% if managers %}
+    <div class="mb-3 fw-600" style="font-size:15px;"><i class="fas fa-user-tie me-2 text-primary"></i>Sales Managers</div>
+    <div class="row g-3 mb-4">
+        {% for mgr in managers %}
+        <div class="col-xl-6">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:800;">{{ mgr.username|slice:":2"|upper }}</div>
+                        <div>
+                            <div style="font-weight:700;font-size:14px;">{{ mgr.get_full_name|default:mgr.username }}</div>
+                            <div style="font-size:11px;color:var(--text-muted);">@{{ mgr.username }} &middot; Sales Manager</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 p-3" style="background:var(--bg);border-radius:8px;">
+                        <div class="d-flex justify-content-between mb-1" style="font-size:12px;">
+                            <span style="color:var(--text-muted);">This Month Achievement (Individual)</span>
+                            <strong>{{ mgr.month_pct }}%</strong>
+                        </div>
+                        <div class="progress" style="height:6px;">
+                            <div class="progress-bar bg-primary" style="width:{{ mgr.month_pct }}%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-1" style="font-size:11px;color:var(--text-muted);">
+                            <span>AED {{ mgr.month_revenue|floatformat:0 }} collected</span>
+                            <span>{{ mgr.month_registrations }} regs</span>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Individual Revenue Target (AED)</label>
+                            <input type="number" name="target_amount_{{ mgr.id }}"
+                                   class="form-control" placeholder="e.g. 30000"
+                                   value="{{ mgr.target_amount|default:'' }}" min="0" step="500">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Individual Registration Target</label>
+                            <input type="number" name="target_reg_{{ mgr.id }}"
+                                   class="form-control" placeholder="e.g. 10"
+                                   value="{{ mgr.target_registrations|default:'' }}" min="0">
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Team Revenue Target (AED)</label>
+                            <input type="number" name="team_target_amount_{{ mgr.id }}"
+                                   class="form-control" placeholder="e.g. 150000"
+                                   value="{{ mgr.team_target_amount|default:'' }}" min="0" step="500">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Team Registration Target</label>
+                            <input type="number" name="team_target_reg_{{ mgr.id }}"
+                                   class="form-control" placeholder="e.g. 50"
+                                   value="{{ mgr.team_target_registrations|default:'' }}" min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="mb-3 fw-600" style="font-size:15px;"><i class="fas fa-users me-2 text-primary"></i>Sales Executives</div>
     <div class="row g-3">
         {% for exec in executives %}
         <div class="col-xl-4 col-md-6">
@@ -81,7 +148,7 @@
         </div>
         {% endfor %}
     </div>
-    {% if executives %}
+    {% if executives or managers %}
     <div class="mt-4">
         <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Save All Targets</button>
         <a href="{% url 'orbit_dashboard' %}" class="btn btn-outline-secondary ms-2">Cancel</a>

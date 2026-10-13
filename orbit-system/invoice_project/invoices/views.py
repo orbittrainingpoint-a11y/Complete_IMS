@@ -53,7 +53,7 @@ import datetime
 
 logger = logging.getLogger(__name__)
 
-from .models import UserProfile, SalesTarget, QuotationItemOverride, QuotationLevel, InstituteSetting, CertificationRequest, Refund
+from .models import UserProfile, SalesTarget, TeamSalesTarget, QuotationItemOverride, QuotationLevel, InstituteSetting, CertificationRequest, Refund
 from django.contrib.auth.models import User
 import calendar
 
@@ -2693,15 +2693,18 @@ def _admin_dashboard(request):
         })
     exec_perf.sort(key=lambda x: x['month_revenue'], reverse=True)
 
-    # sales managers — always show in the table
+    # sales managers — always show in the table, with their own individual target (same
+    # SalesTarget an executive has) plus a separate team target tracked on their own dashboard
     managers = User.objects.filter(profile__role='sales_manager', is_active=True)
     for mgr in managers:
         rev  = float(_revenue_for_user(mgr, first, last))
         regs = Registration.objects.filter(date__gte=first, date__lte=last, consultant_name__iexact=mgr.get_full_name() or mgr.username).count()
+        mtamt, _mtreg = _exec_target(mgr, first)
+        mpct = min(round((rev / float(mtamt) * 100) if mtamt else 0), 100)
         exec_perf.append({
             'username': mgr.username, 'full_name': (mgr.get_full_name() or mgr.username) + ' (Manager)',
             'month_revenue': rev, 'month_registrations': regs,
-            'target_pct': 0, 'target_amount': 0, 'projected': 0,
+            'target_pct': mpct, 'target_amount': float(mtamt), 'projected': 0,
             'is_manager': True,
         })
 
@@ -2945,10 +2948,25 @@ def _sales_manager_dashboard(request):
         trend_data.append(float(v))
     trend_data = json.dumps(trend_data)
 
+    # A manager has two targets: her own individual number (same SalesTarget an executive
+    # has) and a separate team target for her executives combined.
+    my_target_amt, my_target_reg = _exec_target(request.user, first)
+    my_revenue = float(_revenue_for_user(request.user, first, last))
+    my_target_pct = min(round((my_revenue / float(my_target_amt) * 100) if my_target_amt else 0), 100)
+
+    team_target = TeamSalesTarget.objects.filter(manager=request.user, month=first).first()
+    team_target_amt = float(team_target.target_amount) if team_target else 0
+    team_target_reg = team_target.target_registrations if team_target else 0
+    team_target_pct = min(round((float(team_revenue) / team_target_amt * 100) if team_target_amt else 0), 100)
+
     ctx = {
         'current_month_label': _month_label(today),
         'team_revenue': float(team_revenue), 'team_rev_dir': rev_dir, 'team_rev_pct': rev_pct,
         'team_registrations': team_regs, 'reg_trend_pct': reg_pct,
+        'team_target_amount': team_target_amt, 'team_target_registrations': team_target_reg,
+        'team_target_pct': team_target_pct,
+        'my_target_amount': float(my_target_amt), 'my_target_registrations': my_target_reg,
+        'my_revenue': my_revenue, 'my_target_pct': my_target_pct,
         'exec_performance': exec_perf,
         'exec_labels': exec_labels, 'exec_revenue_data': exec_rev_data,
         'exec_target_data': exec_tgt_data,
@@ -3180,6 +3198,7 @@ def set_targets(request):
     first, last = _month_range(today)
 
     executives = User.objects.filter(profile__role='sales_executive', is_active=True)
+    managers = User.objects.filter(profile__role='sales_manager', is_active=True)
 
     if request.method == 'POST':
         for ex in executives:
@@ -3191,6 +3210,31 @@ def set_targets(request):
                     defaults={
                         'target_amount': Decimal(tamt),
                         'target_registrations': int(treg) if treg else 0,
+                        'created_by': request.user,
+                    }
+                )
+        for mgr in managers:
+            # A manager has both: her own individual target (same SalesTarget as an
+            # executive's) and a separate team target for her executives combined.
+            tamt = request.POST.get(f'target_amount_{mgr.id}', '').strip()
+            treg = request.POST.get(f'target_reg_{mgr.id}', '').strip()
+            if tamt:
+                SalesTarget.objects.update_or_create(
+                    user=mgr, month=month_first,
+                    defaults={
+                        'target_amount': Decimal(tamt),
+                        'target_registrations': int(treg) if treg else 0,
+                        'created_by': request.user,
+                    }
+                )
+            team_tamt = request.POST.get(f'team_target_amount_{mgr.id}', '').strip()
+            team_treg = request.POST.get(f'team_target_reg_{mgr.id}', '').strip()
+            if team_tamt:
+                TeamSalesTarget.objects.update_or_create(
+                    manager=mgr, month=month_first,
+                    defaults={
+                        'target_amount': Decimal(team_tamt),
+                        'target_registrations': int(team_treg) if team_treg else 0,
                         'created_by': request.user,
                     }
                 )
@@ -3213,8 +3257,28 @@ def set_targets(request):
             'month_revenue': rev, 'month_registrations': regs, 'month_pct': pct,
         })
 
+    manager_data = []
+    for mgr in managers:
+        tamt, treg = _exec_target(mgr, month_first)
+        rev  = float(_revenue_for_user(mgr, first, last))
+        regs = Registration.objects.filter(
+            date__gte=first, date__lte=last,
+            consultant_name__iexact=mgr.get_full_name() or mgr.username).count()
+        pct  = min(round((rev / float(tamt) * 100) if tamt else 0), 100)
+        team_target = TeamSalesTarget.objects.filter(manager=mgr, month=month_first).first()
+        team_tamt = team_target.target_amount if team_target else 0
+        team_treg = team_target.target_registrations if team_target else 0
+        manager_data.append({
+            'id': mgr.id, 'username': mgr.username,
+            'get_full_name': mgr.get_full_name,
+            'target_amount': tamt, 'target_registrations': treg,
+            'month_revenue': rev, 'month_registrations': regs, 'month_pct': pct,
+            'team_target_amount': team_tamt, 'team_target_registrations': team_treg,
+        })
+
     ctx = {
         'executives': exec_data,
+        'managers': manager_data,
         'selected_month': selected_month_str,
         'current_month_label': _month_label(month_first),
     }
