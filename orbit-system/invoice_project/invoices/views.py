@@ -1511,6 +1511,9 @@ def print_registration(request, pk):
 
 @login_required
 def registration_invoice_detail(request, registration_id):
+    from .models import ScheduleRule
+    from .schedule_engine import rule_hours
+    from .trainer_schedule import can_manage
     registration = get_object_or_404(Registration, id=registration_id)
     registration_courses = registration.registration_courses.all()
     invoices = Invoice.objects.filter(registration_id=registration.id).order_by('date')
@@ -1530,7 +1533,16 @@ def registration_invoice_detail(request, registration_id):
     cert_requests = CertificationRequest.objects.filter(registration=registration).order_by('-sent_at')
     generated_certificates = Certificate.objects.filter(register_number=registration.registration_number)
 
+    # Everyone who can open this page can see the student's schedule(s); editing (pause/
+    # resume/cancel/etc.) stays gated on the schedule's own page, which only admins and sales
+    # managers can act on - this page only links there, it never exposes edit controls itself.
+    schedule_rules = (ScheduleRule.objects.filter(registration=registration).exclude(status='cancelled')
+                      .select_related('trainer', 'course').order_by('-created_at'))
+    schedule_rows = [{'rule': r, 'h': rule_hours(r)} for r in schedule_rules]
+
     context = {
+        'schedule_rows': schedule_rows,
+        'can_manage_schedule': can_manage(request.user),
         'registration': registration,
         'unique_courses': unique_courses,
         'invoices': invoices,

@@ -131,6 +131,50 @@
   </div>
 </div>
 
+<!-- ── SCHEDULE ── everyone can see this; editing stays on the schedule's own page, which only admins and sales managers can act on. -->
+<div class="detail-section">
+  <h5><i class="fas fa-calendar-alt me-2"></i>Schedule</h5>
+  {% if schedule_rows %}
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Course</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Trainer</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Days &amp; Time</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Status</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;">Hours</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in schedule_rows %}
+        <tr>
+          <td style="font-weight:600;">{{ row.rule.course.name|default:"—" }}</td>
+          <td>{{ row.rule.trainer.name|default:"—" }}</td>
+          <td style="font-size:12px;">{{ row.rule.day_times_display }} &middot; {{ row.rule.start_time|time:"H:i" }}</td>
+          <td>
+            {% if row.rule.status == 'active' %}<span class="badge bg-success">Active</span>
+            {% elif row.rule.status == 'paused' %}<span class="badge bg-warning text-dark">Paused{% if row.rule.pause_kind == 'fee' %} (fee){% elif row.rule.pause_kind == 'attendance' %} (absence){% endif %}</span>
+            {% elif row.rule.status == 'completed' %}<span class="badge bg-secondary">Completed</span>
+            {% else %}<span class="badge bg-light text-dark">{{ row.rule.get_status_display }}</span>{% endif %}
+          </td>
+          <td style="font-size:12px;">{{ row.h.delivered|default:0 }} / {{ row.rule.total_minutes }} min</td>
+          <td class="text-end"><a href="{% url 'rule_detail' row.rule.pk %}" class="btn btn-sm btn-outline-secondary">{% if can_manage_schedule %}Manage{% else %}View{% endif %}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-4 text-muted">
+    <i class="fas fa-calendar-times fa-2x mb-3 d-block opacity-30"></i>
+    No schedule yet.
+    {% if can_manage_schedule %}<a href="{% url 'schedule_create' %}?registration={{ registration.pk }}">Create one.</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+
 <!-- ── INVOICE PAYMENT SUMMARY ── -->
 {% if invoices %}
 {% with total_inv=invoices|length %}
