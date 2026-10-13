@@ -12,6 +12,11 @@ def create_app():
     
     app.secret_key = os.environ.get("SESSION_SECRET", "training-center-crm-secret-key-2024-secure-deployment")
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    # Off by default so local dev (plain http://127.0.0.1) still works; production's
+    # .env.crm sets SESSION_COOKIE_SECURE=1 since it's always served over https.
+    app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
     
     # MySQL database configuration — set DB_URI env var in production
     _default_db = "mysql+pymysql://root:@localhost:3306/leads"
@@ -37,6 +42,14 @@ def create_app():
     
     login_manager.login_view = 'main.login'
     login_manager.login_message = 'Please log in to access this page.'
+
+    @app.after_request
+    def _set_security_headers(resp):
+        resp.headers.setdefault('X-Frame-Options', 'DENY')
+        resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        resp.headers.setdefault('Referrer-Policy', 'same-origin')
+        resp.headers.setdefault('Cross-Origin-Opener-Policy', 'same-origin')
+        return resp
     
     # Add custom template filter for JSON conversion
     @app.template_filter('tojsonfilter')

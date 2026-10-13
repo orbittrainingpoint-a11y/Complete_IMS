@@ -4730,6 +4730,18 @@ def internal_lead_lookup(id):
         return jsonify({'error': str(e)}), 500
 
 
+@main.route('/api/internal/office-check', methods=['GET'])
+def internal_office_check():
+    """Server-to-server office-WiFi check for the ERP's student check-in page (HMAC-verified).
+    Lets the student check-in trust the exact same office network ranges configured here for
+    staff attendance, instead of keeping a second copy that can drift out of sync."""
+    auth = request.headers.get('Authorization', '')
+    if not hmac.compare_digest(auth, f'Bearer {_SSO_SECRET}'):
+        return jsonify({'error': 'unauthorized'}), 401
+    ip = request.args.get('ip', '')
+    return jsonify({'in_office': att.ip_in_office(ip)})
+
+
 @main.route('/leads/<int:id>/register-in-erp', methods=['GET'])
 @login_required
 def register_in_erp(id):

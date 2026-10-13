@@ -48,19 +48,26 @@ def client_ip(req):
     return (req.remote_addr or '').split(',')[0].strip()
 
 
-def in_office(req):
-    """True when the request comes from the office network. If no office network has been
-    configured yet, attendance works from everywhere (so nobody is locked out by mistake)."""
+def ip_in_office(ip_str):
+    """True when the given address falls in a configured office network. If none has been
+    configured yet, attendance works from everywhere (so nobody is locked out by mistake).
+    Shared by the staff attendance check and the ERP's internal office-check API (so the
+    student check-in page trusts the exact same WiFi ranges, with one place to update them)."""
     nets = office_networks()
     if not nets:
         return True
     try:
-        ip = ipaddress.ip_address(client_ip(req))
+        ip = ipaddress.ip_address((ip_str or '').strip())
     except ValueError:
         return False
     if getattr(ip, 'ipv4_mapped', None):
         ip = ip.ipv4_mapped
     return any(ip in n for n in nets)
+
+
+def in_office(req):
+    """True when the request comes from the office network."""
+    return ip_in_office(client_ip(req))
 
 
 def is_tracked(user):
