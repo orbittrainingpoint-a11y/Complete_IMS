@@ -148,6 +148,12 @@
                   <i class="fas fa-user-tag"></i>
               </button>
               <a href="{% url 'delete_registration' item.registration.id %}" class="btn btn-sm btn-outline-danger" title="Delete"><i class="fas fa-trash"></i></a>
+              {% if item.registration.student_status == 'suspended' %}
+              <button class="btn btn-sm btn-outline-success" title="Reopen (requires 30% of the fee to be collected)"
+                  onclick="reopenRegistration({{ item.registration.id }})">
+                  <i class="fas fa-unlock"></i>
+              </button>
+              {% endif %}
               {% endif %}
             </div>
           </td>
@@ -276,6 +282,16 @@ document.addEventListener('DOMContentLoaded', () => {
         sel.style.background = STATUS_COLORS[sel.value] || '';
     });
 });
+
+function reopenRegistration(pk) {
+    const amt = prompt('Reopening requires at least 30% of the total fee to be recorded as collected.\nEnter the AED amount collected:');
+    if (amt === null || amt.trim() === '') return;
+    fetch(`/registrations/${pk}/reopen/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `amount_collected=${encodeURIComponent(amt.trim())}`
+    }).then(() => location.reload()).catch(() => alert('Failed to reopen. Please try again.'));
+}
 
 let _reassignRow = null;
 function openReassign(pk, currentName, btn) {

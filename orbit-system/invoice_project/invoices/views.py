@@ -4758,6 +4758,44 @@ def update_student_status(request, pk):
     return JsonResponse({'status': new_status, 'label': reg.get_student_status_display()})
 
 
+@login_required
+@require_POST
+def reopen_registration(request, pk):
+    """Reopen a registration the nightly job auto-suspended for staying unpaid 14+ days after
+    its fee-overdue pause. Policy: reopening costs 30% of the total fee, recorded here (not as
+    an Invoice row - see RegistrationReopen's docstring) before the registration goes active."""
+    from .models import AuditLog, RegistrationReopen
+    reg = get_object_or_404(Registration, pk=pk)
+    role = getattr(getattr(request.user, 'profile', None), 'role', '')
+    if not (request.user.is_superuser or role == 'admin'):
+        messages.error(request, 'Only admins can reopen a deactivated registration.')
+        return redirect(request.META.get('HTTP_REFERER') or 'student_dashboard')
+    if reg.student_status != 'suspended':
+        messages.error(request, 'This registration is not suspended.')
+        return redirect(request.META.get('HTTP_REFERER') or 'student_dashboard')
+    invoices = Invoice.objects.filter(registration=reg).order_by('date')
+    total_fee = invoices[0].total_amount if invoices else Decimal('0')
+    required = (total_fee * Decimal('0.30')).quantize(Decimal('0.01'))
+    try:
+        collected = Decimal(request.POST.get('amount_collected', ''))
+    except Exception:
+        collected = None
+    if collected is None or collected < required:
+        messages.error(request, f'Reopening requires at least {required} AED (30% of the fee) recorded as collected.')
+        return redirect(request.META.get('HTTP_REFERER') or 'student_dashboard')
+    RegistrationReopen.objects.create(registration=reg, fee_required=required, fee_collected=collected,
+                                      note=request.POST.get('note', '').strip(), reopened_by=request.user)
+    old_status = reg.student_status
+    reg.student_status = 'active'
+    reg.save(update_fields=['student_status'])
+    AuditLog.objects.create(user=request.user, action='status_change', model_name='Registration',
+                            object_id=str(reg.pk), object_repr=str(reg),
+                            changes=f'{old_status} -> active (reopened, {collected} AED collected)')
+    sync_registration_to_crm(reg, consultant_username=request.user.username)
+    messages.success(request, f'Registration reopened. {collected} AED recorded.')
+    return redirect(request.META.get('HTTP_REFERER') or 'student_dashboard')
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # BULK INVOICE ACTIONS
 # ═══════════════════════════════════════════════════════════════════════════

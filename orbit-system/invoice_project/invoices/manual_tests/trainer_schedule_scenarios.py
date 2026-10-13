@@ -20,7 +20,9 @@ mon = today - dt.timedelta(days=today.weekday()) + dt.timedelta(days=7)   # next
 
 regs = []
 for rc in RegistrationCourse.objects.select_related('registration', 'course').order_by('id'):
-    if rc.registration_id not in [r.registration_id for r in regs]:
+    # A schedule can only be created once >=200 AED is paid (unrelated feature) - only borrow
+    # real registrations that already qualify, so this test's HTTP create flow still works.
+    if rc.registration_id not in [r.registration_id for r in regs] and rc.registration.total_paid() >= 200:
         regs.append(rc)
     if len(regs) == 4: break
 print('registrations available:', len(regs))

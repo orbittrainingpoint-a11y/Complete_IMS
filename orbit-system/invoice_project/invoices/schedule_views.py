@@ -20,6 +20,9 @@ from .trainer_schedule import (
 )
 
 
+MIN_PAID_TO_SCHEDULE = 200  # AED - a student must have paid at least this much before a schedule can be created
+
+
 def _hours(v, default=0):
     try:
         return max(0, round(float(v) * 60))
@@ -65,7 +68,10 @@ def trainer_calendar(request, pk):
 
     from urllib.parse import quote
     fq = ''.join(f'&{k}={quote(val)}' for k, val in filters.items() if val)
-    days = eng.build_days(trainer, g0, g1, filters)
+    # A trainer viewing their own calendar should see no trace of a paused/cancelled student
+    # (fee or attendance issues are a management matter) - admins/managers still see everything.
+    hide_ghosts = not can_manage(request.user)
+    days = eng.build_days(trainer, g0, g1, filters, hide_ghosts=hide_ghosts)
     in_scope = [d for d in days if view != 'month' or d['date'].month == anchor.month]
     sm = lambda k: sum(d['stats'][k] for d in in_scope)
     working = sm('working')
@@ -82,7 +88,8 @@ def trainer_calendar(request, pk):
         for e in d['all_events']:
             events_json.append({k: (v.isoformat() if isinstance(v, (dt.date,)) else v) for k, v in e.items()
                                 if k not in ('students',) or True})
-    rules = ScheduleRule.objects.filter(trainer=trainer, status__in=('active', 'paused')).select_related('registration', 'batch', 'course')
+    rule_statuses = ('active',) if hide_ghosts else ('active', 'paused')
+    rules = ScheduleRule.objects.filter(trainer=trainer, status__in=rule_statuses).select_related('registration', 'batch', 'course')
     rule_rows = []
     for r in rules:
         h = eng.rule_hours(r)
@@ -124,7 +131,8 @@ def student_search(request):
             courses.append({'id': rc.course_id, 'name': rc.course.name, 'has_schedule': rules.filter(status__in=('active', 'paused')).exists(),
                             'remaining': rem})
         out.append({'id': r.pk, 'name': f'{r.first_name} {r.last_name}'.strip(), 'reg': r.registration_number, 'phone': r.phone_no,
-                    'status': r.get_student_status_display(), 'courses': courses})
+                    'status': r.get_student_status_display(), 'courses': courses,
+                    'eligible': r.total_paid() >= MIN_PAID_TO_SCHEDULE})
     return JsonResponse({'results': out})
 
 
@@ -158,6 +166,8 @@ def _schedule_inputs(request, data):
                 errors.append("Select one of the student's registered courses.")
             elif c['registration'].is_refunded:
                 errors.append('This registration is refunded.')
+            elif c['registration'].total_paid() < MIN_PAID_TO_SCHEDULE:
+                errors.append(f'This student needs at least {MIN_PAID_TO_SCHEDULE} AED paid before a schedule can be created.')
     else:
         c['batch'] = Batch.objects.filter(pk=data.get('batch') or None).first()
         if not c['batch']:

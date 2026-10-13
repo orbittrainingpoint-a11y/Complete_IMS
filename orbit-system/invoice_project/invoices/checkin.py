@@ -26,7 +26,7 @@ from django.views.decorators.http import require_POST
 
 from . import schedule_engine as eng
 from .models import (Batch, BatchStudent, CheckInAttempt, CheckInSetting, ClassSession, Registration,
-                     ScheduleOccurrence, StudentCheckIn)
+                     ScheduleOccurrence, ScheduleRule, StudentCheckIn)
 from .trainer_schedule import can_manage
 
 TOKEN_SALT = 'orbit-student-checkin-v1'
@@ -119,6 +119,24 @@ def _today_candidates(registration):
     return rows
 
 
+def _paused_schedule_message(registration):
+    """If this student's schedule is paused (fee overdue or repeated absence), surface the
+    actual reason instead of the generic 'no scheduled session' message - that's the whole
+    point of a distinct message: the student needs to know to contact management, not just
+    that nothing is happening right now."""
+    rule = ScheduleRule.objects.filter(registration=registration, schedule_type='individual', status='paused').order_by('-updated_at').first()
+    if not rule:
+        batch_ids = BatchStudent.objects.filter(registration=registration, status='active').values_list('batch_id', flat=True)
+        rule = ScheduleRule.objects.filter(batch_id__in=list(batch_ids), schedule_type='batch', status='paused').order_by('-updated_at').first()
+    if not rule:
+        return None
+    if rule.pause_kind == 'attendance':
+        return 'Your classes are paused due to repeated absence. Please contact management to reschedule.'
+    if rule.pause_kind == 'fee':
+        return 'Your classes are paused due to a pending fee. Please contact management to resolve your payment.'
+    return 'Your classes are currently paused. Please contact management.'
+
+
 def _course_of(kind, obj):
     if kind == 'class_session':
         return obj.course
@@ -198,6 +216,10 @@ def checkin_lookup(request):
             break
     if not match:
         if not candidates:
+            paused_message = _paused_schedule_message(reg)
+            if paused_message:
+                _log(request, raw, reg, 'no_schedule')
+                return render(request, 'checkin/error.html', {'message': paused_message})
             _log(request, raw, reg, 'no_schedule')
             return render(request, 'checkin/error.html', {
                 'message': 'You do not have a scheduled training session at this time.'})

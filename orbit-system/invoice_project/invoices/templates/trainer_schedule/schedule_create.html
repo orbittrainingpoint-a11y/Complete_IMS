@@ -164,8 +164,11 @@ $('stuQ').addEventListener('input', () => {
   if (q.length < 2) { $('stuResults').innerHTML = ''; return; }
   st = setTimeout(async () => {
     const d = await (await fetch('{% url "schedule_student_search" %}?q=' + encodeURIComponent(q))).json();
-    $('stuResults').innerHTML = d.results.map(r => '<div class="list-group-item"><b>' + esc(r.name) + '</b> <span class="text-muted">' + esc(r.reg) + ' &middot; ' + esc(r.phone) + ' &middot; ' + esc(r.status) + '</span><div class="mt-1">' +
-      r.courses.map(c => '<button type="button" class="btn btn-sm ' + (c.has_schedule ? 'btn-outline-warning' : 'btn-outline-primary') + ' me-1 mb-1" data-r=\'' + encodeURIComponent(JSON.stringify({ id: r.id, name: r.name, reg: r.reg, c: c })) + '\' onclick="pickStudent(this)">' + esc(c.name) + (c.has_schedule ? ' (scheduled, ' + Math.round(c.remaining / 6) / 10 + 'h left)' : '') + '</button>').join('') + '</div></div>').join('') || '<div class="list-group-item text-muted">No students found.</div>';
+    $('stuResults').innerHTML = d.results.map(r => '<div class="list-group-item"><b>' + esc(r.name) + '</b> <span class="text-muted">' + esc(r.reg) + ' &middot; ' + esc(r.phone) + ' &middot; ' + esc(r.status) + '</span>' +
+      (r.eligible ? '' : '<div class="text-danger" style="font-size:12px;">Needs at least 200 AED paid before scheduling</div>') + '<div class="mt-1">' +
+      r.courses.map(c => r.eligible
+        ? '<button type="button" class="btn btn-sm ' + (c.has_schedule ? 'btn-outline-warning' : 'btn-outline-primary') + ' me-1 mb-1" data-r=\'' + encodeURIComponent(JSON.stringify({ id: r.id, name: r.name, reg: r.reg, c: c })) + '\' onclick="pickStudent(this)">' + esc(c.name) + (c.has_schedule ? ' (scheduled, ' + Math.round(c.remaining / 6) / 10 + 'h left)' : '') + '</button>'
+        : '<span class="btn btn-sm btn-outline-secondary disabled me-1 mb-1">' + esc(c.name) + '</span>').join('') + '</div></div>').join('') || '<div class="list-group-item text-muted">No students found.</div>';
   }, 300);
 });
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

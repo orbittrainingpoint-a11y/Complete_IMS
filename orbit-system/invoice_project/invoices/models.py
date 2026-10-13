@@ -194,9 +194,46 @@ class Registration(models.Model):
         ).exists()
         return "Finished" if certificate else "In Progress"
 
+    def total_paid(self):
+        return sum((inv.amount_paid for inv in Invoice.objects.filter(registration=self)), Decimal('0'))
+
+    def outstanding_balance(self):
+        """total_amount of the FIRST invoice (the authoritative fee) minus every payment made.
+        Installment invoices all repeat the same total_amount - see registration_invoice_detail()
+        in views.py, which this mirrors; summing total_amount across invoices would be wrong."""
+        invoices = list(Invoice.objects.filter(registration=self).order_by('date'))
+        if not invoices:
+            return Decimal('0')
+        return invoices[0].total_amount - self.total_paid()
+
+    def is_fee_overdue(self, as_of=None):
+        """True once there's still money owed AND the latest invoice's due date has passed."""
+        as_of = as_of or timezone.now().date()
+        if self.outstanding_balance() <= 0:
+            return False
+        latest_due = Invoice.objects.filter(registration=self).order_by('-due_date').values_list('due_date', flat=True).first()
+        return bool(latest_due and latest_due < as_of)
+
     def __str__(self):
         return f"{self.registration_number} - {self.first_name} {self.last_name}"
-    
+
+
+class RegistrationReopen(models.Model):
+    """A registration being reopened after auto-deactivation (unpaid 14+ days): per policy,
+    reopening costs 30% of the total fee. Kept as its own small record rather than an Invoice
+    row - Invoice is tightly coupled to InvoiceItem/Client/VAT calculation and isn't a safe
+    place to inject an ad hoc payment outside that flow."""
+    registration = models.ForeignKey(Registration, on_delete=models.CASCADE, related_name='reopens')
+    fee_required = models.DecimalField(max_digits=10, decimal_places=2)
+    fee_collected = models.DecimalField(max_digits=10, decimal_places=2)
+    note = models.CharField(max_length=300, blank=True)
+    reopened_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'Reopen of {self.registration} - {self.fee_collected} AED'
+
+
 class CorporateRegistration(models.Model):
     registration = models.OneToOneField(Registration, on_delete=models.CASCADE, related_name='corporate_details')
     company_name = models.CharField(max_length=255)
@@ -1510,6 +1547,12 @@ class ScheduleRule(models.Model):
     paused_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     cancel_date = models.DateField(null=True, blank=True)
     cancel_reason = models.CharField(max_length=200, blank=True)
+    PAUSE_KIND_CHOICES = [('manual', 'Manual'), ('fee', 'Fee overdue'), ('attendance', 'Repeated absence')]
+    pause_kind = models.CharField(max_length=10, choices=PAUSE_KIND_CHOICES, default='manual',
+                                  help_text='Why this rule is paused - manual (staff action) vs the two automated reasons.')
+    fee_pause_date = models.DateField(null=True, blank=True, help_text='Anchor for the 14-day auto-deactivation clock; only set for fee pauses.')
+    consecutive_absences = models.PositiveIntegerField(default=0, help_text='Resets to 0 on any completed session; drives the attendance auto-pause/cancel.')
+    attendance_warned = models.BooleanField(default=False, help_text='Already auto-paused once for absences - the next streak cancels the registration instead of pausing again.')
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='rules_created')
     updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')

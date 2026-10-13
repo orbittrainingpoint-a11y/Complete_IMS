@@ -16,7 +16,7 @@ from collections import defaultdict
 from django.db import transaction
 
 from .models import (
-    Batch, BatchStudent, ClassSession, ScheduleAudit, ScheduleOccurrence, ScheduleRule, SchedulingSetting,
+    AuditLog, Batch, BatchStudent, ClassSession, ScheduleAudit, ScheduleOccurrence, ScheduleRule, SchedulingSetting,
     TrainerLeave, TrainerWorkingHours,
 )
 
@@ -260,10 +260,18 @@ def regenerate_future(rule, effective, user, reason='Recurrence changed', keep_e
 
 
 @transaction.atomic
-def pause_rule(rule, pause_date, reason, notes, expected_resume, user):
+def pause_rule(rule, pause_date, reason, notes, expected_resume, user, pause_kind='manual'):
     n = rule.occurrences.filter(date__gte=max(pause_date, dubai_today()), status__in=ACTIVE_FUTURE).update(status='paused', updated_by=user)
     rule.status, rule.pause_date, rule.pause_reason = 'paused', pause_date, reason[:200]
     rule.pause_notes, rule.expected_resume, rule.paused_by, rule.updated_by = notes, expected_resume, user, user
+    rule.pause_kind = pause_kind
+    if pause_kind == 'fee':
+        rule.fee_pause_date = pause_date
+    if pause_kind == 'attendance':
+        # The first attendance pause is a warning; mark it so the NEXT streak cancels
+        # the registration instead of pausing again (see _check_attendance_threshold).
+        rule.attendance_warned = True
+        rule.consecutive_absences = 0
     rule.save()
     audit(rule, 'paused', f'Paused from {pause_date:%d %b %Y}: {reason}. {n} future slot(s) released.'
                           f'{" Expected resume " + expected_resume.strftime("%d %b %Y") if expected_resume else ""}', user)
@@ -301,6 +309,53 @@ def cancel_rule(rule, cancel_date, reason, user):
     rule.save()
     audit(rule, 'cancelled', f'Future schedule cancelled from {cancel_date:%d %b %Y}: {reason}. {n} slot(s) released.', user)
     return n
+
+
+def _check_attendance_threshold(rule, user):
+    """Consecutive-absence automation (individual schedules only, per Orbit policy): 4 straight
+    misses auto-pauses the rule as a warning; if it happens again (3 more in a row) after staff
+    resume it, the registration is auto-cancelled instead of pausing a second time."""
+    if rule.schedule_type != 'individual' or rule.status != 'active':
+        return
+    threshold = 3 if rule.attendance_warned else 4
+    if rule.consecutive_absences < threshold:
+        return
+    if rule.attendance_warned:
+        cancel_rule(rule, dubai_today(), 'Auto-cancelled: repeated non-attendance after reschedule', user)
+        if rule.registration_id:
+            reg = rule.registration
+            old = reg.student_status
+            reg.student_status = 'dropped'
+            reg.save(update_fields=['student_status'])
+            AuditLog.objects.create(user=user, action='status_change', model_name='Registration',
+                                    object_id=str(reg.pk), object_repr=str(reg),
+                                    changes=f'{old} -> dropped (auto: {rule.consecutive_absences} more absences after reschedule)')
+    else:
+        pause_rule(rule, dubai_today(), f'Auto-paused: {rule.consecutive_absences} consecutive absences', '', None, user, pause_kind='attendance')
+
+
+def resolve_end_of_day_attendance(user=None, upto=None, rule_ids=None):
+    """For every 'scheduled' occurrence whose date has already passed: completed if a confirmed
+    check-in exists, absent otherwise. Nothing marked these automatically before - occurrences
+    nobody touched just stayed 'scheduled' forever (see pending_attendance) - so this is what
+    makes the consecutive-absence count (and the pause/cancel it drives) trustworthy. Meant to
+    run once, early each morning, for the day(s) that just ended. `rule_ids` restricts this to
+    specific rules (a manual/test run) - omitted (the default) processes every eligible
+    occurrence system-wide, as the nightly cron does."""
+    upto = upto or dubai_today()
+    qs = ScheduleOccurrence.objects.filter(status='scheduled', date__lt=upto)
+    if rule_ids is not None:
+        qs = qs.filter(rule_id__in=rule_ids)
+    occs = list(qs.select_related('rule'))
+    completed = absent = 0
+    for occ in occs:
+        if occ.wifi_checkins.filter(status='confirmed').exists():
+            set_occurrence_status(occ, 'completed', user, note='Auto-resolved: confirmed check-in found')
+            completed += 1
+        else:
+            set_occurrence_status(occ, 'absent', user, note='Auto-resolved: no check-in recorded')
+            absent += 1
+    return completed, absent
 
 
 @transaction.atomic
@@ -343,6 +398,13 @@ def set_occurrence_status(occ, status, user, delivered=None, note='', actual_sta
         occ.attendance = 'absent' if status == 'absent' else ''
     occ.save()
     rule = occ.rule
+    if status == 'absent':
+        rule.consecutive_absences += 1
+        rule.save(update_fields=['consecutive_absences', 'updated_at'])
+        _check_attendance_threshold(rule, user)
+    elif status == 'completed' and rule.consecutive_absences:
+        rule.consecutive_absences = 0
+        rule.save(update_fields=['consecutive_absences', 'updated_at'])
     extra = ''
     if status in ('absent', 'cancelled') and rule.status == 'active' and rule.auto_extend:
         n = extend_rule(rule, user, 'Make-up session added after a missed/cancelled class')
@@ -594,8 +656,11 @@ def _matches(ev, f):
     return True
 
 
-def build_days(trainer, d0, d1, filters=None, setting=None):
-    """One dict per date in [d0, d1] with events, lanes, capacity segments, free windows and stats."""
+def build_days(trainer, d0, d1, filters=None, setting=None, hide_ghosts=False):
+    """One dict per date in [d0, d1] with events, lanes, capacity segments, free windows and stats.
+    hide_ghosts drops paused/cancelled sessions entirely instead of showing them squeezed to the
+    side - used for a trainer's OWN view (not admin/manager), who should see no trace of a
+    paused or cancelled student until it's resumed."""
     setting = setting or settings_obj()
     hmap = hours_map(trainer)
     leaves = _leave_dates(trainer, d0, d1)
@@ -614,12 +679,14 @@ def build_days(trainer, d0, d1, filters=None, setting=None):
         occs[c.date].append(_event_from_session(c))
     days, d = [], d0
     while d <= d1:
-        days.append(_day(trainer, d, occs.get(d, []), hmap, leaves, setting, filters))
+        days.append(_day(trainer, d, occs.get(d, []), hmap, leaves, setting, filters, hide_ghosts))
         d += dt.timedelta(days=1)
     return days
 
 
-def _day(trainer, d, events, hmap, leaves, setting, filters):
+def _day(trainer, d, events, hmap, leaves, setting, filters, hide_ghosts=False):
+    if hide_ghosts:
+        events = [e for e in events if not e['ghost']]
     wh = hmap.get(d.weekday())
     leave = on_leave(d, leaves)
     w0, w1 = (max(wh[0], DAY_START), min(wh[1], DAY_END)) if wh else (0, 0)

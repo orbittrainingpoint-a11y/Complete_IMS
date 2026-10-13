@@ -130,6 +130,7 @@ urlpatterns = [
     path('portal/enrollment-letter/<str:token>/', views.enrollment_letter_printable, name='enrollment_letter_printable'),
     # Student status update
     path('student/<int:pk>/status/', views.update_student_status, name='update_student_status'),
+    path('registrations/<int:pk>/reopen/', views.reopen_registration, name='reopen_registration'),
     # Bulk invoice actions
     path('invoices/bulk-action/', views.bulk_invoice_action, name='bulk_invoice_action'),
     # Invoice payments

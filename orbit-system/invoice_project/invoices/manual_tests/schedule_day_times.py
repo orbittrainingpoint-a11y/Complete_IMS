@@ -50,10 +50,21 @@ try:
     print('\n3. Full create-schedule flow (individual): different time per day, end to end')
     course = Course.objects.create(name='ZZ DayTime Course', code='ZZDT1')
     trainer = Trainer.objects.create(name='ZZ DayTime Trainer')
-    made += [course, trainer]
+    billing_client = Client.objects.create(name='ZZ DayTime Client', email='zzdtc@x.test', phone='1', address='a', emirates='Dubai', country='UAE')
+    made += [course, trainer, billing_client]
+
+    def pay_enough(registration):
+        # A schedule can only be created once >=200 AED is paid - give every fixture registration
+        # a qualifying invoice so these existing checks aren't broken by that unrelated feature.
+        inv = Invoice.objects.create(registration=registration, client=billing_client, due_date=today,
+                                     total_amount=0, amount_paid=1000, number_of_person=1, status='Full Payment', payment='Cash')
+        Invoice.objects.filter(pk=inv.pk).update(total_amount=1000)
+        made.append(inv)
+
     reg = Registration.objects.create(first_name='ZZ', last_name='DayTime', phone_no='1', email='zzdt@x.test',
                                       country='UAE', consultant_name='x', student_status='active')
     made.append(reg)
+    pay_enough(reg)
     RegistrationCourse.objects.create(registration=reg, course=course)
 
     def submit(stage, extra):
@@ -109,6 +120,7 @@ try:
     reg2 = Registration.objects.create(first_name='ZZ', last_name='DayTime2', phone_no='2', email='zzdt2@x.test',
                                        country='UAE', consultant_name='x', student_status='active')
     made.append(reg2)
+    pay_enough(reg2)
     RegistrationCourse.objects.create(registration=reg2, course=course)
     r = admin.post('/schedules/new/', {
         'stage': 'confirm', 'trainer': trainer.pk, 'schedule_type': 'individual', 'registration': reg2.pk,
@@ -149,7 +161,9 @@ finally:
     ScheduleRule.objects.filter(trainer__name='ZZ DayTime Trainer').delete()
     BatchStudent.objects.filter(batch__name='ZZ DayTime Batch').delete()
     Batch.objects.filter(name='ZZ DayTime Batch').delete()
+    Invoice.objects.filter(registration__last_name__startswith='DayTime').delete()
     Registration.objects.filter(last_name__startswith='DayTime').delete()
+    Client.objects.filter(name='ZZ DayTime Client').delete()
     Course.objects.filter(code='ZZDT1').delete()
     Trainer.objects.filter(name='ZZ DayTime Trainer').delete()
     print(f'\nRESULT: {OK} passed, {FAIL} failed')
