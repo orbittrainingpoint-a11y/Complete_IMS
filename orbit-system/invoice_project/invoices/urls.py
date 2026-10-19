@@ -8,6 +8,7 @@ from . import accounting
 from . import payroll
 from . import checkin
 from . import id_card_views as idc
+from . import tamara_views as tam
 
 
 
@@ -131,6 +132,12 @@ urlpatterns = [
     # Student status update
     path('student/<int:pk>/status/', views.update_student_status, name='update_student_status'),
     path('registrations/<int:pk>/reopen/', views.reopen_registration, name='reopen_registration'),
+    path('invoices/<int:invoice_id>/tamara/create/', tam.tamara_create_link, name='tamara_create_link'),
+    path('tamara/webhook/', tam.tamara_webhook, name='tamara_webhook'),
+    path('tamara/return/<str:outcome>/<int:pk>/', tam.tamara_checkout_return, name='tamara_checkout_return'),
+    path('tamara/<int:pk>/capture/', tam.tamara_capture, name='tamara_capture'),
+    path('tamara/<int:pk>/cancel/', tam.tamara_cancel, name='tamara_cancel'),
+    path('tamara/<int:pk>/refund/', tam.tamara_refund, name='tamara_refund'),
     # Bulk invoice actions
     path('invoices/bulk-action/', views.bulk_invoice_action, name='bulk_invoice_action'),
     # Invoice payments

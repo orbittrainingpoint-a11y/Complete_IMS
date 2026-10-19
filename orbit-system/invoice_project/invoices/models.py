@@ -506,7 +506,53 @@ class InvoiceItem(models.Model):
 
     def get_total(self):
         return self.get_subtotal() + self.get_vat_amount()
-        
+
+
+class TamaraOrder(models.Model):
+    """One checkout-session attempt against an Invoice via Tamara's API. An invoice can have
+    more than one (e.g. the customer abandons a checkout and a fresh link is generated), so
+    this is 1:many, not a field on Invoice itself. Status is kept in step by the webhook -
+    see tamara_gateway.py and tamara_views.py."""
+    STATUS_CHOICES = [
+        ('new', 'New'), ('approved', 'Approved'), ('authorised', 'Authorised'),
+        ('fully_captured', 'Fully Captured'), ('partially_captured', 'Partially Captured'),
+        ('canceled', 'Canceled'), ('updated', 'Partially Canceled'),
+        ('declined', 'Declined'), ('expired', 'Expired'),
+        ('partially_refunded', 'Partially Refunded'), ('fully_refunded', 'Fully Refunded'),
+    ]
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='tamara_orders')
+    order_id = models.CharField(max_length=64, unique=True, help_text="Tamara's own order UUID")
+    checkout_id = models.CharField(max_length=64, blank=True)
+    checkout_url = models.URLField(max_length=500, blank=True)
+    order_reference_id = models.CharField(max_length=64, help_text='Our own reference sent to Tamara (the invoice number)')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='AED')
+    capture_id = models.CharField(max_length=64, blank=True)
+    captured_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    refunded_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    raw_create_response = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Tamara {self.order_id} for {self.invoice.invoice_number} ({self.status})'
+
+
+class TamaraWebhookEvent(models.Model):
+    """Raw log of every webhook notification received, kept even if we can't match it to a
+    TamaraOrder (e.g. a bad signature) - the one place to look when a payment dispute needs
+    the exact history of what Tamara actually sent us."""
+    order_id = models.CharField(max_length=64, blank=True)
+    event_type = models.CharField(max_length=50, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    signature_valid = models.BooleanField(default=False)
+    processed = models.BooleanField(default=False)
+    error = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class Quotation(models.Model):
     VENUE_CHOICES = [
         ('Orbit Training (In-House)', 'Orbit Training (In-House)'),

@@ -1,0 +1,9 @@
+{% extends 'base_generic.html' %}
+{% block title %}Payment{% endblock %}
+{% block content %}
+<div style="max-width:480px;margin:60px auto;text-align:center;">
+  <i class="fas fa-check-circle" style="font-size:40px;color:var(--primary);margin-bottom:12px;display:block;"></i>
+  <h4>{{ message }}</h4>
+  <p class="text-muted" style="font-size:13px;">Invoice {{ invoice.invoice_number }}</p>
+</div>
+{% endblock %}

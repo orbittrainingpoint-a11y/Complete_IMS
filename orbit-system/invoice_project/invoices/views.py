@@ -1514,9 +1514,12 @@ def registration_invoice_detail(request, registration_id):
     from .models import ScheduleRule
     from .schedule_engine import rule_hours
     from .trainer_schedule import can_manage
+    from django.db.models import Prefetch
+    from .models import TamaraOrder
     registration = get_object_or_404(Registration, id=registration_id)
     registration_courses = registration.registration_courses.all()
-    invoices = Invoice.objects.filter(registration_id=registration.id).order_by('date')
+    invoices = (Invoice.objects.filter(registration_id=registration.id).order_by('date')
+               .prefetch_related(Prefetch('tamara_orders', queryset=TamaraOrder.objects.order_by('-created_at'))))
     
     total_course_amount = sum(rc.course.rate * (1 - rc.discount / 100) for rc in registration_courses)
     _invoice_list = list(invoices)
@@ -1555,6 +1558,7 @@ def registration_invoice_detail(request, registration_id):
         'form_uploaded': form_uploaded,
         'cert_requests': cert_requests,
         'generated_certificates': generated_certificates,
+        'tamara_configured': bool(settings.TAMARA_API_TOKEN),
     }
     return render(request, 'studentregistration/registration_invoice_detail.html', context)
 
