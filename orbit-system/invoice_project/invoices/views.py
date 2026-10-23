@@ -1833,13 +1833,30 @@ def corporate_dashboard(request):
 
 @login_required
 def corporate_invoice_detail(request, registration_id):
+    from django.db.models import Prefetch
+    from .models import ScheduleRule, TamaraOrder
+    from .schedule_engine import rule_hours
+    from .trainer_schedule import can_manage
     registration = get_object_or_404(Registration, id=registration_id, registration_type='OC')
 
-    invoices = Invoice.objects.filter(registration_id=registration.id).order_by('date')
+    invoices = (Invoice.objects.filter(registration_id=registration.id).order_by('date')
+               .prefetch_related(Prefetch('tamara_orders', queryset=TamaraOrder.objects.order_by('-created_at'))))
     total_amount = sum(invoice.total_amount for invoice in invoices)
     total_amount_paid = sum(invoice.amount_paid for invoice in invoices)
   #  total_amount_paid = total_amount_paid + (total_amount_paid * Decimal(0.05))
     total_due_amount = total_amount - total_amount_paid
+
+    unique_courses = set(rc.course for rc in registration.registration_courses.all())
+    certificate_uploaded = CertificateUpload.objects.filter(registration=registration).exists()
+    form_uploaded = FormUpload.objects.filter(registration=registration).exists()
+    cert_requests = CertificationRequest.objects.filter(registration=registration).order_by('-sent_at')
+    generated_certificates = Certificate.objects.filter(register_number=registration.registration_number)
+
+    # Same "everyone can see, only admin/sales-manager can edit" rule as the regular
+    # registration details page - this page only links to the schedule's own page for edits.
+    schedule_rules = (ScheduleRule.objects.filter(registration=registration).exclude(status='cancelled')
+                      .select_related('trainer', 'course').order_by('-created_at'))
+    schedule_rows = [{'rule': r, 'h': rule_hours(r)} for r in schedule_rules]
 
     context = {
         'registration': registration,
@@ -1847,6 +1864,14 @@ def corporate_invoice_detail(request, registration_id):
         'total_amount': total_amount,
         'total_amount_paid': total_amount_paid,
         'total_due_amount': total_due_amount,
+        'unique_courses': unique_courses,
+        'certificate_uploaded': certificate_uploaded,
+        'form_uploaded': form_uploaded,
+        'cert_requests': cert_requests,
+        'generated_certificates': generated_certificates,
+        'schedule_rows': schedule_rows,
+        'can_manage_schedule': can_manage(request.user),
+        'tamara_configured': bool(settings.TAMARA_API_TOKEN),
     }
     return render(request, 'studentregistration/corporate_invoice_details.html', context)
 
