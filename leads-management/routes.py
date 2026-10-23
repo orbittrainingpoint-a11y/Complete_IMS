@@ -595,7 +595,15 @@ def attendance_office_network():
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'add_current':
-            cidr, label = my_ip, request.form.get('label', '').strip() or 'Office network'
+            # A bare /32 breaks for EVERYONE the moment the ISP reassigns the office's public
+            # IP (common on dynamic business lines) - a small /28 around the current address
+            # tolerates that kind of minor rotation without needing to re-click this button.
+            try:
+                ip_obj = ipaddress.ip_address(my_ip)
+                cidr = str(ipaddress.ip_network(f'{my_ip}/28', strict=False)) if ip_obj.version == 4 else my_ip
+            except ValueError:
+                cidr = my_ip
+            label = request.form.get('label', '').strip() or 'Office network'
         elif action == 'add_manual':
             cidr, label = request.form.get('cidr', '').strip(), request.form.get('label', '').strip()
         elif action == 'delete':
@@ -687,12 +695,39 @@ def _out_of_office_json():
                     'break_type': None, 'break_start': None, 'idle_limit_seconds': int(att.IDLE_LIMIT.total_seconds())})
 
 
+def _maybe_alert_mass_out_of_office():
+    """Everyone tracked suddenly out of office at once usually means the office's public IP
+    just changed, not that the whole sales floor left - email admins so someone re-clicks
+    'Use my current network' on /attendance/office-network before it turns into complaints."""
+    if not att.should_send_mass_alert():
+        return
+    try:
+        from utils import send_email
+        link = url_for('main.attendance_office_network', _external=True)
+        admins = User.query.filter(User.role.in_(['admin', 'super_admin']), User.active == True).all()
+        body = (f'Every tracked sales user who has checked in over the last 15 minutes is showing '
+                f'"out of office", even though they are logged in - this almost always means the '
+                f'office\'s public IP address changed (common with dynamic ISP lines), not that '
+                f'everyone actually left the building.\n\n'
+                f'Fix: while connected to the office WiFi, open this page and click '
+                f'"Use my current network as office":\n{link}\n\n'
+                f'This is an automated check - you will not get this again for at least 2 hours.')
+        for admin in admins:
+            if admin.email:
+                send_email(admin.email, 'CRM: sales staff showing out-of-office - office IP may have changed', body)
+    except Exception:
+        logging.exception('mass out-of-office alert failed')
+
+
 @main.route('/attendance/heartbeat', methods=['POST'])
 @login_required
 def attendance_heartbeat():
     if not att.is_tracked(current_user):
         return jsonify({'success': True, 'tracked': False})
-    if not att.in_office(request):
+    in_office_now = att.in_office(request)
+    att.record_office_check(current_user.id, in_office_now)
+    if not in_office_now:
+        _maybe_alert_mass_out_of_office()
         return _out_of_office_json()
     s = _my_open_session() or att.ensure_session(current_user)
     payload = request.get_json(silent=True, force=True) or {}

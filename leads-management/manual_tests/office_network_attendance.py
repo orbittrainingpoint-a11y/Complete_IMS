@@ -47,7 +47,9 @@ try:
     r = a.get('/attendance/office-network'); check('admin page opens and shows the IP', r.status_code == 200 and OFFICE in r.data.decode())
     a.post('/attendance/office-network', data={'action': 'add_current', 'label': 'Office WiFi'})
     with app.app_context(): nets = [n.cidr for n in OfficeNetwork.query.all()]
-    check('current IP saved as the office network', nets == [OFFICE], nets)
+    # Stored as a /28 around the current IP (not the bare address) so a minor ISP-side IP
+    # change doesn't lock everyone out again - see office_network_resilience.py.
+    check('current IP saved as a /28 office network', nets == ['217.165.113.128/28'], nets)
     r = a.post('/attendance/office-network', data={'action': 'add_manual', 'cidr': 'not-an-ip'});
     with app.app_context(): check('invalid address rejected', OfficeNetwork.query.count() == 1)
     a.post('/attendance/office-network', data={'action': 'add_manual', 'cidr': '198.51.100.0/28', 'label': 'Branch'})

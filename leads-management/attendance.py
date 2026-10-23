@@ -70,6 +70,40 @@ def in_office(req):
     return ip_in_office(client_ip(req))
 
 
+# ── mass out-of-office alert ────────────────────────────────────────────────
+# If every tracked user suddenly shows out-of-office at once, that's almost always the
+# office's own public IP changing (ISP reassignment) - not everyone simultaneously leaving.
+# This catches it within minutes instead of waiting for people to notice and complain.
+_recent_checks = {}        # user_id -> (in_office: bool, checked_at: float)
+_last_mass_alert = {'t': 0.0}
+MASS_OOO_WINDOW = 15 * 60      # only consider heartbeats from the last 15 minutes
+MASS_OOO_COOLDOWN = 2 * 60 * 60  # at most one alert every 2 hours
+MASS_OOO_MIN_USERS = 2         # never alert over a single remote worker
+
+
+def record_office_check(user_id, in_office_now):
+    _recent_checks[user_id] = (in_office_now, time.time())
+    # Prune anything stale so this dict can't grow without bound across a long-running process.
+    cutoff = time.time() - MASS_OOO_WINDOW
+    for uid, (_, t) in list(_recent_checks.items()):
+        if t < cutoff:
+            del _recent_checks[uid]
+
+
+def should_send_mass_alert():
+    """True at most once per MASS_OOO_COOLDOWN, when every tracked user checked recently is
+    out of office. Side-effecting (starts the cooldown) - call only where you will actually
+    send the alert if this returns True."""
+    now = time.time()
+    recent = [v for v in _recent_checks.values() if now - v[1] < MASS_OOO_WINDOW]
+    if len(recent) < MASS_OOO_MIN_USERS or any(in_office for in_office, _ in recent):
+        return False
+    if now - _last_mass_alert['t'] < MASS_OOO_COOLDOWN:
+        return False
+    _last_mass_alert['t'] = now
+    return True
+
+
 def is_tracked(user):
     return bool(user and user.is_authenticated and user.role in TRACKED_ROLES)
 
